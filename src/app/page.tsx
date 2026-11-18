@@ -1,0 +1,351 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  ArrowRight,
+  Check,
+  Copy,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Sparkles,
+  Trash2,
+  Wand2,
+} from "lucide-react";
+
+interface PreviewSummary {
+  id: string;
+  slug: string;
+  sourceUrl: string;
+  detectedPlatform: string | null;
+  storeName: string;
+  generationMode: string;
+  status: string;
+  screenshotPath: string | null;
+  createdAt: string;
+}
+
+export default function HomePage() {
+  const router = useRouter();
+  const [url, setUrl] = useState("");
+  const [sellerWhatsapp, setSellerWhatsapp] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<PreviewSummary[]>([]);
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+
+  const loadPreviews = async () => {
+    try {
+      const res = await fetch("/api/previews");
+      if (res.ok) {
+        const data = (await res.json()) as { previews: PreviewSummary[] };
+        setPreviews(data.previews);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadPreviews();
+  }, []);
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url.trim() || isGenerating) return;
+
+    setIsGenerating(true);
+    setProgress(10);
+    setStatusMessage("Conectando ao site do cliente...");
+    setError(null);
+
+    try {
+      const response = await fetch("/api/previews/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url.trim(), sellerWhatsapp: sellerWhatsapp.trim() }),
+      });
+
+      if (!response.ok || !response.body) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error((errData as { error?: string }).error || "Erro ao iniciar geração");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() ?? "";
+
+        for (const chunk of chunks) {
+          const eventMatch = chunk.match(/event:\s*(.+)/);
+          const dataMatch = chunk.match(/data:\s*(.+)/);
+          if (!eventMatch || !dataMatch) continue;
+
+          const eventName = eventMatch[1].trim();
+          const payload = JSON.parse(dataMatch[1].trim()) as Record<string, unknown>;
+
+          if (eventName === "progress") {
+            setProgress(Number(payload.progress ?? 50));
+            setStatusMessage(String(payload.message ?? "Processando..."));
+          } else if (eventName === "done") {
+            setProgress(100);
+            setStatusMessage("Preview Beta gerado com sucesso!");
+            await loadPreviews();
+            router.push(`/studio/${String(payload.id)}`);
+            return;
+          } else if (eventName === "error") {
+            throw new Error(String(payload.message ?? "Falha na extração da loja"));
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao gerar preview");
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopyClientLink = async (slug: string) => {
+    const shareUrl = `${window.location.origin}/preview/${slug}`;
+    await navigator.clipboard.writeText(shareUrl);
+    setCopiedSlug(slug);
+    setTimeout(() => setCopiedSlug(null), 2000);
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/previews/${id}`, { method: "DELETE" });
+    setPreviews((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-50">
+      {/* Header */}
+      <header className="border-b border-white/10 bg-slate-950/70 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500 font-bold text-slate-950">
+              IR
+            </div>
+            <div>
+              <div className="text-sm font-bold text-white">Irroba Preview AI</div>
+              <div className="text-xs text-slate-400">
+                Gerador Comercial de Lojas Beta · Padrão Tema LIME
+              </div>
+            </div>
+          </div>
+          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
+            Uso Interno Comercial
+          </span>
+        </div>
+      </header>
+
+      {/* Hero / Generator Form */}
+      <section className="mx-auto max-w-4xl px-6 pb-14 pt-12 text-center">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3.5 py-1 text-xs font-medium text-emerald-300">
+          <Sparkles className="h-3.5 w-3.5" />
+          Transforme qualquer concorrente em uma loja Beta na Irroba em segundos
+        </div>
+        <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          Mostre ao cliente como a loja dele ficaria na Irroba antes mesmo de fechar
+        </h1>
+        <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">
+          Cole a URL atual do prospect (Nuvemshop, Tray, Loja Integrada, Shopify, WooCommerce). A
+          ferramenta extrai logo, cores, categorias e produtos e gera um link interativo + blocos
+          prontos para o Tema LIME.
+        </p>
+
+        <form
+          onSubmit={handleGenerate}
+          className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4 text-left shadow-2xl backdrop-blur sm:p-6"
+        >
+          <div className="grid gap-3 sm:grid-cols-12">
+            <div className="sm:col-span-7">
+              <label className="mb-1.5 block text-xs font-medium text-slate-300">
+                URL do e-commerce atual do cliente
+              </label>
+              <div className="relative">
+                <Globe className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  required
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="Ex: https://estiloveggieshoes.com.br/"
+                  disabled={isGenerating}
+                  className="w-full rounded-xl border border-white/15 bg-slate-900/90 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="sm:col-span-3">
+              <label className="mb-1.5 block text-xs font-medium text-slate-300">
+                WhatsApp do consultor (opcional)
+              </label>
+              <input
+                type="text"
+                value={sellerWhatsapp}
+                onChange={(e) => setSellerWhatsapp(e.target.value)}
+                placeholder="5511999999999"
+                disabled={isGenerating}
+                className="w-full rounded-xl border border-white/15 bg-slate-900/90 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex items-end sm:col-span-2">
+              <button
+                type="submit"
+                disabled={isGenerating}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="h-4 w-4" />
+                )}
+                {isGenerating ? "Gerando..." : "Gerar Beta"}
+              </button>
+            </div>
+          </div>
+
+          {/* Quick test chip */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+            <span>Teste rápido:</span>
+            <button
+              type="button"
+              onClick={() => setUrl("https://estiloveggieshoes.com.br/")}
+              className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-emerald-300 hover:bg-white/10"
+            >
+              estiloveggieshoes.com.br (Nuvemshop)
+            </button>
+          </div>
+
+          {isGenerating && (
+            <div className="mt-5 rounded-xl border border-emerald-500/20 bg-slate-900/80 p-4">
+              <div className="mb-2 flex items-center justify-between text-xs">
+                <span className="font-medium text-emerald-300">{statusMessage}</span>
+                <span className="font-bold text-white">{progress}%</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {error}
+            </div>
+          )}
+        </form>
+      </section>
+
+      {/* Recent Previews */}
+      <main className="mx-auto max-w-6xl px-6 pb-16">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Previews Comerciais Recentes</h2>
+              <p className="text-xs text-slate-500">
+                Abra no Studio para ajustar cores/textos ou envie o Link Beta direto para o lead.
+              </p>
+            </div>
+            <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              {previews.length} loja(s)
+            </span>
+          </div>
+
+          {previews.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">
+              Nenhum preview gerado ainda. Cole a URL de um prospect acima para criar o primeiro!
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {previews.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:shadow-md"
+                >
+                  <div className="relative h-36 bg-slate-100">
+                    {item.screenshotPath ? (
+                      <img
+                        src={item.screenshotPath}
+                        alt={item.storeName}
+                        className="h-full w-full object-cover object-top"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-xs text-slate-400">
+                        Sem captura visual
+                      </div>
+                    )}
+                    <span className="absolute left-2.5 top-2.5 rounded-md bg-slate-900/80 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                      {item.detectedPlatform || "E-commerce"}
+                    </span>
+                    <span className="absolute right-2.5 top-2.5 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
+                      {item.generationMode === "gemini" ? "Gemini IA" : "Auto"}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-1 flex-col p-4">
+                    <h3 className="truncate font-bold text-slate-900">{item.storeName}</h3>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">{item.sourceUrl}</p>
+
+                    <div className="mt-4 flex items-center gap-2 pt-2">
+                      <Link
+                        href={`/studio/${item.id}`}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                      >
+                        Abrir Studio
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                      <Link
+                        href={`/preview/${item.slug}`}
+                        target="_blank"
+                        title="Abrir link beta do cliente"
+                        className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyClientLink(item.slug)}
+                        title="Copiar link do cliente"
+                        className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+                      >
+                        {copiedSlug === item.slug ? (
+                          <Check className="h-4 w-4 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id)}
+                        title="Excluir"
+                        className="rounded-lg border border-slate-200 p-2 text-slate-400 hover:border-rose-200 hover:text-rose-600"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

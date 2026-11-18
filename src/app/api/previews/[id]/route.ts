@@ -1,0 +1,58 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { StoreBlueprintSchema } from "@/lib/types/blueprint";
+import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
+
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params;
+  const preview = await prisma.storePreview.findUnique({ where: { id } });
+  if (!preview) {
+    return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
+  }
+  return NextResponse.json({ preview });
+}
+
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params;
+  const body = await req.json().catch(() => null);
+  const parsed = StoreBlueprintSchema.safeParse(body?.blueprint);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Blueprint inválido", details: parsed.error.issues },
+      { status: 400 }
+    );
+  }
+
+  const compiledExport = compileIrrobaExport(parsed.data);
+
+  const updated = await prisma.storePreview.update({
+    where: { id },
+    data: {
+      storeName: parsed.data.brand.name,
+      sellerWhatsapp:
+        typeof body?.sellerWhatsapp === "string"
+          ? body.sellerWhatsapp.replace(/\D/g, "") || null
+          : undefined,
+      blueprint: parsed.data as object,
+      compiledExport: compiledExport as object,
+    },
+  });
+
+  return NextResponse.json({ preview: updated });
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params;
+  await prisma.storePreview.delete({ where: { id } }).catch(() => null);
+  return NextResponse.json({ ok: true });
+}
