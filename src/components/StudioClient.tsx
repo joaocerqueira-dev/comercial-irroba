@@ -23,6 +23,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
 import { compileIrrobaExport, compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
 import type { DesignInsight, StoreBlueprint } from "@/lib/types/blueprint";
 
@@ -181,6 +182,33 @@ export default function StudioClient({
   };
 
   const suggestionsCount = bp.designInsights.filter((d) => d.severity === "suggestion").length;
+
+  const handleDownloadBenefitsPng = () => {
+    const svgText = generateBenefitsBannerSvgString(bp);
+    const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new window.Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1280;
+      canvas.height = 164;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, 1280, 164);
+        canvas.toBlob((pngBlob) => {
+          if (!pngBlob) return;
+          const pngUrl = URL.createObjectURL(pngBlob);
+          const a = document.createElement("a");
+          a.href = pngUrl;
+          a.download = `banner-beneficios-${slug}.png`;
+          a.click();
+          URL.revokeObjectURL(pngUrl);
+        }, "image/png");
+      }
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  };
 
   return (
     <div className="flex h-screen flex-col bg-slate-100">
@@ -1041,6 +1069,135 @@ export default function StudioClient({
                       )}
                     </div>
                   ))}
+                </div>
+
+                {/* Banner de Benefícios (Arte Extraída ou Gerada) */}
+                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800">Banner de Benefícios (Régua)</span>
+                    <button
+                      type="button"
+                      onClick={handleDownloadBenefitsPng}
+                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-[10px] font-bold text-white hover:bg-emerald-500"
+                    >
+                      <Download className="h-3 w-3" />
+                      Baixar PNG
+                    </button>
+                  </div>
+                  <select
+                    value={bp.sections.benefitsBanner?.mode ?? "generated-art"}
+                    onChange={(e) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          benefitsBanner: {
+                            backgroundColor:
+                              prev.sections.benefitsBanner?.backgroundColor ??
+                              prev.theme.neutralBackground,
+                            textColor:
+                              prev.sections.benefitsBanner?.textColor ??
+                              prev.theme.neutralForeground,
+                            siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                            mode: e.target.value as "site-images" | "generated-art" | "cards",
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-slate-800"
+                  >
+                    {(bp.sections.benefitsBanner?.siteImageUrls?.length ?? 0) > 0 && (
+                      <option value="site-images">Artes Extraídas do Site</option>
+                    )}
+                    <option value="generated-art">Arte Banner Gerada (Irroba)</option>
+                    <option value="cards">Cards Modulares HTML</option>
+                  </select>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <ColorField
+                      label="Fundo da Faixa"
+                      value={
+                        bp.sections.benefitsBanner?.backgroundColor ?? bp.theme.neutralBackground
+                      }
+                      onChange={(v) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            benefitsBanner: {
+                              mode: prev.sections.benefitsBanner?.mode ?? "generated-art",
+                              textColor:
+                                prev.sections.benefitsBanner?.textColor ??
+                                prev.theme.neutralForeground,
+                              siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                              backgroundColor: v,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                    <ColorField
+                      label="Texto da Arte"
+                      value={bp.sections.benefitsBanner?.textColor ?? bp.theme.neutralForeground}
+                      onChange={(v) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            benefitsBanner: {
+                              mode: prev.sections.benefitsBanner?.mode ?? "generated-art",
+                              backgroundColor:
+                                prev.sections.benefitsBanner?.backgroundColor ??
+                                prev.theme.neutralBackground,
+                              siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                              textColor: v,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  </div>
+
+                  {bp.sections.benefitsBanner?.mode !== "site-images" && (
+                    <div className="space-y-1.5 pt-1">
+                      {bp.sections.benefits.slice(0, 4).map((b, bIdx) => (
+                        <div key={bIdx} className="grid grid-cols-2 gap-1.5">
+                          <input
+                            type="text"
+                            value={b.title}
+                            onChange={(e) =>
+                              updateBp((prev) => ({
+                                ...prev,
+                                sections: {
+                                  ...prev.sections,
+                                  benefits: prev.sections.benefits.map((item, idx) =>
+                                    idx === bIdx ? { ...item, title: e.target.value } : item
+                                  ),
+                                },
+                              }))
+                            }
+                            className="rounded border border-slate-200 px-2 py-1 text-[11px]"
+                          />
+                          <input
+                            type="text"
+                            value={b.subtitle}
+                            onChange={(e) =>
+                              updateBp((prev) => ({
+                                ...prev,
+                                sections: {
+                                  ...prev.sections,
+                                  benefits: prev.sections.benefits.map((item, idx) =>
+                                    idx === bIdx ? { ...item, subtitle: e.target.value } : item
+                                  ),
+                                },
+                              }))
+                            }
+                            className="rounded border border-slate-200 px-2 py-1 text-[11px]"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Banner Slim */}

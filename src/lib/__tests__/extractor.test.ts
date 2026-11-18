@@ -123,6 +123,7 @@ describe("Platform Detection & Store HTML Extraction", () => {
             <a href="/coturnos"><img src="https://cdn.example.com/mood1.webp" /><span>Coturnos</span></a>
             <a href="/creepers"><img src="https://cdn.example.com/mood2.webp" /><span>Creepers</span></a>
           </section>
+          <section data-store="home-benefits"><img class="benefits_image" src="https://cdn.example.com/ben1.webp" /></section>
           <section data-store="home-banner-slim"><img src="https://cdn.example.com/slim.webp" /></section>
           <section data-store="home-banner-full"><img src="https://cdn.example.com/full.webp" /></section>
         </main>
@@ -137,6 +138,13 @@ describe("Platform Detection & Store HTML Extraction", () => {
       "Sapatos",
     ]);
     expect(extracted.sectionHeadings).toContain("Escolha seu mood");
-    expect(extracted.banners.map((b) => b.slot)).toEqual(["hero", "slim", "mood", "mood", "secondary"]);
+    expect(extracted.banners.map((b) => b.slot)).toEqual([
+      "hero",
+      "slim",
+      "mood",
+      "mood",
+      "secondary",
+      "benefits",
+    ]);
   });
 });

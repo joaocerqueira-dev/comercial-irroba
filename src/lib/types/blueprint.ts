@@ -6,8 +6,10 @@ export const ExtractedProductSchema = z.object({
   price: z.number().nonnegative(),
   compareAtPrice: z.number().nonnegative().optional(),
   imageUrl: z.string(),
+  images: z.array(z.string()).default([]),
   productUrl: z.string().optional(),
   category: z.string().default("Destaques"),
+  categories: z.array(z.string()).default([]),
   description: z.string().optional(),
 });
 
@@ -17,7 +19,7 @@ export const ExtractedBannerSchema = z.object({
   imageUrl: z.string(),
   alt: z.string().optional(),
   href: z.string().optional(),
-  slot: z.enum(["hero", "slim", "secondary", "mood"]).default("hero"),
+  slot: z.enum(["hero", "slim", "secondary", "mood", "benefits"]).default("hero"),
   label: z.string().optional(),
 });
 
@@ -36,6 +38,7 @@ export const ExtractedStoreDataSchema = z.object({
     bodyBackground: z.string().optional(),
     bodyForeground: z.string().optional(),
     surfaceBackground: z.string().optional(),
+    benefitsBackground: z.string().optional(),
     announcementBackground: z.string().optional(),
     announcementForeground: z.string().optional(),
     headerBackground: z.string().optional(),
@@ -207,6 +210,14 @@ export const StoreBlueprintSchema = z.object({
       imageUrl: z.string(),
     }),
     heroSlides: z.array(HeroSlideSchema).default([]),
+    benefitsBanner: z
+      .object({
+        mode: z.enum(["site-images", "generated-art", "cards"]).default("generated-art"),
+        backgroundColor: z.string().default("#F4F4F5"),
+        textColor: z.string().default("#111827"),
+        siteImageUrls: z.array(z.string()).default([]),
+      })
+      .optional(),
     slimBanner: z
       .object({
         enabled: z.boolean().default(true),
@@ -264,7 +275,9 @@ export const StoreBlueprintSchema = z.object({
       price: z.number().nonnegative(),
       compareAtPrice: z.number().nonnegative().optional(),
       imageUrl: z.string(),
+      images: z.array(z.string()).default([]),
       category: z.string(),
+      categories: z.array(z.string()).default([]),
       installmentsText: z.string().optional(),
       description: z.string().optional(),
       visible: z.boolean().default(true),

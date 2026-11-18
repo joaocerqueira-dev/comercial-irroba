@@ -36,14 +36,18 @@ function makeSampleExtracted(overrides: Partial<ExtractedStoreData> = {}): Extra
         price: 299.9,
         compareAtPrice: 349.9,
         imageUrl: "https://cdn.example.com/bota.jpg",
+        images: ["https://cdn.example.com/bota.jpg"],
         category: "Botas",
+        categories: ["Botas"],
       },
       {
         id: "p2",
         title: "Tênis Ecológico Urban",
         price: 249.0,
         imageUrl: "https://cdn.example.com/tenis.jpg",
+        images: ["https://cdn.example.com/tenis.jpg"],
         category: "Tênis",
+        categories: ["Tênis"],
       },
     ],
     contacts: {
@@ -66,6 +70,30 @@ describe("Irroba LIME Compiler & Export", () => {
     expect(html).toContain("Bota Vegana Classic");
     expect(html).toMatch(/R\$\s*299,90/);
     expect(html).toContain("theme-_lime");
+    expect(html).toContain("Material+Symbols+Outlined");
+    expect(html).toContain("irb-view-category");
+    expect(html).toContain("irb-view-product");
+    expect(html).not.toContain("🛒");
+    expect(html).toContain("data:image/svg+xml");
+  });
+
+  it("uses extracted site-images for benefits banner when available", () => {
+    const bp = buildHeuristicBlueprint(
+      makeSampleExtracted({
+        banners: [
+          { imageUrl: "https://cdn.example.com/hero.jpg", slot: "hero" },
+          { imageUrl: "https://cdn.example.com/benefit1.webp", slot: "benefits" },
+          { imageUrl: "https://cdn.example.com/benefit2.webp", slot: "benefits" },
+        ],
+      })
+    );
+    expect(bp.sections.benefitsBanner?.mode).toBe("site-images");
+    expect(bp.sections.benefitsBanner?.siteImageUrls).toEqual([
+      "https://cdn.example.com/benefit1.webp",
+      "https://cdn.example.com/benefit2.webp",
+    ]);
+    const html = compileStorefrontDocument(bp);
+    expect(html).toContain("https://cdn.example.com/benefit1.webp");
   });
 
   it("sanitizes XSS payloads from scraped store names, product titles, and URLs", () => {
@@ -78,7 +106,9 @@ describe("Irroba LIME Compiler & Export", () => {
             title: 'Sapato <img src=x onerror="alert(1)">',
             price: 150,
             imageUrl: "javascript:alert(1)",
+            images: [],
             category: "<b>Teste</b>",
+            categories: [],
           },
         ],
       })

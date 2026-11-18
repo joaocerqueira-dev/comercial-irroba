@@ -241,7 +241,9 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
           price: p.price,
           compareAtPrice: p.compareAtPrice,
           imageUrl: p.imageUrl,
+          images: p.images && p.images.length > 0 ? p.images : [p.imageUrl],
           category: p.category || "Destaques",
+          categories: p.categories && p.categories.length > 0 ? p.categories : [p.category || "Destaques"],
           installmentsText: `em até 6x de R$ ${(p.price / 6).toFixed(2).replace(".", ",")} sem juros`,
           description:
             p.description ||
@@ -257,7 +259,12 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
             imageUrl:
               extracted.banners[0]?.imageUrl ||
               "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+            images: [
+              extracted.banners[0]?.imageUrl ||
+                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+            ],
             category: "Destaques",
+            categories: ["Destaques"],
             installmentsText: "em até 6x de R$ 33,31 sem juros",
             description: "Item de demonstração para apresentação de layout personalizado na Irroba.",
             visible: true,
@@ -296,6 +303,26 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
   const slimExtracted = extracted.banners.find((b) => b.slot === "slim");
   const moodExtracted = extracted.banners.filter((b) => b.slot === "mood");
   const secondaryExtracted = extracted.banners.find((b) => b.slot === "secondary");
+  const benefitsExtracted = extracted.banners.filter((b) => b.slot === "benefits");
+
+  const benefitsBg = normalizeHex(
+    extracted.tokens.benefitsBackground ?? extracted.tokens.surfaceBackground,
+    neutralBackground
+  );
+  const benefitsBanner: StoreBlueprint["sections"]["benefitsBanner"] =
+    benefitsExtracted.length > 0
+      ? {
+          mode: "site-images",
+          backgroundColor: benefitsBg,
+          textColor: getContrastingForeground(benefitsBg),
+          siteImageUrls: benefitsExtracted.slice(0, 6).map((b) => b.imageUrl),
+        }
+      : {
+          mode: "generated-art",
+          backgroundColor: neutralBackground,
+          textColor: neutralForeground,
+          siteImageUrls: [],
+        };
 
   const primaryHeroImage =
     heroExtracted[0]?.imageUrl ||
@@ -335,8 +362,10 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
   const categories =
     extracted.categories.length > 0
       ? extracted.categories.slice(0, 8).map((cat, idx) => {
-          const matchingProd = fallbackProducts.find((p) =>
-            p.title.toLowerCase().includes(cat.label.toLowerCase().replace(/s$/, ""))
+          const matchingProd = fallbackProducts.find(
+            (p) =>
+              p.categories.some((c) => c.toLowerCase() === cat.label.toLowerCase()) ||
+              p.title.toLowerCase().includes(cat.label.toLowerCase().replace(/s$/, ""))
           );
           return {
             label: cat.label,
@@ -518,6 +547,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         imageUrl: primaryHeroImage,
       },
       heroSlides,
+      benefitsBanner,
       slimBanner,
       moodSectionTitle: pickSectionHeading(
         extracted.sectionHeadings,

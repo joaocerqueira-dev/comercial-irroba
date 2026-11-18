@@ -114,15 +114,21 @@ function extractProductsFromJsonLd($: cheerio.CheerioAPI, baseUrl: string): Extr
           const price = parseBrlPrice(
             (offers["price"] ?? offers["lowPrice"] ?? record["price"]) as string | number | undefined
           );
-          const rawImg = Array.isArray(record["image"]) ? record["image"][0] : record["image"];
-          const imgStr =
-            typeof rawImg === "string"
-              ? rawImg
-              : rawImg && typeof rawImg === "object"
-                ? String((rawImg as Record<string, unknown>)["url"] ?? "")
-                : "";
-          const imageUrl = resolveAssetUrl(imgStr, baseUrl);
+          const rawImages = Array.isArray(record["image"]) ? record["image"] : record["image"] ? [record["image"]] : [];
+          const images = rawImages
+            .map((item) => {
+              const str =
+                typeof item === "string"
+                  ? item
+                  : item && typeof item === "object"
+                    ? String((item as Record<string, unknown>)["url"] ?? "")
+                    : "";
+              return resolveAssetUrl(str, baseUrl);
+            })
+            .filter((u): u is string => Boolean(u));
+          const imageUrl = images[0];
           const productUrl = resolveAssetUrl(String(record["url"] ?? offers["url"] ?? ""), baseUrl);
+          const catName = String(record["category"] ?? "Destaques");
 
           if (title && imageUrl && price && !seen.has(title.toLowerCase())) {
             seen.add(title.toLowerCase());
@@ -131,8 +137,10 @@ function extractProductsFromJsonLd($: cheerio.CheerioAPI, baseUrl: string): Extr
               title,
               price,
               imageUrl,
+              images: images.slice(0, 5),
               productUrl,
-              category: String(record["category"] ?? "Destaques"),
+              category: catName,
+              categories: [catName],
               description: typeof record["description"] === "string" ? record["description"].slice(0, 260) : undefined,
             });
           }
@@ -367,11 +375,22 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     2
   );
 
+  const benefitsBanners = collectBannersFromSelector(
+    $,
+    "[data-store*='benefit'] img, .benefits_image, [class*='benefit'] img, [class*='vantagen'] img, [class*='regua'] img",
+    "benefits",
+    sourceUrl,
+    logoUrl,
+    seenBanners,
+    8
+  );
+
   const banners: ExtractedBanner[] = [
     ...heroBanners,
     ...slimBanners,
     ...moodBanners,
     ...secondaryBanners,
+    ...benefitsBanners,
   ];
 
   // Products: combine JSON-LD + embedded JSON product scripts + DOM cards
@@ -391,26 +410,33 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
       const compareAtPrice = parseBrlPrice(
         (obj.compare_at_price_short ?? obj.compare_at_price) as string | number | undefined
       );
-      const media = Array.isArray(obj.media) ? (obj.media[0] as Record<string, unknown> | undefined) : undefined;
-      const rawImg =
-        (typeof media?.url === "string" ? media.url : undefined) ??
-        (typeof obj.image === "string" ? obj.image : undefined);
-      const imageUrl = resolveAssetUrl(rawImg, sourceUrl);
+      const mediaList = Array.isArray(obj.media) ? (obj.media as Array<Record<string, unknown>>) : [];
+      const images = mediaList
+        .map((m) => resolveAssetUrl(typeof m?.url === "string" ? m.url : undefined, sourceUrl))
+        .filter((u): u is string => Boolean(u));
+      if (images.length === 0 && typeof obj.image === "string") {
+        const single = resolveAssetUrl(obj.image, sourceUrl);
+        if (single) images.push(single);
+      }
+      const imageUrl = images[0];
       const productUrl = resolveAssetUrl(typeof obj.url === "string" ? obj.url : undefined, sourceUrl);
 
       if (title && imageUrl && price && !seenProducts.has(title.toLowerCase())) {
         seenProducts.add(title.toLowerCase());
-        const matchedCat = categories.find((c) =>
-          title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, ""))
-        );
+        const matchedCats = categories
+          .filter((c) => title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, "")))
+          .map((c) => c.label);
+        const primaryCat = matchedCats[0] ?? categories[0]?.label ?? "Destaques";
         products.push({
           id: `prod-json-${products.length + 1}`,
           title: title.slice(0, 120),
           price,
           compareAtPrice: compareAtPrice && compareAtPrice > price ? compareAtPrice : undefined,
           imageUrl,
+          images: images.slice(0, 5),
           productUrl,
-          category: matchedCat?.label ?? categories[0]?.label ?? "Destaques",
+          category: primaryCat,
+          categories: matchedCats.length > 0 ? matchedCats : [primaryCat],
         });
       }
     } catch {
@@ -474,17 +500,20 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
       if (title && title.length > 2 && imageUrl && price && !seenProducts.has(title.toLowerCase())) {
         seenProducts.add(title.toLowerCase());
-        const matchedCat = categories.find((c) =>
-          title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, ""))
-        );
+        const matchedCats = categories
+          .filter((c) => title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, "")))
+          .map((c) => c.label);
+        const primaryCat = matchedCats[0] ?? categories[0]?.label ?? "Destaques";
         products.push({
           id: `prod-dom-${products.length + 1}`,
           title: title.slice(0, 120),
           price,
           compareAtPrice: compareAtPrice && compareAtPrice > price ? compareAtPrice : undefined,
           imageUrl,
+          images: [imageUrl],
           productUrl,
-          category: matchedCat?.label ?? categories[0]?.label ?? "Destaques",
+          category: primaryCat,
+          categories: matchedCats.length > 0 ? matchedCats : [primaryCat],
         });
       }
     });
@@ -543,18 +572,22 @@ async function tryShopifyProductsProbe(sourceUrl: string): Promise<ExtractedProd
     const origin = new URL(sourceUrl).origin;
     return data.products
       .map((p, idx): ExtractedProduct | null => {
-        const imageUrl = p.images?.[0]?.src;
+        const images = (p.images ?? []).map((i) => i.src).filter(Boolean);
+        const imageUrl = images[0];
         const price = parseBrlPrice(p.variants?.[0]?.price);
         if (!p.title || !imageUrl || !price) return null;
         const compareAt = parseBrlPrice(p.variants?.[0]?.compare_at_price ?? undefined);
+        const cat = p.product_type || "Destaques";
         return {
           id: `prod-shp-${p.id ?? idx + 1}`,
           title: p.title,
           price,
           compareAtPrice: compareAt && compareAt > price ? compareAt : undefined,
           imageUrl,
+          images: images.slice(0, 5),
           productUrl: p.handle ? `${origin}/products/${p.handle}` : undefined,
-          category: p.product_type || "Destaques",
+          category: cat,
+          categories: [cat],
           description: p.body_html?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 260),
         };
       })
@@ -667,16 +700,25 @@ export async function extractStoreFromUrl(
       const announcementFg = announcementEl ? getComputedStyle(announcementEl).color : undefined;
       const announcementText = announcementEl?.textContent?.replace(/\s+/g, " ").trim().slice(0, 120);
 
-      // Alternating section surface color (e.g. beige/cream or soft gray sections)
-      let surfaceBackground: string | undefined;
-      const sections = Array.from(
-        document.querySelectorAll("main > section, main > div, [data-store]")
+      // Alternating section surface color & benefits section background
+      const benefitsSectionEl = document.querySelector(
+        "[data-store*='benefit'], .home_benefits, .benefits, [class*='benefits-bar'], [class*='vantagens']"
       );
-      for (const sec of sections) {
-        const bg = pickVisibleBg(sec);
-        if (bg && bg !== bodyBackground) {
-          surfaceBackground = bg;
-          break;
+      const benefitsBackground =
+        pickVisibleBg(benefitsSectionEl) ??
+        pickVisibleBg(benefitsSectionEl?.parentElement ?? null);
+
+      let surfaceBackground: string | undefined = benefitsBackground;
+      if (!surfaceBackground) {
+        const sections = Array.from(
+          document.querySelectorAll("main > section, main > div, [data-store]")
+        );
+        for (const sec of sections) {
+          const bg = pickVisibleBg(sec);
+          if (bg && bg !== bodyBackground) {
+            surfaceBackground = bg;
+            break;
+          }
         }
       }
 
@@ -735,7 +777,11 @@ export async function extractStoreFromUrl(
         const src = img.currentSrc || img.src;
         if (!src || seenSrcs.has(src)) continue;
         if (/icon|logo|badge|selo|whatsapp|pix|visa|master|elo/i.test(src)) continue;
-        if (img.closest(".product_card, .js-item-product, .product-item, .product-card, footer")) {
+        if (
+          img.closest(
+            ".product_card, .js-item-product, .product-item, .product-card, footer, [data-store*='benefit'], .home_benefits, .benefits"
+          )
+        ) {
           continue;
         }
         const rect = img.getBoundingClientRect();
@@ -799,6 +845,7 @@ export async function extractStoreFromUrl(
         bodyBackground,
         bodyForeground: bodyStyle.color,
         surfaceBackground,
+        benefitsBackground,
         announcementBackground: announcementBg,
         announcementForeground: announcementFg,
         announcementText,
@@ -882,6 +929,7 @@ export async function extractStoreFromUrl(
       bodyBackground: domInspection.bodyBackground,
       bodyForeground: domInspection.bodyForeground,
       surfaceBackground: domInspection.surfaceBackground,
+      benefitsBackground: domInspection.benefitsBackground,
       announcementBackground: domInspection.announcementBackground,
       announcementForeground: domInspection.announcementForeground,
       headerBackground: domInspection.headerBackground,
@@ -899,6 +947,8 @@ export async function extractStoreFromUrl(
       borderRadiusPx: domInspection.borderRadiusPx,
     };
 
+    await enrichProductsByCategory(parsed, normalizedUrl);
+
     return parsed;
   } catch (error) {
     if (fastHtml) {
@@ -908,12 +958,88 @@ export async function extractStoreFromUrl(
         const shopifyProducts = await tryShopifyProductsProbe(normalizedUrl);
         if (shopifyProducts.length > 0) fallback.products = shopifyProducts;
       }
+      await enrichProductsByCategory(fallback, normalizedUrl);
       return fallback;
     }
     throw error;
   } finally {
     if (browser) {
       await browser.close().catch(() => undefined);
+    }
+  }
+}
+
+async function enrichProductsByCategory(
+  store: ExtractedStoreData,
+  baseUrl: string
+): Promise<void> {
+  let baseHost = "";
+  try {
+    baseHost = new URL(baseUrl).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return;
+  }
+
+  const candidateCategories = store.categories
+    .filter((cat) => {
+      if (!cat.href || cat.href === "#") return false;
+      try {
+        const u = new URL(cat.href);
+        return u.hostname.replace(/^www\./, "").toLowerCase() === baseHost && u.pathname !== "/";
+      } catch {
+        return false;
+      }
+    })
+    .slice(0, 8);
+
+  if (candidateCategories.length === 0) return;
+
+  const byTitle = new Map<string, ExtractedProduct>();
+  for (const prod of store.products) {
+    byTitle.set(prod.title.toLowerCase(), prod);
+  }
+
+  const results = await Promise.allSettled(
+    candidateCategories.map(async (cat) => {
+      const res = await fetch(cat.href, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml",
+        },
+        signal: AbortSignal.timeout(4500),
+      });
+      if (!res.ok) return { cat, products: [] as ExtractedProduct[] };
+      const html = await res.text();
+      const catData = extractStoreFromHtml(html, cat.href);
+      return { cat, products: catData.products.slice(0, 8) };
+    })
+  );
+
+  for (const [catIdx, result] of results.entries()) {
+    if (result.status !== "fulfilled") continue;
+    const { cat, products } = result.value;
+
+    for (const [pIdx, prod] of products.entries()) {
+      const key = prod.title.toLowerCase();
+      const existing = byTitle.get(key);
+      if (existing) {
+        if (!existing.categories.includes(cat.label)) {
+          existing.categories.push(cat.label);
+        }
+        if (existing.category === "Destaques" || existing.category === store.categories[0]?.label) {
+          existing.category = cat.label;
+        }
+      } else if (store.products.length < 48) {
+        const enriched: ExtractedProduct = {
+          ...prod,
+          id: `prod-cat-${catIdx + 1}-${pIdx + 1}`,
+          category: cat.label,
+          categories: [cat.label],
+        };
+        byTitle.set(key, enriched);
+        store.products.push(enriched);
+      }
     }
   }
 }

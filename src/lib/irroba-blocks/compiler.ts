@@ -1,3 +1,5 @@
+import { generateBenefitsBannerDataUri } from "./banner-art-generator";
+import { getBenefitSvgIcon, IRROBA_ICONS } from "./icons";
 import {
   escapeAttr,
   escapeCsvCell,
@@ -20,13 +22,6 @@ const HEADER_POSITION_LABELS: Record<StoreBlueprint["visualOverrides"]["header"]
   default: "Padrão",
   sticky: "Fixo ao rolar",
   overlay: "Fixo na tela (sobrepõe conteúdo)",
-};
-
-const BENEFIT_ICONS: Record<string, string> = {
-  truck: "🚚",
-  "credit-card": "💳",
-  "shield-check": "🛡️",
-  "refresh-cw": "🔄",
 };
 
 function buildMoodHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
@@ -82,18 +77,66 @@ function buildMoodHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
 }
 
 function buildBenefitsHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
-  const neutralBg = sanitizeCssColor(bp.theme.neutralBackground, "#F4F4F5");
+  const cfg = bp.sections.benefitsBanner;
+  const bg = sanitizeCssColor(cfg?.backgroundColor ?? bp.theme.neutralBackground, "#F4F4F5");
   const primary = sanitizeCssColor(bp.theme.primaryBackground, "#111827");
   const primaryFg = sanitizeCssColor(bp.theme.primaryForeground, "#FFFFFF");
   const bodyColor = sanitizeCssColor(bp.theme.bodyForeground, "#111827");
   const radius = RADIUS_MAP[bp.theme.radius].css;
 
+  // 1) Original artwork images extracted directly from the client store
+  if (cfg?.mode === "site-images" && cfg.siteImageUrls.length > 0) {
+    const imgsHtml = cfg.siteImageUrls
+      .slice(0, 6)
+      .map(
+        (rawUrl, idx) =>
+          `<div style="flex:1 1 160px;max-width:215px;display:flex;align-items:center;justify-content:center;">
+  <img src="${escapeAttr(sanitizeUrl(rawUrl, ""))}" alt="Benefício ${idx + 1}" style="width:100%;height:auto;max-height:125px;object-fit:contain;display:block;" />
+</div>`
+      )
+      .join("\n      ");
+
+    const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:20px;box-sizing:border-box;">
+  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:center;">
+      ${imgsHtml}
+  </div>
+</div>`;
+
+    return {
+      id: "irb-html-benefits",
+      name: "Régua de Benefícios (Arte Original da Loja)",
+      moduleTitle: "Conteúdo HTML · Benefícios (Artes Originais)",
+      recommendedWidth: "Largura Total",
+      placementNote: "Reproduz exatamente as artes gráficas da faixa de benefícios da loja original.",
+      html,
+    };
+  }
+
+  // 2) Generated graphic SVG banner artwork
+  if (cfg?.mode !== "cards") {
+    const dataUri = generateBenefitsBannerDataUri(bp);
+    const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:6px 0;box-sizing:border-box;">
+  <div style="max-width:1280px;margin:0 auto;padding:0 16px;">
+    <img src="${escapeAttr(dataUri)}" alt="Vantagens ${escapeAttr(bp.brand.name)}" style="width:100%;height:auto;display:block;border-radius:${radius};" />
+  </div>
+</div>`;
+
+    return {
+      id: "irb-html-benefits",
+      name: "Banner Arte de Benefícios (Gerado)",
+      moduleTitle: "Conteúdo HTML · Banner Benefícios (Arte)",
+      recommendedWidth: "Largura Total",
+      placementNote: "Arte gráfica gerada na paleta da marca (também pode ser baixada em PNG no Studio para subir em Banners).",
+      html,
+    };
+  }
+
+  // 3) Editable cards fallback with Material SVG icons (no emojis)
   const itemsHtml = bp.sections.benefits
     .slice(0, 4)
     .map((b) => {
-      const emoji = BENEFIT_ICONS[b.icon] ?? "✨";
       return `<div style="flex:1 1 220px;min-width:200px;display:flex;align-items:center;gap:14px;padding:14px 18px;background:#ffffff;border-radius:${radius};border:1px solid rgba(0,0,0,0.06);box-sizing:border-box;">
-  <div style="width:42px;height:42px;flex-shrink:0;border-radius:${radius};background:${primary};color:${primaryFg};display:flex;align-items:center;justify-content:center;font-size:20px;">${emoji}</div>
+  <div style="width:42px;height:42px;flex-shrink:0;border-radius:${radius};background:${primary};color:${primaryFg};display:flex;align-items:center;justify-content:center;">${getBenefitSvgIcon(b.icon)}</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:${bodyColor};margin-bottom:2px;">${escapeHtml(b.title)}</div>
     <div style="font-size:12px;color:#4b5563;line-height:1.35;">${escapeHtml(b.subtitle)}</div>
@@ -102,7 +145,7 @@ function buildBenefitsHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
     })
     .join("\n      ");
 
-  const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${neutralBg};padding:24px 20px;box-sizing:border-box;">
+  const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:24px 20px;box-sizing:border-box;">
   <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;">
       ${itemsHtml}
   </div>
@@ -158,7 +201,12 @@ function buildBrandStoryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
   const secondaryFg = sanitizeCssColor(bp.theme.secondaryForeground, "#FFFFFF");
   const btnBg = sanitizeCssColor(bp.theme.btnPrimaryBackground, "#111827");
   const btnFg = sanitizeCssColor(bp.theme.btnPrimaryColor, "#FFFFFF");
-  const btnBorder = sanitizeCssColor(bp.theme.btnPrimaryBorder, "transparent");
+  const btnBorder = sanitizeCssColor(
+    bp.theme.btnPrimaryBorder === "transparent" && btnBg.toUpperCase() === secondaryBg.toUpperCase()
+      ? secondaryFg
+      : bp.theme.btnPrimaryBorder,
+    "transparent"
+  );
   const radius = RADIUS_MAP[bp.theme.radius].css;
 
   const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${secondaryBg};color:${secondaryFg};padding:48px 20px;box-sizing:border-box;">
@@ -233,7 +281,10 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
       section: "Cabeçalho (#headerEditor)",
       controls: [
         { label: "Posicionamento", value: HEADER_POSITION_LABELS[bp.visualOverrides.header.position] },
-        { label: "Cor de fundo / texto", value: `${bp.visualOverrides.header.background} / ${bp.visualOverrides.header.foreground}` },
+        {
+          label: "Cor de fundo / texto",
+          value: `${bp.visualOverrides.header.background} / ${bp.visualOverrides.header.foreground}`,
+        },
         { label: "Opacidade de fundo", value: String(bp.visualOverrides.header.backgroundOpacity) },
         { label: "Desfoque (blur)", value: `${bp.visualOverrides.header.blurPx}px` },
         { label: "Formato texto categorias", value: bp.visualOverrides.header.categoryCase },
@@ -364,6 +415,31 @@ export function compileProductsCsv(bp: StoreBlueprint): string {
   return "\uFEFF" + [header.join(";"), ...rows.map((r) => r.join(";"))].join("\n");
 }
 
+function buildProductCardMarkup(p: StoreBlueprint["products"][number], buyButtonText: string): string {
+  const discountPct =
+    p.compareAtPrice && p.compareAtPrice > p.price
+      ? Math.round(((p.compareAtPrice - p.price) / p.compareAtPrice) * 100)
+      : 0;
+  const allCats = Array.from(new Set([p.category, ...(p.categories ?? [])])).join("|");
+
+  return `<article class="product product-grid" data-product-id="${escapeAttr(p.id)}" data-title="${escapeAttr(p.title.toLowerCase())}" data-category="${escapeAttr(allCats.toLowerCase())}">
+  <div class="product-image-wrap" data-open-pdp="${escapeAttr(p.id)}">
+    ${discountPct > 0 ? `<span class="product-badge">-${discountPct}%</span>` : ""}
+    <img src="${escapeAttr(sanitizeUrl(p.imageUrl, ""))}" alt="${escapeAttr(p.title)}" loading="lazy" />
+  </div>
+  <div class="product-info">
+    <span class="product-cat">${escapeHtml(p.category)}</span>
+    <h3 class="product-title" data-open-pdp="${escapeAttr(p.id)}">${escapeHtml(p.title)}</h3>
+    <div class="product-price-wrap">
+      ${p.compareAtPrice && p.compareAtPrice > p.price ? `<span class="product-price-old">${formatBrl(p.compareAtPrice)}</span>` : ""}
+      <span class="product-price">${formatBrl(p.price)}</span>
+    </div>
+    ${p.installmentsText ? `<div class="product-installments">${escapeHtml(p.installmentsText)}</div>` : ""}
+    <button type="button" class="product-btn" data-add-cart="${escapeAttr(p.id)}">${escapeHtml(buyButtonText)}</button>
+  </div>
+</article>`;
+}
+
 export function compileStorefrontDocument(bp: StoreBlueprint): string {
   const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, "#111827");
   const primaryFg = sanitizeCssColor(bp.theme.primaryForeground, "#FFFFFF");
@@ -420,28 +496,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     if (list.length === 0) return "";
 
     const cards = list
-      .map((p) => {
-        const discountPct =
-          p.compareAtPrice && p.compareAtPrice > p.price
-            ? Math.round(((p.compareAtPrice - p.price) / p.compareAtPrice) * 100)
-            : 0;
-        return `<article class="product product-grid" data-product-id="${escapeAttr(p.id)}" data-title="${escapeAttr(p.title.toLowerCase())}" data-category="${escapeAttr(p.category.toLowerCase())}">
-  <div class="product-image-wrap" data-open-pdp="${escapeAttr(p.id)}">
-    ${discountPct > 0 ? `<span class="product-badge">-${discountPct}%</span>` : ""}
-    <img src="${escapeAttr(sanitizeUrl(p.imageUrl, ""))}" alt="${escapeAttr(p.title)}" loading="lazy" />
-  </div>
-  <div class="product-info">
-    <span class="product-cat">${escapeHtml(p.category)}</span>
-    <h3 class="product-title" data-open-pdp="${escapeAttr(p.id)}">${escapeHtml(p.title)}</h3>
-    <div class="product-price-wrap">
-      ${p.compareAtPrice && p.compareAtPrice > p.price ? `<span class="product-price-old">${formatBrl(p.compareAtPrice)}</span>` : ""}
-      <span class="product-price">${formatBrl(p.price)}</span>
-    </div>
-    ${p.installmentsText ? `<div class="product-installments">${escapeHtml(p.installmentsText)}</div>` : ""}
-    <button type="button" class="product-btn" data-add-cart="${escapeAttr(p.id)}">${escapeHtml(bp.visualOverrides.pageProduct.buyButtonText)}</button>
-  </div>
-</article>`;
-      })
+      .map((p) => buildProductCardMarkup(p, bp.visualOverrides.pageProduct.buyButtonText))
       .join("\n");
 
     return `<section class="productList" id="showcase-${index + 1}">
@@ -560,15 +615,44 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     .slice(0, 8)
     .map(
       (c) =>
-        `<a href="#vitrines" class="categoryLink" data-filter-cat="${escapeAttr(c.label.toLowerCase())}">${escapeHtml(c.label)}</a>`
+        `<a href="#categoria" class="categoryLink" data-filter-cat="${escapeAttr(c.label)}">${escapeHtml(c.label)}</a>`
     )
     .join("");
+
+  const mobileNavLinksHtml = bp.sections.categories
+    .slice(0, 8)
+    .map(
+      (c) =>
+        `<a href="#categoria" class="mobileNavLink" data-filter-cat="${escapeAttr(c.label)}">${escapeHtml(c.label)}</a>`
+    )
+    .join("");
+
+  const categoryPillsHtml = bp.sections.categories
+    .slice(0, 8)
+    .map(
+      (c) =>
+        `<button type="button" class="catFilterChip" data-filter-cat="${escapeAttr(c.label)}">${escapeHtml(c.label)}</button>`
+    )
+    .join("");
+
+  // Detect appropriate variations for PDP by niche
+  const nicheLower = bp.brand.niche.toLowerCase();
+  const variationSizes = /calçado|calcado|sapato|bota|tenis|vegano/.test(nicheLower)
+    ? ["34", "35", "36", "37", "38", "39", "40"]
+    : /moda|roupa|vestid|camisa/.test(nicheLower)
+      ? ["PP", "P", "M", "G", "GG"]
+      : ["Padrão"];
 
   const sanitizedProducts = visibleProducts.map((p) => ({
     ...p,
     imageUrl: sanitizeUrl(p.imageUrl, ""),
+    images: (p.images && p.images.length > 0 ? p.images : [p.imageUrl])
+      .map((u) => sanitizeUrl(u, ""))
+      .filter(Boolean),
+    categories: p.categories && p.categories.length > 0 ? p.categories : [p.category],
   }));
   const safeProductsJson = JSON.stringify(sanitizedProducts).replaceAll("</", "<\\/");
+  const safeCategoriesJson = JSON.stringify(bp.sections.categories.map((c) => c.label)).replaceAll("</", "<\\/");
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -579,6 +663,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?${fontsParam}&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,300..500,0..1,-50..200" rel="stylesheet" />
   <style>
     :root {
       --primary-background: ${primaryBg};
@@ -640,7 +725,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       letter-spacing: 0.03em;
     }
 
-    /* Cabeçalho (.headerContent) */
+    /* Cabeçalho Tema LIME (.headerContent) */
     header.irb-header {
       background: var(--header-background);
       color: var(--header-foreground);
@@ -655,23 +740,38 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 20px;
+      gap: 18px;
       padding: 14px 0;
       flex-wrap: wrap;
     }
     .headerContent--layout-2 { flex-direction: column; gap: 12px; }
-    .headerContent_logo { display: flex; align-items: center; text-decoration: none; }
-    .headerContent_logo_img { max-height: 50px; max-width: 200px; object-fit: contain; }
+    .headerLeftGroup { display: flex; align-items: center; gap: 12px; }
+    .headerMenuBtn {
+      display: none;
+      background: transparent;
+      border: none;
+      color: var(--header-foreground);
+      padding: 6px;
+      cursor: pointer;
+    }
+    .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
+    .headerContent_logo_img { max-height: 48px; max-width: 195px; object-fit: contain; }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
     }
-    .headerContent_search { flex: 1 1 260px; max-width: 440px; position: relative; }
+    .headerContent_search {
+      flex: 1 1 260px;
+      max-width: 460px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
     .headerContent_search input {
       width: 100%;
-      padding: 10px 14px;
+      padding: 10px 44px 10px 14px;
       border-radius: var(--irb-radius);
       border: 1px solid #d1d5db;
       font-family: var(--text-font-family);
@@ -681,19 +781,56 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       color: #111827;
     }
     .headerContent_search input:focus { border-color: var(--primary-background); }
-    .headerContent_actions { display: flex; align-items: center; gap: 12px; }
-    .headerCartBtn {
+    .headerSearchBtn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: none;
+      background: transparent;
+      color: #4b5563;
+      padding: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .headerContent_actions { display: flex; align-items: center; gap: 8px; }
+    .headerIconAction {
+      position: relative;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      background: var(--btn-primary-background);
-      color: var(--btn-primary-color);
-      border: 1px solid var(--btn-primary-border);
-      padding: 10px 16px;
+      gap: 7px;
+      background: transparent;
+      color: var(--header-foreground);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      padding: 8px 13px;
       border-radius: var(--irb-radius);
+      font-family: var(--text-font-family);
       font-weight: 600;
       font-size: 13px;
       cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .headerIconAction:hover { background: rgba(0, 0, 0, 0.04); }
+    .headerIconAction--cart {
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      border: 1px solid var(--btn-primary-border);
+    }
+    .headerIconAction--cart:hover { opacity: 0.92; background: var(--btn-primary-background); }
+    .cartCountBadge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 20px;
+      height: 20px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--primary-foreground);
+      color: var(--primary-background);
+      font-size: 11px;
+      font-weight: 700;
     }
     .headerContent_categories {
       display: flex;
@@ -711,8 +848,191 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       text-transform: ${bp.visualOverrides.header.categoryCase};
       letter-spacing: 0.04em;
       transition: color .15s;
+      cursor: pointer;
     }
     .categoryLink:hover, .categoryLink.active { color: var(--primary-background); text-decoration: underline; }
+
+    @media (max-width: 768px) {
+      .headerMenuBtn { display: inline-flex; }
+      .headerContent_categories { display: none; }
+      .headerActionLabel { display: none; }
+      .headerContent_search { order: 3; flex: 1 1 100%; max-width: 100%; }
+    }
+
+    /* Views Control */
+    .storeView { display: none; }
+    .storeView.active { display: block; }
+
+    /* Breadcrumb */
+    .irb-breadcrumb {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 18px 0 10px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .irb-breadcrumb a, .irb-breadcrumb button {
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+      color: #4b5563;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .irb-breadcrumb a:hover, .irb-breadcrumb button:hover {
+      color: var(--primary-background);
+      text-decoration: underline;
+    }
+
+    /* Página de Categoria (.pageLayout--category) */
+    .categoryHeroHeader {
+      background: var(--neutral-background);
+      color: var(--neutral-foreground);
+      border-radius: var(--irb-radius);
+      padding: 28px 24px;
+      margin: 8px 0 22px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .categoryToolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 22px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .catFilterChips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .catFilterChip {
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #374151;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .catFilterChip.active {
+      background: var(--primary-background);
+      color: var(--primary-foreground);
+      border-color: var(--primary-background);
+    }
+    .categorySortSelect {
+      padding: 8px 12px;
+      border-radius: var(--irb-radius);
+      border: 1px solid #d1d5db;
+      font-size: 13px;
+      background: #ffffff;
+      color: #111827;
+    }
+
+    /* Página Completa de Produto (PDP .product-content) */
+    .pdpGrid {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 36px;
+      padding: 16px 0 48px;
+      align-items: start;
+    }
+    @media (max-width: 820px) { .pdpGrid { grid-template-columns: 1fr; gap: 22px; } }
+    .pdpGallery {
+      display: flex;
+      flex-direction: ${bp.visualOverrides.pageProduct.galleryOrientation === "vertical" ? "row" : "column-reverse"};
+      gap: 12px;
+    }
+    .pdpThumbs {
+      display: flex;
+      flex-direction: ${bp.visualOverrides.pageProduct.galleryOrientation === "vertical" ? "column" : "row"};
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .pdpThumb {
+      width: 68px;
+      height: 68px;
+      border-radius: var(--irb-radius);
+      border: 2px solid transparent;
+      overflow: hidden;
+      cursor: pointer;
+      background: #f9fafb;
+      padding: 0;
+    }
+    .pdpThumb.active { border-color: var(--primary-background); }
+    .pdpThumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pdpMainImageWrap {
+      flex: 1;
+      background: #f9fafb;
+      border-radius: var(--irb-radius);
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      overflow: hidden;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pdpMainImageWrap img { width: 100%; height: 100%; object-fit: contain; transition: transform .3s ease; }
+    .pdpMainImageWrap:hover img { transform: scale(1.04); }
+    .productInfo__title { font-size: clamp(22px, 3vw, 30px); line-height: 1.2; margin: 6px 0 10px; }
+    .pdpRating { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; margin-bottom: 16px; }
+    .pdpPriceBox {
+      background: var(--neutral-background);
+      color: var(--neutral-foreground);
+      padding: 16px 18px;
+      border-radius: var(--irb-radius);
+      margin-bottom: 18px;
+    }
+    .pdpSizeList { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .pdpSizeBtn {
+      min-width: 44px;
+      height: 38px;
+      padding: 0 12px;
+      border-radius: var(--irb-radius);
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #111827;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .pdpSizeBtn.active {
+      background: var(--primary-background);
+      color: var(--primary-foreground);
+      border-color: var(--primary-background);
+    }
+    .pdpBuyRow { display: flex; gap: 10px; margin: 18px 0; }
+    .pdpQtyBox {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #d1d5db;
+      border-radius: var(--irb-radius);
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .pdpQtyBox button {
+      width: 36px;
+      height: 46px;
+      border: none;
+      background: transparent;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #111827;
+    }
+    .pdpQtyBox span { min-width: 32px; text-align: center; font-weight: 700; font-size: 14px; }
+    .pdpShippingBox {
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      border-radius: var(--irb-radius);
+      padding: 14px;
+      margin-bottom: 18px;
+    }
 
     /* Carrossel Hero (.bannerModule) */
     .bannerModule { position: relative; width: 100%; overflow: hidden; }
@@ -738,7 +1058,6 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       border: 1px solid rgba(255,255,255,0.4);
       background: rgba(17,24,39,0.55);
       color: #ffffff;
-      font-size: 18px;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -775,14 +1094,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       overflow: hidden;
       border-radius: ${bp.visualOverrides.banner.width === "container" ? "var(--irb-radius)" : "0px"};
     }
-    .bannerHero__img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      opacity: 0.7;
-    }
+    .bannerHero__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
     .bannerHero__overlay {
       position: absolute;
       inset: 0;
@@ -816,13 +1128,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     }
 
     /* Secondary Editorial Banner */
-    .secondaryEditorial {
-      border-radius: var(--irb-radius);
-      overflow: hidden;
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      align-items: center;
-    }
+    .secondaryEditorial { border-radius: var(--irb-radius); overflow: hidden; display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; }
     .secondaryEditorial__text { padding: 44px 40px; }
     .secondaryEditorial__media { height: 100%; min-height: 300px; max-height: 380px; overflow: hidden; }
     .secondaryEditorial__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -888,13 +1194,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       flex-direction: column;
       flex: 1;
     }
-    .product-cat {
-      font-size: 11px;
-      color: #6b7280;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 4px;
-    }
+    .product-cat { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
     .product-title {
       font-family: var(--text-font-family);
       font-size: 14px;
@@ -921,6 +1221,10 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       font-weight: 600;
       font-size: 13px;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       transition: opacity .15s;
     }
     .product-btn:hover { opacity: 0.9; }
@@ -929,13 +1233,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     .reviewModule { padding: 46px 0; background: var(--neutral-background); color: var(--neutral-foreground); }
     .reviewGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
     @media (max-width: 768px) { .reviewGrid { grid-template-columns: 1fr; } }
-    .reviewCard {
-      background: #ffffff;
-      color: #111827;
-      padding: 22px;
-      border-radius: var(--irb-radius);
-      border: 1px solid rgba(0, 0, 0, 0.06);
-    }
+    .reviewCard { background: #ffffff; color: #111827; padding: 22px; border-radius: var(--irb-radius); border: 1px solid rgba(0, 0, 0, 0.06); }
     .reviewCard__stars { color: #f59e0b; font-size: 16px; margin-bottom: 8px; }
     .reviewCard__text { font-size: 14px; line-height: 1.5; color: #374151; margin: 0 0 12px; }
     .reviewCard__author { font-size: 13px; font-weight: 700; color: #111827; }
@@ -954,13 +1252,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       gap: 20px;
     }
     .newsletterForm { display: flex; gap: 10px; flex: 1 1 320px; max-width: 460px; }
-    .newsletterForm input {
-      flex: 1;
-      padding: 12px 14px;
-      border-radius: var(--irb-radius);
-      border: 1px solid #d1d5db;
-      font-size: 14px;
-    }
+    .newsletterForm input { flex: 1; padding: 12px 14px; border-radius: var(--irb-radius); border: 1px solid #d1d5db; font-size: 14px; }
     .newsletterForm button {
       background: var(--btn-primary-background);
       color: var(--btn-primary-color);
@@ -978,7 +1270,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     .footerTitle { font-size: 16px; font-weight: 700; margin: 0 0 12px; }
     .footerText { font-size: 14px; line-height: 1.6; opacity: 0.88; margin: 0; }
     .footerList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
-    .footerList a { color: inherit; text-decoration: none; opacity: 0.88; }
+    .footerList a { color: inherit; text-decoration: none; opacity: 0.88; cursor: pointer; }
     .footerList a:hover { opacity: 1; text-decoration: underline; }
     .footerContent--bottom {
       background: var(--footer-background);
@@ -996,32 +1288,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       font-size: 12px;
     }
 
-    /* Modais Demo */
-    .irb-modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(17, 24, 39, 0.65);
-      z-index: 100;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
-    }
-    .irb-modal-backdrop.open { display: flex; }
-    .irb-modal-card {
-      background: #ffffff;
-      color: #111827;
-      max-width: 780px;
-      width: 100%;
-      border-radius: 12px;
-      overflow: hidden;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      position: relative;
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-    @media (max-width: 680px) { .irb-modal-card { grid-template-columns: 1fr; } }
+    /* Drawers & Account Modal */
     .irb-drawer-backdrop {
       position: fixed;
       inset: 0;
@@ -1031,6 +1298,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       justify-content: flex-end;
     }
     .irb-drawer-backdrop.open { display: flex; }
+    .irb-drawer-backdrop.left { justify-content: flex-start; }
     .irb-drawer-panel {
       width: 100%;
       max-width: 390px;
@@ -1041,18 +1309,26 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       flex-direction: column;
       padding: 20px;
     }
-    .filter-pill-bar {
+    .mobileNavLink {
+      display: block;
+      padding: 12px 4px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #111827;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .irb-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.65);
+      z-index: 120;
       display: none;
       align-items: center;
-      justify-content: space-between;
-      background: var(--neutral-background);
-      color: var(--neutral-foreground);
-      padding: 10px 16px;
-      border-radius: var(--irb-radius);
-      margin-top: 20px;
-      font-size: 13px;
+      justify-content: center;
+      padding: 16px;
     }
-    .filter-pill-bar.visible { display: flex; }
+    .irb-modal-backdrop.open { display: flex; }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -1061,99 +1337,233 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
   <header class="irb-header ${headerPosClass}">
     <div class="container">
       <div class="headerContent headerContent--${bp.theme.headerLayout}">
-        <a href="#top" class="headerContent_logo">${logoHtml}</a>
-        <div class="headerContent_search">
-          <input type="search" id="irb-search-input" placeholder="O que você está procurando?" aria-label="Buscar produtos" />
+        <div class="headerLeftGroup">
+          <button type="button" class="headerMenuBtn" id="irb-open-mobile-menu" aria-label="Abrir menu">
+            ${IRROBA_ICONS.menu}
+          </button>
+          <a href="#home" class="headerContent_logo" id="irb-go-home-logo">${logoHtml}</a>
         </div>
+
+        <form class="headerContent_search" id="irb-search-form">
+          <input type="search" id="irb-search-input" placeholder="O que você está procurando?" aria-label="Buscar produtos" />
+          <button type="submit" class="headerSearchBtn" aria-label="Pesquisar">
+            ${IRROBA_ICONS.search}
+          </button>
+        </form>
+
         <div class="headerContent_actions">
-          <button type="button" class="headerCartBtn" id="irb-open-cart">
-            🛒 Carrinho (<span id="irb-cart-count">0</span>)
+          <button type="button" class="headerIconAction" id="irb-open-account" aria-label="Minha Conta">
+            ${IRROBA_ICONS.person}
+            <span class="headerActionLabel">Entrar</span>
+          </button>
+          <button type="button" class="headerIconAction headerIconAction--cart" id="irb-open-cart" aria-label="Sacola">
+            ${IRROBA_ICONS.shoppingBag}
+            <span class="headerActionLabel">Sacola</span>
+            <span class="cartCountBadge" id="irb-cart-count">0</span>
           </button>
         </div>
       </div>
+
       <nav class="headerContent_categories" aria-label="Categorias">
-        <a href="#vitrines" class="categoryLink active" data-filter-cat="all">Todos</a>
+        <a href="#home" class="categoryLink active" data-go-home="1">Início</a>
         ${navLinksHtml}
       </nav>
     </div>
   </header>
 
   <main>
-    <section class="bannerModule">
-      <div class="${bp.visualOverrides.banner.width === "container" ? "container" : ""}" style="position:relative;">
-        ${heroSlidesHtml}
-        ${
-          slidesToRender.length > 1
-            ? `<button type="button" class="heroNavBtn prev" id="irb-hero-prev" aria-label="Slide anterior">‹</button>
-               <button type="button" class="heroNavBtn next" id="irb-hero-next" aria-label="Próximo slide">›</button>
-               <div class="heroDots">${slidesToRender
-                 .map(
-                   (_, i) =>
-                     `<button type="button" class="heroDot ${i === 0 ? "active" : ""}" data-hero-dot="${i}" aria-label="Slide ${i + 1}"></button>`
-                 )
-                 .join("")}</div>`
-            : ""
-        }
-      </div>
-    </section>
-
-    <section class="htmlContent" id="htmlContent-benefits">
-      <div class="container">${benefitsBlock.html}</div>
-    </section>
-
-    <section class="htmlContent" id="htmlContent-mood">
-      <div class="container">${moodBlock.html}</div>
-    </section>
-
-    ${
-      bp.sections.slimBanner?.enabled !== false
-        ? `<section class="htmlContent" id="htmlContent-slim"><div class="container">${slimBlock.html}</div></section>`
-        : ""
-    }
-
-    <div class="container">
-      <div id="irb-filter-bar" class="filter-pill-bar">
-        <span id="irb-filter-label"></span>
-        <button type="button" id="irb-clear-filter" style="background:none;border:none;color:var(--primary-background);font-weight:700;cursor:pointer;">Limpar filtro</button>
-      </div>
-    </div>
-
-    <div id="vitrines">
-      ${firstShowcaseHtml}
-    </div>
-
-    ${secondaryBannerHtml}
-
-    <section class="htmlContent" id="htmlContent-story">
-      <div class="container">${storyBlock.html}</div>
-    </section>
-
-    ${extraShowcasesHtml}
-
-    <section class="reviewModule">
-      <div class="container">
-        <div class="productList__header" style="text-align:center;">
-          <h2 class="productList__title">${escapeHtml(bp.sections.testimonialsTitle || "Quem compra recomenda")}</h2>
-          <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
+    <!-- 1. VIEW: PÁGINA INICIAL -->
+    <div id="irb-view-home" class="storeView active">
+      <section class="bannerModule">
+        <div class="${bp.visualOverrides.banner.width === "container" ? "container" : ""}" style="position:relative;">
+          ${heroSlidesHtml}
+          ${
+            slidesToRender.length > 1
+              ? `<button type="button" class="heroNavBtn prev" id="irb-hero-prev" aria-label="Slide anterior">${IRROBA_ICONS.chevronLeft}</button>
+                 <button type="button" class="heroNavBtn next" id="irb-hero-next" aria-label="Próximo slide">${IRROBA_ICONS.chevronRight}</button>
+                 <div class="heroDots">${slidesToRender
+                   .map(
+                     (_, i) =>
+                       `<button type="button" class="heroDot ${i === 0 ? "active" : ""}" data-hero-dot="${i}" aria-label="Slide ${i + 1}"></button>`
+                   )
+                   .join("")}</div>`
+              : ""
+          }
         </div>
-        <div class="reviewGrid">${testimonialsHtml}</div>
-      </div>
-    </section>
+      </section>
 
-    <section class="newsletterModule">
-      <div class="container">
-        <div class="newsletterBox">
-          <div>
-            <h3 style="margin:0 0 6px;font-size:22px;">Receba novidades da ${escapeHtml(bp.brand.name)}</h3>
-            <p style="margin:0;opacity:0.85;font-size:14px;">Cadastre seu e-mail para garantir ofertas exclusivas em primeira mão.</p>
+      <section class="htmlContent" id="htmlContent-benefits">
+        <div class="container">${benefitsBlock.html}</div>
+      </section>
+
+      <section class="htmlContent" id="htmlContent-mood">
+        <div class="container">${moodBlock.html}</div>
+      </section>
+
+      ${
+        bp.sections.slimBanner?.enabled !== false
+          ? `<section class="htmlContent" id="htmlContent-slim"><div class="container">${slimBlock.html}</div></section>`
+          : ""
+      }
+
+      <div id="vitrines">
+        ${firstShowcaseHtml}
+      </div>
+
+      ${secondaryBannerHtml}
+
+      <section class="htmlContent" id="htmlContent-story">
+        <div class="container">${storyBlock.html}</div>
+      </section>
+
+      ${extraShowcasesHtml}
+
+      <section class="reviewModule">
+        <div class="container">
+          <div class="productList__header" style="text-align:center;">
+            <h2 class="productList__title">${escapeHtml(bp.sections.testimonialsTitle || "Quem compra recomenda")}</h2>
+            <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
           </div>
-          <form class="newsletterForm" onsubmit="event.preventDefault(); this.querySelector('button').textContent='Cadastrado ✓';">
-            <input type="email" required placeholder="Digite seu melhor e-mail" />
-            <button type="submit">Cadastrar</button>
-          </form>
+          <div class="reviewGrid">${testimonialsHtml}</div>
         </div>
+      </section>
+
+      <section class="newsletterModule">
+        <div class="container">
+          <div class="newsletterBox">
+            <div>
+              <h3 style="margin:0 0 6px;font-size:22px;">Receba novidades da ${escapeHtml(bp.brand.name)}</h3>
+              <p style="margin:0;opacity:0.85;font-size:14px;">Cadastre seu e-mail para garantir ofertas exclusivas em primeira mão.</p>
+            </div>
+            <form class="newsletterForm" onsubmit="event.preventDefault(); this.querySelector('button').textContent='Cadastrado ✓';">
+              <input type="email" required placeholder="Digite seu melhor e-mail" />
+              <button type="submit">Cadastrar</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 2. VIEW: TELA DE CATEGORIA / BUSCA (.pageLayout--category) -->
+    <div id="irb-view-category" class="storeView">
+      <div class="container">
+        <nav class="irb-breadcrumb" aria-label="Breadcrumb">
+          <button type="button" data-go-home="1">Início</button>
+          <span>/</span>
+          <strong id="irb-cat-breadcrumb" style="color:var(--body-foreground);">Categoria</strong>
+        </nav>
+
+        <div class="categoryHeroHeader">
+          <div>
+            <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;opacity:0.7;">Departamento</span>
+            <h1 id="irb-cat-title" style="margin:4px 0 6px;font-size:32px;line-height:1.15;">Categoria</h1>
+            <p id="irb-cat-count" style="margin:0;font-size:14px;opacity:0.8;">0 produtos encontrados</p>
+          </div>
+          <button type="button" data-go-home="1" class="product-btn" style="width:auto;padding:10px 18px;">Voltar à Página Inicial</button>
+        </div>
+
+        <div class="categoryToolbar">
+          <div class="catFilterChips" id="irb-cat-chips">
+            <button type="button" class="catFilterChip" data-filter-cat="all">Todos os produtos</button>
+            ${categoryPillsHtml}
+          </div>
+          <select id="irb-cat-sort" class="categorySortSelect" aria-label="Ordenar produtos">
+            <option value="relevance">Ordenar: Mais relevantes</option>
+            <option value="price-asc">Menor preço</option>
+            <option value="price-desc">Maior preço</option>
+            <option value="name-asc">Nome (A–Z)</option>
+          </select>
+        </div>
+
+        <div class="productList__grid" id="irb-cat-grid" style="padding-bottom:56px;"></div>
       </div>
-    </section>
+    </div>
+
+    <!-- 3. VIEW: PÁGINA COMPLETA DE PRODUTO (PDP .product-content) -->
+    <div id="irb-view-product" class="storeView">
+      <div class="container">
+        <nav class="irb-breadcrumb" aria-label="Breadcrumb">
+          <button type="button" data-go-home="1">Início</button>
+          <span>/</span>
+          <button type="button" id="irb-pdp-cat-link">Categoria</button>
+          <span>/</span>
+          <strong id="irb-pdp-breadcrumb-title" style="color:var(--body-foreground);">Produto</strong>
+        </nav>
+
+        <div class="pdpGrid">
+          <div class="pdpGallery">
+            <div class="pdpThumbs" id="irb-pdp-thumbs"></div>
+            <div class="pdpMainImageWrap">
+              <img id="irb-pdp-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Produto" />
+            </div>
+          </div>
+
+          <div class="productInfo">
+            <span id="irb-pdp-cat" style="font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:0.08em;font-weight:700;"></span>
+            <h1 id="irb-pdp-title" class="productInfo__title"></h1>
+            <div class="pdpRating">
+              <span style="color:#f59e0b;letter-spacing:2px;">★★★★★</span>
+              <span>5.0 · 18 avaliações verificadas</span>
+            </div>
+
+            <div class="pdpPriceBox">
+              <div id="irb-pdp-old" style="font-size:14px;color:var(--product-old-price-color);text-decoration:line-through;"></div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span id="irb-pdp-price" style="font-size:30px;font-weight:800;color:var(--product-price-color);"></span>
+                <span id="irb-pdp-pix-badge" style="font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--primary-background);color:var(--primary-foreground);"></span>
+              </div>
+              <div id="irb-pdp-installments" style="font-size:13px;margin-top:6px;opacity:0.85;"></div>
+            </div>
+
+            <div>
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Selecione uma opção:</div>
+              <div class="pdpSizeList" id="irb-pdp-sizes">
+                ${variationSizes
+                  .map(
+                    (s, i) =>
+                      `<button type="button" class="pdpSizeBtn ${i === 0 ? "active" : ""}" data-size-opt="${escapeAttr(s)}">${escapeHtml(s)}</button>`
+                  )
+                  .join("")}
+              </div>
+            </div>
+
+            <div class="pdpBuyRow">
+              <div class="pdpQtyBox">
+                <button type="button" id="irb-pdp-qty-dec" aria-label="Diminuir">−</button>
+                <span id="irb-pdp-qty">1</span>
+                <button type="button" id="irb-pdp-qty-inc" aria-label="Aumentar">+</button>
+              </div>
+              <button type="button" id="irb-pdp-add" class="product-btn" style="flex:1;padding:14px 20px;font-size:15px;">
+                ${IRROBA_ICONS.shoppingBag}
+                <span>${escapeHtml(bp.visualOverrides.pageProduct.buyButtonText)}</span>
+              </button>
+            </div>
+
+            <div class="pdpShippingBox">
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:8px;">
+                ${IRROBA_ICONS.truck}
+                <span>Calcular Frete e Prazo</span>
+              </div>
+              <form id="irb-cep-form" style="display:flex;gap:8px;">
+                <input type="text" id="irb-cep-input" placeholder="Digite seu CEP (ex: 14400-000)" style="flex:1;padding:9px 12px;border:1px solid #d1d5db;border-radius:var(--irb-radius);font-size:13px;" />
+                <button type="submit" style="padding:9px 16px;border:none;border-radius:var(--irb-radius);background:var(--primary-background);color:var(--primary-foreground);font-weight:700;font-size:13px;cursor:pointer;">Calcular</button>
+              </form>
+              <div id="irb-cep-result" style="margin-top:8px;font-size:12px;color:#374151;display:none;"></div>
+            </div>
+
+            <div style="border-top:1px solid rgba(0,0,0,0.08);padding-top:16px;">
+              <h3 style="margin:0 0 8px;font-size:15px;">Descrição do Produto</h3>
+              <p id="irb-pdp-desc" style="font-size:14px;line-height:1.6;opacity:0.88;margin:0;"></p>
+            </div>
+          </div>
+        </div>
+
+        <section style="border-top:1px solid rgba(0,0,0,0.08);padding:38px 0 56px;">
+          <h2 class="productList__title" style="font-size:24px;margin-bottom:20px;">Produtos Relacionados</h2>
+          <div class="productList__grid" id="irb-pdp-related"></div>
+        </section>
+      </div>
+    </div>
   </main>
 
   <footer class="footer">
@@ -1169,7 +1579,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
             <ul class="footerList">
               ${bp.sections.categories
                 .slice(0, 6)
-                .map((c) => `<li><a href="#vitrines" data-filter-cat="${escapeAttr(c.label.toLowerCase())}">${escapeHtml(c.label)}</a></li>`)
+                .map((c) => `<li><a href="#categoria" data-filter-cat="${escapeAttr(c.label)}">${escapeHtml(c.label)}</a></li>`)
                 .join("")}
             </ul>
           </div>
@@ -1196,23 +1606,36 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     </div>
   </footer>
 
-  <!-- Modal Produto (PDP Simulada) -->
-  <div id="irb-pdp-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
-    <div class="irb-modal-card">
-      <button type="button" id="irb-pdp-close" style="position:absolute;top:12px;right:12px;border:none;background:#f3f4f6;width:32px;height:32px;border-radius:999px;cursor:pointer;font-weight:700;">✕</button>
-      <div style="background:#f9fafb;padding:20px;display:flex;flex-direction:${bp.visualOverrides.pageProduct.galleryOrientation === "vertical" ? "row" : "column"};gap:12px;align-items:center;justify-content:center;">
-        <img id="irb-pdp-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="Prévia do produto" style="width:100%;max-height:340px;object-fit:contain;border-radius:8px;" />
+  <!-- Mobile Navigation Drawer -->
+  <div id="irb-mobile-drawer" class="irb-drawer-backdrop left" role="dialog" aria-modal="true">
+    <div class="irb-drawer-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid #e5e7eb;">
+        <strong style="font-size:17px;">Menu da Loja</strong>
+        <button type="button" id="irb-mobile-close" style="border:none;background:#f3f4f6;width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       </div>
-      <div style="padding:26px;display:flex;flex-direction:column;gap:12px;">
-        <span id="irb-pdp-cat" style="font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:0.06em;"></span>
-        <h3 id="irb-pdp-title" style="margin:0;font-size:22px;line-height:1.25;"></h3>
-        <div style="display:flex;align-items:baseline;gap:10px;">
-          <span id="irb-pdp-old" style="font-size:14px;color:var(--product-old-price-color);text-decoration:line-through;"></span>
-          <span id="irb-pdp-price" style="font-size:26px;font-weight:700;color:var(--product-price-color);"></span>
-        </div>
-        <div id="irb-pdp-installments" style="font-size:13px;color:#4b5563;"></div>
-        <p id="irb-pdp-desc" style="font-size:14px;line-height:1.5;color:#374151;margin:4px 0 12px;"></p>
-        <button type="button" id="irb-pdp-add" class="product-btn" style="padding:14px;font-size:15px;">${escapeHtml(bp.visualOverrides.pageProduct.buyButtonText)}</button>
+      <div style="padding:10px 0;overflow-y:auto;">
+        <a href="#home" class="mobileNavLink" data-go-home="1">Início</a>
+        ${mobileNavLinksHtml}
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Modal (Demo) -->
+  <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
+    <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
+      <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        ${IRROBA_ICONS.person}
+        <h3 style="margin:0;font-size:19px;">Minha Conta</h3>
+      </div>
+      <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <form onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+        <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
+        <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
+        <button type="submit" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
+      </form>
+      <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
+        Login de demonstração validado com sucesso!
       </div>
     </div>
   </div>
@@ -1221,8 +1644,11 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
   <div id="irb-cart-drawer" class="irb-drawer-backdrop" role="dialog" aria-modal="true">
     <div class="irb-drawer-panel">
       <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid #e5e7eb;">
-        <strong style="font-size:18px;">Seu Carrinho</strong>
-        <button type="button" id="irb-cart-close" style="border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;">✕</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${IRROBA_ICONS.shoppingBag}
+          <strong style="font-size:18px;">Sua Sacola</strong>
+        </div>
+        <button type="button" id="irb-cart-close" style="border:none;background:#f3f4f6;width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       </div>
       <div id="irb-cart-items" style="flex:1;overflow-y:auto;padding:14px 0;display:flex;flex-direction:column;gap:12px;"></div>
       <div style="border-top:1px solid #e5e7eb;padding-top:14px;">
@@ -1238,10 +1664,23 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
   <script>
     (function () {
       const PRODUCTS = ${safeProductsJson};
+      const CATEGORIES = ${safeCategoriesJson};
+      const BUY_BTN_TEXT = ${JSON.stringify(bp.visualOverrides.pageProduct.buyButtonText)};
       const cart = [];
       let activeCategory = 'all';
       let searchQuery = '';
-      let activePdpId = null;
+      let activePdpProduct = null;
+      let activeSize = ${JSON.stringify(variationSizes[0] ?? "Padrão")};
+      let pdpQty = 1;
+
+      const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+      function switchView(viewName) {
+        document.getElementById('irb-view-home').classList.toggle('active', viewName === 'home');
+        document.getElementById('irb-view-category').classList.toggle('active', viewName === 'category');
+        document.getElementById('irb-view-product').classList.toggle('active', viewName === 'product');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
 
       // Hero Carousel
       const slides = Array.from(document.querySelectorAll('.heroSlide'));
@@ -1264,53 +1703,271 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
         setInterval(() => showSlide(slideIdx + 1), 6000);
       }
 
-      const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+      function createProductCardNode(p) {
+        const card = document.createElement('article');
+        card.className = 'product product-grid';
 
-      function applyFilters() {
-        const cards = document.querySelectorAll('.product.product-grid');
-        let visibleCount = 0;
-        cards.forEach((card) => {
-          const title = card.getAttribute('data-title') || '';
-          const cat = card.getAttribute('data-category') || '';
-          const matchesSearch = !searchQuery || title.includes(searchQuery) || cat.includes(searchQuery);
-          const matchesCat = activeCategory === 'all' || cat.includes(activeCategory) || title.includes(activeCategory);
-          const show = matchesSearch && matchesCat;
-          card.style.display = show ? 'flex' : 'none';
-          if (show) visibleCount++;
-        });
+        const imgWrap = document.createElement('div');
+        imgWrap.className = 'product-image-wrap';
+        imgWrap.addEventListener('click', () => openProductPage(p.id));
 
-        const bar = document.getElementById('irb-filter-bar');
-        const label = document.getElementById('irb-filter-label');
-        if (searchQuery || activeCategory !== 'all') {
-          bar.classList.add('visible');
-          label.textContent = 'Exibindo ' + visibleCount + ' produto(s)' + (activeCategory !== 'all' ? ' em "' + activeCategory + '"' : '') + (searchQuery ? ' para "' + searchQuery + '"' : '');
-        } else {
-          bar.classList.remove('visible');
+        if (p.compareAtPrice && p.compareAtPrice > p.price) {
+          const pct = Math.round(((p.compareAtPrice - p.price) / p.compareAtPrice) * 100);
+          if (pct > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'product-badge';
+            badge.textContent = '-' + pct + '%';
+            imgWrap.appendChild(badge);
+          }
         }
+
+        const img = document.createElement('img');
+        img.src = p.imageUrl;
+        img.alt = p.title;
+        img.loading = 'lazy';
+        imgWrap.appendChild(img);
+
+        const info = document.createElement('div');
+        info.className = 'product-info';
+
+        const catEl = document.createElement('span');
+        catEl.className = 'product-cat';
+        catEl.textContent = p.category || 'Destaques';
+        info.appendChild(catEl);
+
+        const titleEl = document.createElement('h3');
+        titleEl.className = 'product-title';
+        titleEl.textContent = p.title;
+        titleEl.addEventListener('click', () => openProductPage(p.id));
+        info.appendChild(titleEl);
+
+        const priceWrap = document.createElement('div');
+        priceWrap.className = 'product-price-wrap';
+        if (p.compareAtPrice && p.compareAtPrice > p.price) {
+          const oldEl = document.createElement('span');
+          oldEl.className = 'product-price-old';
+          oldEl.textContent = formatCurrency(p.compareAtPrice);
+          priceWrap.appendChild(oldEl);
+        }
+        const priceEl = document.createElement('span');
+        priceEl.className = 'product-price';
+        priceEl.textContent = formatCurrency(p.price);
+        priceWrap.appendChild(priceEl);
+        info.appendChild(priceWrap);
+
+        if (p.installmentsText) {
+          const instEl = document.createElement('div');
+          instEl.className = 'product-installments';
+          instEl.textContent = p.installmentsText;
+          info.appendChild(instEl);
+        }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'product-btn';
+        btn.textContent = BUY_BTN_TEXT;
+        btn.addEventListener('click', () => addToCart(p.id, 1));
+        info.appendChild(btn);
+
+        card.appendChild(imgWrap);
+        card.appendChild(info);
+        return card;
       }
 
-      document.getElementById('irb-search-input').addEventListener('input', (e) => {
-        searchQuery = (e.target.value || '').trim().toLowerCase();
-        applyFilters();
-      });
+      function matchesCategory(product, catLabel) {
+        if (catLabel === 'all') return true;
+        const norm = catLabel.toLowerCase();
+        const stem = norm.replace(/s$/, '');
+        const cats = (product.categories || [product.category || '']).map((c) => c.toLowerCase());
+        return (
+          cats.some((c) => c.includes(norm) || norm.includes(c)) ||
+          (product.title || '').toLowerCase().includes(stem)
+        );
+      }
 
-      document.querySelectorAll('[data-filter-cat], [data-irb-cat]').forEach((link) => {
-        link.addEventListener('click', () => {
-          const catAttr = link.getAttribute('data-filter-cat') || link.getAttribute('data-irb-cat') || 'all';
-          activeCategory = catAttr.toLowerCase();
+      function openCategoryPage(catLabel, query) {
+        activeCategory = catLabel || 'all';
+        searchQuery = (query || '').trim().toLowerCase();
+
+        document.querySelectorAll('.categoryLink').forEach((c) => {
+          const attr = (c.getAttribute('data-filter-cat') || '').toLowerCase();
+          c.classList.toggle('active', attr === activeCategory.toLowerCase());
+        });
+        document.querySelectorAll('.catFilterChip').forEach((chip) => {
+          const attr = (chip.getAttribute('data-filter-cat') || '').toLowerCase();
+          chip.classList.toggle('active', attr === activeCategory.toLowerCase());
+        });
+
+        let filtered = PRODUCTS.filter((p) => {
+          const okCat = matchesCategory(p, activeCategory);
+          const okSearch =
+            !searchQuery ||
+            (p.title || '').toLowerCase().includes(searchQuery) ||
+            (p.category || '').toLowerCase().includes(searchQuery);
+          return okCat && okSearch;
+        });
+
+        // If a scraped category has zero exact matches without search, show full catalog fallback clearly
+        let titleText = activeCategory === 'all' ? 'Todos os Produtos' : activeCategory;
+        if (searchQuery) {
+          titleText = 'Resultados para "' + query + '"';
+        } else if (filtered.length === 0 && activeCategory !== 'all') {
+          filtered = PRODUCTS.slice(0, 12);
+        }
+
+        const sortVal = document.getElementById('irb-cat-sort').value;
+        if (sortVal === 'price-asc') filtered.sort((a, b) => a.price - b.price);
+        else if (sortVal === 'price-desc') filtered.sort((a, b) => b.price - a.price);
+        else if (sortVal === 'name-asc') filtered.sort((a, b) => a.title.localeCompare(b.title));
+
+        document.getElementById('irb-cat-breadcrumb').textContent = titleText;
+        document.getElementById('irb-cat-title').textContent = titleText;
+        document.getElementById('irb-cat-count').textContent = filtered.length + ' produto(s) disponível(is)';
+
+        const grid = document.getElementById('irb-cat-grid');
+        grid.innerHTML = '';
+        if (filtered.length === 0) {
+          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px 0;color:#6b7280;">Nenhum produto encontrado para essa busca. Tente outro termo ou volte para Início.</p>';
+        } else {
+          filtered.forEach((p) => grid.appendChild(createProductCardNode(p)));
+        }
+
+        document.getElementById('irb-mobile-drawer').classList.remove('open');
+        switchView('category');
+      }
+
+      function openProductPage(productId) {
+        const product = PRODUCTS.find((p) => p.id === productId);
+        if (!product) return;
+        activePdpProduct = product;
+        pdpQty = 1;
+        document.getElementById('irb-pdp-qty').textContent = '1';
+
+        const images = (product.images && product.images.length > 0 ? product.images : [product.imageUrl]).filter(Boolean);
+        const mainImg = document.getElementById('irb-pdp-img');
+        mainImg.src = images[0] || product.imageUrl;
+
+        const thumbsEl = document.getElementById('irb-pdp-thumbs');
+        thumbsEl.innerHTML = '';
+        images.forEach((imgUrl, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pdpThumb' + (idx === 0 ? ' active' : '');
+          const tImg = document.createElement('img');
+          tImg.src = imgUrl;
+          tImg.alt = product.title;
+          btn.appendChild(tImg);
+          btn.addEventListener('click', () => {
+            mainImg.src = imgUrl;
+            thumbsEl.querySelectorAll('.pdpThumb').forEach((t) => t.classList.remove('active'));
+            btn.classList.add('active');
+          });
+          thumbsEl.appendChild(btn);
+        });
+
+        const catLabel = product.category || 'Destaques';
+        document.getElementById('irb-pdp-cat-link').textContent = catLabel;
+        document.getElementById('irb-pdp-cat-link').onclick = () => openCategoryPage(catLabel, '');
+        document.getElementById('irb-pdp-breadcrumb-title').textContent = product.title;
+        document.getElementById('irb-pdp-cat').textContent = catLabel;
+        document.getElementById('irb-pdp-title').textContent = product.title;
+        document.getElementById('irb-pdp-price').textContent = formatCurrency(product.price);
+        document.getElementById('irb-pdp-pix-badge').textContent = formatCurrency(product.price * 0.95) + ' no PIX (-5%)';
+        document.getElementById('irb-pdp-old').textContent =
+          product.compareAtPrice && product.compareAtPrice > product.price
+            ? formatCurrency(product.compareAtPrice)
+            : '';
+        document.getElementById('irb-pdp-installments').textContent = product.installmentsText || '';
+        document.getElementById('irb-pdp-desc').textContent = product.description || '';
+        document.getElementById('irb-cep-result').style.display = 'none';
+
+        const relatedGrid = document.getElementById('irb-pdp-related');
+        relatedGrid.innerHTML = '';
+        PRODUCTS.filter((p) => p.id !== product.id)
+          .slice(0, 4)
+          .forEach((rel) => relatedGrid.appendChild(createProductCardNode(rel)));
+
+        switchView('product');
+      }
+
+      // Navigation bindings
+      document.querySelectorAll('[data-go-home]').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          activeCategory = 'all';
+          searchQuery = '';
+          document.getElementById('irb-search-input').value = '';
           document.querySelectorAll('.categoryLink').forEach((c) => c.classList.remove('active'));
-          if (link.classList.contains('categoryLink')) link.classList.add('active');
-          applyFilters();
+          const homeLink = document.querySelector('.categoryLink[data-go-home]');
+          if (homeLink) homeLink.classList.add('active');
+          document.getElementById('irb-mobile-drawer').classList.remove('open');
+          switchView('home');
         });
       });
 
-      document.getElementById('irb-clear-filter').addEventListener('click', () => {
-        activeCategory = 'all';
-        searchQuery = '';
-        document.getElementById('irb-search-input').value = '';
-        applyFilters();
+      document.getElementById('irb-go-home-logo').addEventListener('click', (e) => {
+        e.preventDefault();
+        switchView('home');
       });
 
+      document.querySelectorAll('[data-filter-cat], [data-irb-cat]').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          const cat = el.getAttribute('data-filter-cat') || el.getAttribute('data-irb-cat') || 'all';
+          openCategoryPage(cat, '');
+        });
+      });
+
+      document.getElementById('irb-cat-sort').addEventListener('change', () => {
+        openCategoryPage(activeCategory, searchQuery);
+      });
+
+      document.getElementById('irb-search-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const q = document.getElementById('irb-search-input').value || '';
+        openCategoryPage('all', q);
+      });
+
+      // Home product card click bindings
+      document.querySelectorAll('[data-open-pdp]').forEach((el) => {
+        el.addEventListener('click', () => openProductPage(el.getAttribute('data-open-pdp')));
+      });
+
+      document.querySelectorAll('[data-add-cart]').forEach((btn) => {
+        btn.addEventListener('click', () => addToCart(btn.getAttribute('data-add-cart'), 1));
+      });
+
+      // PDP controls
+      document.querySelectorAll('[data-size-opt]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          activeSize = btn.getAttribute('data-size-opt') || 'Padrão';
+          document.querySelectorAll('[data-size-opt]').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+      document.getElementById('irb-pdp-qty-dec').addEventListener('click', () => {
+        pdpQty = Math.max(1, pdpQty - 1);
+        document.getElementById('irb-pdp-qty').textContent = String(pdpQty);
+      });
+      document.getElementById('irb-pdp-qty-inc').addEventListener('click', () => {
+        pdpQty = Math.min(20, pdpQty + 1);
+        document.getElementById('irb-pdp-qty').textContent = String(pdpQty);
+      });
+      document.getElementById('irb-pdp-add').addEventListener('click', () => {
+        if (activePdpProduct) addToCart(activePdpProduct.id, pdpQty, activeSize);
+      });
+      document.getElementById('irb-cep-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const cep = (document.getElementById('irb-cep-input').value || '').trim();
+        const out = document.getElementById('irb-cep-result');
+        out.style.display = 'block';
+        out.textContent =
+          'Frete para CEP ' +
+          (cep || 'informado') +
+          ': Econômico R$ 19,90 (4 a 6 dias úteis) • Expresso R$ 32,90 (1 a 2 dias úteis)';
+      });
+
+      // Cart logic
       function renderCart() {
         const countEl = document.getElementById('irb-cart-count');
         const itemsEl = document.getElementById('irb-cart-items');
@@ -1322,7 +1979,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
         totalEl.textContent = formatCurrency(totalAmt);
 
         if (cart.length === 0) {
-          itemsEl.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;margin-top:40px;">Seu carrinho está vazio. Clique em comprar em qualquer produto para testar!</p>';
+          itemsEl.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;margin-top:40px;">Sua sacola está vazia. Clique em comprar em qualquer produto para testar!</p>';
           return;
         }
 
@@ -1341,7 +1998,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
 
           const titleEl = document.createElement('div');
           titleEl.style.cssText = 'font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-          titleEl.textContent = item.product.title || '';
+          titleEl.textContent = item.product.title + (item.size ? ' (' + item.size + ')' : '');
 
           const priceEl = document.createElement('div');
           priceEl.style.cssText = 'font-size:13px;color:#4b5563;';
@@ -1366,53 +2023,36 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
         });
       }
 
-      function addToCart(productId) {
+      function addToCart(productId, qty, size) {
         const product = PRODUCTS.find((p) => p.id === productId);
         if (!product) return;
-        const existing = cart.find((c) => c.product.id === productId);
-        if (existing) existing.qty += 1;
-        else cart.push({ product, qty: 1 });
+        const chosenSize = size || '';
+        const existing = cart.find((c) => c.product.id === productId && c.size === chosenSize);
+        if (existing) existing.qty += qty || 1;
+        else cart.push({ product, qty: qty || 1, size: chosenSize });
         renderCart();
         document.getElementById('irb-cart-drawer').classList.add('open');
       }
 
-      document.querySelectorAll('[data-add-cart]').forEach((btn) => {
-        btn.addEventListener('click', () => addToCart(btn.getAttribute('data-add-cart')));
-      });
-
-      document.querySelectorAll('[data-open-pdp]').forEach((el) => {
-        el.addEventListener('click', () => {
-          const pid = el.getAttribute('data-open-pdp');
-          const product = PRODUCTS.find((p) => p.id === pid);
-          if (!product) return;
-          activePdpId = pid;
-          document.getElementById('irb-pdp-img').src = product.imageUrl;
-          document.getElementById('irb-pdp-cat').textContent = product.category;
-          document.getElementById('irb-pdp-title').textContent = product.title;
-          document.getElementById('irb-pdp-price').textContent = formatCurrency(product.price);
-          document.getElementById('irb-pdp-old').textContent = product.compareAtPrice && product.compareAtPrice > product.price ? formatCurrency(product.compareAtPrice) : '';
-          document.getElementById('irb-pdp-installments').textContent = product.installmentsText || '';
-          document.getElementById('irb-pdp-desc').textContent = product.description || '';
-          document.getElementById('irb-pdp-modal').classList.add('open');
-        });
-      });
-
-      document.getElementById('irb-pdp-add').addEventListener('click', () => {
-        if (activePdpId) {
-          document.getElementById('irb-pdp-modal').classList.remove('open');
-          addToCart(activePdpId);
-        }
-      });
-
-      document.getElementById('irb-pdp-close').addEventListener('click', () => {
-        document.getElementById('irb-pdp-modal').classList.remove('open');
-      });
+      // Modals & Drawers
       document.getElementById('irb-open-cart').addEventListener('click', () => {
         renderCart();
         document.getElementById('irb-cart-drawer').classList.add('open');
       });
       document.getElementById('irb-cart-close').addEventListener('click', () => {
         document.getElementById('irb-cart-drawer').classList.remove('open');
+      });
+      document.getElementById('irb-open-mobile-menu').addEventListener('click', () => {
+        document.getElementById('irb-mobile-drawer').classList.add('open');
+      });
+      document.getElementById('irb-mobile-close').addEventListener('click', () => {
+        document.getElementById('irb-mobile-drawer').classList.remove('open');
+      });
+      document.getElementById('irb-open-account').addEventListener('click', () => {
+        document.getElementById('irb-account-modal').classList.add('open');
+      });
+      document.getElementById('irb-account-close').addEventListener('click', () => {
+        document.getElementById('irb-account-modal').classList.remove('open');
       });
     })();
   </script>
