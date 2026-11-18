@@ -23,11 +23,12 @@ function makeSampleExtracted(overrides: Partial<ExtractedStoreData> = {}): Extra
       bodyFont: "Poppins",
       borderRadiusPx: 8,
     },
+    sectionHeadings: [],
     categories: [
       { label: "Botas", href: "https://estiloveggieshoes.com.br/botas" },
       { label: "Tênis", href: "https://estiloveggieshoes.com.br/tenis" },
     ],
-    banners: [{ imageUrl: "https://cdn.example.com/hero.jpg", alt: "Coleção Vegana" }],
+    banners: [{ imageUrl: "https://cdn.example.com/hero.jpg", alt: "Coleção Vegana", slot: "hero" }],
     products: [
       {
         id: "p1",
@@ -95,8 +96,9 @@ describe("Irroba LIME Compiler & Export", () => {
     const exported = compileIrrobaExport(bp);
 
     expect(exported.limeSettings.length).toBeGreaterThanOrEqual(10);
-    expect(exported.themeVisualChecklist.length).toBeGreaterThanOrEqual(4);
-    expect(exported.htmlBlocks.length).toBe(3);
+    expect(exported.themeVisualChecklist.length).toBeGreaterThanOrEqual(5);
+    expect(exported.bannerModulesChecklist.length).toBeGreaterThanOrEqual(1);
+    expect(exported.htmlBlocks.length).toBe(4);
 
     for (const blk of exported.htmlBlocks) {
       expect(blk.html).toContain("style=");
@@ -104,6 +106,29 @@ describe("Irroba LIME Compiler & Export", () => {
       expect(blk.html.toLowerCase()).not.toContain("<script");
     }
     expect(exported.customCss).toContain(".product.product-grid");
+  });
+
+  it("preserves original client monochrome/cream palette without forcing green and emits designInsights", () => {
+    const bp = buildHeuristicBlueprint(
+      makeSampleExtracted({
+        tokens: {
+          bodyBackground: "#FFFFFF",
+          bodyForeground: "#111111",
+          surfaceBackground: "#F3EFE8",
+          primaryButtonBg: "#000000",
+          primaryButtonColor: "#FFFFFF",
+          footerBackground: "#141414",
+          footerForeground: "#FFFFFF",
+          headerIsOverlay: false,
+        },
+      })
+    );
+
+    expect(bp.theme.primaryBackground).toBe("#000000");
+    expect(bp.theme.neutralBackground).toBe("#F3EFE8");
+    expect(bp.theme.secondaryBackground).toBe("#141414");
+    expect(bp.designInsights.some((i) => i.severity === "suggestion")).toBe(true);
+    expect(bp.sections.heroSlides[0]?.mode).toBe("artwork");
   });
 
   it("compiles products CSV with UTF-8 BOM and PT-BR decimal separator", () => {

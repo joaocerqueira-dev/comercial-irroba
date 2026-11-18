@@ -3,7 +3,11 @@ import path from "node:path";
 import * as cheerio from "cheerio";
 import { chromium } from "playwright";
 import { detectPlatform } from "./platform-detector";
-import type { ExtractedProduct, ExtractedStoreData } from "@/lib/types/blueprint";
+import type {
+  ExtractedBanner,
+  ExtractedProduct,
+  ExtractedStoreData,
+} from "@/lib/types/blueprint";
 
 const BLOCKED_TRACKER_PATTERNS = [
   "googletagmanager.com",
@@ -15,10 +19,14 @@ const BLOCKED_TRACKER_PATTERNS = [
   "clarity.ms",
   "analytics.tiktok.com",
   "code.jivosite.com",
-  "d335luupugsy2.cloudfront.net", // RD Station
+  "d335luupugsy2.cloudfront.net",
   "doubleclick.net",
   "googlesyndication.com",
 ];
+
+function valueIsNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
 
 export function parseBrlPrice(raw: string | number | undefined | null): number | undefined {
   if (valueIsNumber(raw)) {
@@ -27,7 +35,6 @@ export function parseBrlPrice(raw: string | number | undefined | null): number |
   if (!raw || typeof raw !== "string") return undefined;
 
   const cleaned = raw.replace(/\s+/g, " ").trim();
-  // Match R$ 1.299,90 or 249,90 or 249.90
   const brMatch = cleaned.match(/(?:R\$\s*)?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})/);
   if (brMatch) {
     const normalized = brMatch[1].replace(/\./g, "").replace(",", ".");
@@ -44,10 +51,6 @@ export function parseBrlPrice(raw: string | number | undefined | null): number |
   return undefined;
 }
 
-function valueIsNumber(v: unknown): v is number {
-  return typeof v === "number" && Number.isFinite(v);
-}
-
 export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: string): string | undefined {
   if (!rawUrl) return undefined;
   let trimmed = rawUrl.trim();
@@ -55,7 +58,6 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
     return undefined;
   }
   if (trimmed.includes(",")) {
-    // Possibly a srcset string; take the largest or first URL cleanly
     const candidates = trimmed
       .split(",")
       .map((part) => part.trim().split(/\s+/)[0])
@@ -144,6 +146,61 @@ function extractProductsFromJsonLd($: cheerio.CheerioAPI, baseUrl: string): Extr
   return products;
 }
 
+function isUsefulNavLink(label: string, href: string): boolean {
+  if (label.length < 2 || label.length > 34) return false;
+  if (/login|entrar|cadastr|minha conta|carrinho|sacola|rastrear|buscar|pesquisar|whatsapp/i.test(label)) {
+    return false;
+  }
+  if (/^javascript:|^mailto:|^tel:|account|login|cart|checkout|wishlist/i.test(href)) {
+    return false;
+  }
+  return true;
+}
+
+function collectBannersFromSelector(
+  $: cheerio.CheerioAPI,
+  selector: string,
+  slot: ExtractedBanner["slot"],
+  sourceUrl: string,
+  logoUrl: string | undefined,
+  seen: Set<string>,
+  limit: number
+): ExtractedBanner[] {
+  const result: ExtractedBanner[] = [];
+  $(selector).each((_, el) => {
+    if (result.length >= limit) return;
+    const imgEl = $(el).is("img") ? $(el) : $(el).find("img").first();
+    const raw =
+      imgEl.attr("data-src") ||
+      imgEl.attr("src") ||
+      imgEl.attr("data-original") ||
+      imgEl.attr("data-srcset") ||
+      imgEl.attr("srcset");
+    const imageUrl = resolveAssetUrl(raw, sourceUrl);
+    if (
+      !imageUrl ||
+      seen.has(imageUrl) ||
+      imageUrl === logoUrl ||
+      /icon|logo|badge|selo|whatsapp|pix|visa|master|elo|payment/i.test(imageUrl)
+    ) {
+      return;
+    }
+    seen.add(imageUrl);
+    const parentLink = imgEl.closest("a");
+    const alt = imgEl.attr("alt")?.trim() || parentLink.attr("aria-label")?.trim() || parentLink.attr("title")?.trim();
+    const label =
+      $(el).find("h3, h4, span, p").first().text().replace(/\s+/g, " ").trim() || alt;
+    result.push({
+      imageUrl,
+      alt,
+      href: resolveAssetUrl(parentLink.attr("href"), sourceUrl),
+      slot,
+      label: label && label.length <= 48 ? label : undefined,
+    });
+  });
+  return result;
+}
+
 export function extractStoreFromHtml(html: string, sourceUrl: string): ExtractedStoreData {
   const $ = cheerio.load(html);
   const detectedPlatform = detectPlatform(html);
@@ -168,6 +225,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
   // Logo heuristics
   const logoSelectors = [
     ".js-logo-container img",
+    ".header_logo img",
     "header .logo img",
     "header [class*='logo'] img",
     ".header-logo img",
@@ -190,27 +248,32 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     logoUrl = resolveAssetUrl($('meta[property="og:image"]').attr("content"), sourceUrl) ?? faviconUrl;
   }
 
-  // Categories from nav
+  // Categories from nav (supports classic nav and modern Nuvemshop .header_nav_link)
   const categories: ExtractedStoreData["categories"] = [];
   const seenCats = new Set<string>();
   const navSelectors = [
+    ".header_nav_link",
+    ".header [class*='nav_link']",
+    "header [class*='nav_link']",
     "header nav a",
+    ".header nav a",
     ".js-nav-list-link",
     ".nav-desktop a",
-    ".menu a",
+    ".menu > li > a",
     "nav[role='navigation'] a",
+    "header a[href]",
+    ".header a[href]",
   ];
   for (const sel of navSelectors) {
     $(sel).each((_, el) => {
-      if (categories.length >= 8) return;
+      if (categories.length >= 9) return;
+      // Skip links inside dropdown megamenu sublists when primary links exist
+      if ($(el).closest("[class*='mega'], [class*='submenu'], [class*='dropdown']").length > 0) {
+        return;
+      }
       const label = $(el).text().replace(/\s+/g, " ").trim();
       const href = $(el).attr("href") ?? "#";
-      if (
-        label.length >= 2 &&
-        label.length <= 32 &&
-        !/login|entrar|conta|carrinho|rastrear|contato|busca/i.test(label) &&
-        !seenCats.has(label.toLowerCase())
-      ) {
+      if (isUsefulNavLink(label, href) && !seenCats.has(label.toLowerCase())) {
         seenCats.add(label.toLowerCase());
         categories.push({
           label,
@@ -221,38 +284,95 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     if (categories.length >= 4) break;
   }
 
-  // Banners
-  const banners: ExtractedStoreData["banners"] = [];
+  // Announcement bar text
+  const announcementText =
+    $(
+      "[class*='announcement'], [class*='topbar'], [class*='overline'], [class*='promo-bar'], [data-store='header-advertising']"
+    )
+      .first()
+      .text()
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120) || undefined;
+
+  // Section headings in main
+  const sectionHeadings: string[] = [];
+  const seenHeadings = new Set<string>();
+  $("main h1, main h2, [data-store] h2").each((_, el) => {
+    if (sectionHeadings.length >= 10) return;
+    if ($(el).closest(".product_card, .js-item-product, .product-item, .product-card").length > 0) {
+      return;
+    }
+    const text = $(el).text().replace(/\s+/g, " ").trim();
+    if (text.length >= 3 && text.length <= 80 && !seenHeadings.has(text.toLowerCase())) {
+      seenHeadings.add(text.toLowerCase());
+      sectionHeadings.push(text);
+    }
+  });
+
+  // Banners by slot
   const seenBanners = new Set<string>();
-  const bannerSelectors = [
-    ".js-home-slider img",
-    ".swiper-slide img",
-    ".slider img",
-    "[class*='banner'] img",
-    "[class*='hero'] img",
-    "main section:first-of-type img",
+  const heroBanners = [
+    ...collectBannersFromSelector(
+      $,
+      "[data-store='home-hero'] img, .js-home-slider img, .hero-slider img, [class*='hero'] img",
+      "hero",
+      sourceUrl,
+      logoUrl,
+      seenBanners,
+      3
+    ),
   ];
-  for (const sel of bannerSelectors) {
-    $(sel).each((_, el) => {
-      if (banners.length >= 4) return;
-      const candidate =
-        $(el).attr("data-src") || $(el).attr("src") || $(el).attr("data-original") || $(el).attr("srcset");
-      const imageUrl = resolveAssetUrl(candidate, sourceUrl);
-      if (
-        imageUrl &&
-        !seenBanners.has(imageUrl) &&
-        imageUrl !== logoUrl &&
-        !/icon|logo|badge|selo|whatsapp|pix/i.test(imageUrl)
-      ) {
-        seenBanners.add(imageUrl);
-        banners.push({
-          imageUrl,
-          alt: $(el).attr("alt")?.trim(),
-        });
-      }
-    });
-    if (banners.length > 0) break;
+  if (heroBanners.length === 0) {
+    heroBanners.push(
+      ...collectBannersFromSelector(
+        $,
+        ".swiper-slide img, .slider img, main section:first-of-type img",
+        "hero",
+        sourceUrl,
+        logoUrl,
+        seenBanners,
+        3
+      )
+    );
   }
+
+  const slimBanners = collectBannersFromSelector(
+    $,
+    "[data-store*='slim'] img, [class*='banner-slim'] img, [class*='slim-banner'] img",
+    "slim",
+    sourceUrl,
+    logoUrl,
+    seenBanners,
+    2
+  );
+
+  const moodBanners = collectBannersFromSelector(
+    $,
+    "[data-store*='mood'] a, [class*='mood'] a, [class*='mosaic'] a, [class*='banner-categories'] a",
+    "mood",
+    sourceUrl,
+    logoUrl,
+    seenBanners,
+    4
+  );
+
+  const secondaryBanners = collectBannersFromSelector(
+    $,
+    "[data-store*='banner-full'] img, [class*='banner-full'] img, [class*='secondary-banner'] img",
+    "secondary",
+    sourceUrl,
+    logoUrl,
+    seenBanners,
+    2
+  );
+
+  const banners: ExtractedBanner[] = [
+    ...heroBanners,
+    ...slimBanners,
+    ...moodBanners,
+    ...secondaryBanners,
+  ];
 
   // Products: combine JSON-LD + embedded JSON product scripts + DOM cards
   const products = extractProductsFromJsonLd($, sourceUrl);
@@ -280,6 +400,9 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
       if (title && imageUrl && price && !seenProducts.has(title.toLowerCase())) {
         seenProducts.add(title.toLowerCase());
+        const matchedCat = categories.find((c) =>
+          title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, ""))
+        );
         products.push({
           id: `prod-json-${products.length + 1}`,
           title: title.slice(0, 120),
@@ -287,7 +410,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
           compareAtPrice: compareAtPrice && compareAtPrice > price ? compareAtPrice : undefined,
           imageUrl,
           productUrl,
-          category: categories[0]?.label ?? "Destaques",
+          category: matchedCat?.label ?? categories[0]?.label ?? "Destaques",
         });
       }
     } catch {
@@ -315,18 +438,24 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
       const card = $(el);
       const title =
         card
-          .find(".js-item-name, .product_card_name, .item-name, .product-title, .product-name, h2, h3, h4, [class*='title'], [class*='name']")
+          .find(
+            ".js-item-name, .product_card_name, .item-name, .product-title, .product-name, h2, h3, h4, [class*='title'], [class*='name']"
+          )
           .first()
           .text()
           .replace(/\s+/g, " ")
           .trim() || card.find("a").attr("title")?.trim();
 
       const priceText = card
-        .find(".js-price-display, .product_card_price_now, .price, .product-price, [class*='price_now'], [class*='price-current'], [class*='sale-price'], [class*='price']:not([class*='compare']):not([class*='old'])")
+        .find(
+          ".js-price-display, .product_card_price_now, .price, .product-price, [class*='price_now'], [class*='price-current'], [class*='sale-price'], [class*='price']:not([class*='compare']):not([class*='old'])"
+        )
         .first()
         .text();
       const compareText = card
-        .find(".js-compare-price-display, .product_card_price_old, .compare-price, .old-price, del, s, [class*='compare'], [class*='old']")
+        .find(
+          ".js-compare-price-display, .product_card_price_old, .compare-price, .old-price, del, s, [class*='compare'], [class*='old']"
+        )
         .first()
         .text();
 
@@ -345,6 +474,9 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
       if (title && title.length > 2 && imageUrl && price && !seenProducts.has(title.toLowerCase())) {
         seenProducts.add(title.toLowerCase());
+        const matchedCat = categories.find((c) =>
+          title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, ""))
+        );
         products.push({
           id: `prod-dom-${products.length + 1}`,
           title: title.slice(0, 120),
@@ -352,7 +484,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
           compareAtPrice: compareAtPrice && compareAtPrice > price ? compareAtPrice : undefined,
           imageUrl,
           productUrl,
-          category: categories[0]?.label ?? "Destaques",
+          category: matchedCat?.label ?? categories[0]?.label ?? "Destaques",
         });
       }
     });
@@ -375,6 +507,8 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     tokens: {
       headerIsOverlay: false,
     },
+    announcementText,
+    sectionHeadings,
     categories,
     banners,
     products,
@@ -391,7 +525,7 @@ async function tryShopifyProductsProbe(sourceUrl: string): Promise<ExtractedProd
     const endpoint = new URL("/products.json?limit=16", sourceUrl).toString();
     const res = await fetch(endpoint, {
       headers: { "User-Agent": "Mozilla/5.0" },
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(4000),
     });
     if (!res.ok) return [];
     const data = (await res.json()) as {
@@ -438,8 +572,11 @@ export async function extractStoreFromUrl(
   const capturesDir = path.join(process.cwd(), "public", "captures");
   await fs.mkdir(capturesDir, { recursive: true });
   const screenshotFile = `${slug}.png`;
+  const fullScreenshotFile = `${slug}-full.png`;
   const screenshotDiskPath = path.join(capturesDir, screenshotFile);
+  const fullScreenshotDiskPath = path.join(capturesDir, fullScreenshotFile);
   const screenshotPublicPath = `/api/captures/${screenshotFile}`;
+  const fullScreenshotPublicPath = `/api/captures/${fullScreenshotFile}`;
 
   // Layer 1: Fast HTTP probe
   let fastHtml = "";
@@ -451,7 +588,7 @@ export async function extractStoreFromUrl(
           "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Accept: "text/html,application/xhtml+xml",
       },
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(8000),
     });
     fastHtml = await res.text();
     res.headers.forEach((v, k) => {
@@ -463,7 +600,7 @@ export async function extractStoreFromUrl(
 
   const fastPlatform = fastHtml ? detectPlatform(fastHtml, fastHeaders) : "Desconhecida";
 
-  // Layer 2: Playwright render + computed tokens + screenshot
+  // Layer 2: Deep Playwright render + full scroll + computed palette & banners
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   try {
     browser = await chromium.launch({
@@ -487,20 +624,22 @@ export async function extractStoreFromUrl(
       return route.continue();
     });
 
-    await page.goto(normalizedUrl, { waitUntil: "domcontentloaded", timeout: 18000 });
-    await page.waitForTimeout(1800);
+    await page.goto(normalizedUrl, { waitUntil: "domcontentloaded", timeout: 22000 });
+    await page.waitForTimeout(2000);
 
-    // Light scroll to trigger lazy-loaded product cards and banners
+    // Full-page progressive scroll to trigger all lazy-loaded banners, shelves, and footer
     await page.evaluate(async () => {
-      window.scrollTo(0, 900);
-      await new Promise((r) => setTimeout(r, 450));
-      window.scrollTo(0, 1800);
-      await new Promise((r) => setTimeout(r, 450));
+      const maxScroll = Math.min(document.body.scrollHeight || 4200, 5600);
+      for (let y = 600; y <= maxScroll; y += 700) {
+        window.scrollTo(0, y);
+        await new Promise((r) => setTimeout(r, 380));
+      }
       window.scrollTo(0, 0);
     });
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(900);
 
     await page.screenshot({ path: screenshotDiskPath, fullPage: false });
+    await page.screenshot({ path: fullScreenshotDiskPath, fullPage: true }).catch(() => undefined);
 
     const renderedHtml = await page.content();
 
@@ -513,75 +652,171 @@ export async function extractStoreFromUrl(
       };
 
       const bodyStyle = getComputedStyle(document.body);
-      const headerEl = document.querySelector("header");
+      const bodyBackground = pickVisibleBg(document.body) ?? pickVisibleBg(document.documentElement);
+      const headerEl = document.querySelector("header, .header, [class*='site-header']");
       const headerStyle = headerEl ? getComputedStyle(headerEl) : null;
       const headerIsOverlay = headerStyle
         ? headerStyle.position === "fixed" || headerStyle.position === "absolute"
         : false;
+
+      // Announcement / Topbar sampling
+      const announcementEl = document.querySelector(
+        "[class*='announcement'], [class*='topbar'], [class*='overline'], [class*='promo-bar'], [data-store='header-advertising']"
+      );
+      const announcementBg = pickVisibleBg(announcementEl);
+      const announcementFg = announcementEl ? getComputedStyle(announcementEl).color : undefined;
+      const announcementText = announcementEl?.textContent?.replace(/\s+/g, " ").trim().slice(0, 120);
+
+      // Alternating section surface color (e.g. beige/cream or soft gray sections)
+      let surfaceBackground: string | undefined;
+      const sections = Array.from(
+        document.querySelectorAll("main > section, main > div, [data-store]")
+      );
+      for (const sec of sections) {
+        const bg = pickVisibleBg(sec);
+        if (bg && bg !== bodyBackground) {
+          surfaceBackground = bg;
+          break;
+        }
+      }
+
+      // Footer colors
+      const footerEl = document.querySelector("footer");
+      const footerBackground = pickVisibleBg(footerEl);
+      const footerForeground = footerEl ? getComputedStyle(footerEl).color : undefined;
 
       const headingEl =
         document.querySelector("h1, h2, .section-title, [class*='title']") ?? document.body;
       const headingFont = getComputedStyle(headingEl).fontFamily;
       const bodyFont = bodyStyle.fontFamily;
 
-      // Find primary CTA button
+      // Primary & secondary CTA buttons
       const ctaCandidates = Array.from(
         document.querySelectorAll(
-          "a.btn-primary, button.btn-primary, .btn-buy, [class*='buy'], [class*='cta'], button[type='submit'], a.btn, button.btn"
+          "a.btn-primary, button.btn-primary, .btn-buy, [class*='product_card_cta'], [class*='buy'], [class*='cta'], button[type='submit'], a.btn, button.btn"
         )
       );
       let primaryButtonBg: string | undefined;
       let primaryButtonColor: string | undefined;
+      let secondaryButtonBg: string | undefined;
+      let secondaryButtonColor: string | undefined;
       let borderRadiusPx: number | undefined;
 
       for (const btn of ctaCandidates) {
         const rect = btn.getBoundingClientRect();
-        if (rect.width < 40 || rect.height < 20) continue;
+        if (rect.width < 45 || rect.height < 22) continue;
         const st = getComputedStyle(btn);
         const bg = st.backgroundColor;
         if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
-          primaryButtonBg = bg;
-          primaryButtonColor = st.color;
-          borderRadiusPx = parseFloat(st.borderRadius) || 0;
-          break;
+          if (!primaryButtonBg) {
+            primaryButtonBg = bg;
+            primaryButtonColor = st.color;
+            borderRadiusPx = parseFloat(st.borderRadius) || 0;
+          } else if (bg !== primaryButtonBg && !secondaryButtonBg) {
+            secondaryButtonBg = bg;
+            secondaryButtonColor = st.color;
+            break;
+          }
         }
       }
 
-      // Live DOM extraction of wide banners & visible logos (better than raw HTML when JS sliders run)
-      const wideImages = Array.from(document.querySelectorAll("img"))
-        .map((img) => {
-          const r = img.getBoundingClientRect();
-          return {
-            src: img.currentSrc || img.src,
-            alt: img.alt,
-            width: r.width,
-            height: r.height,
-            top: r.top,
-          };
-        })
-        .filter((i) => i.src && i.width >= 600 && i.height >= 200 && i.top < 1100)
-        .slice(0, 4);
+      // Classify live rendered banner images by geometry & position
+      const seenSrcs = new Set<string>();
+      const classifiedBanners: Array<{
+        imageUrl: string;
+        alt?: string;
+        href?: string;
+        slot: "hero" | "slim" | "secondary" | "mood";
+        label?: string;
+      }> = [];
 
-      const headerLogo = Array.from(document.querySelectorAll<HTMLImageElement>("header img"))
+      const imgs = Array.from(document.querySelectorAll<HTMLImageElement>("main img, section img"));
+      for (const img of imgs) {
+        const src = img.currentSrc || img.src;
+        if (!src || seenSrcs.has(src)) continue;
+        if (/icon|logo|badge|selo|whatsapp|pix|visa|master|elo/i.test(src)) continue;
+        if (img.closest(".product_card, .js-item-product, .product-item, .product-card, footer")) {
+          continue;
+        }
+        const rect = img.getBoundingClientRect();
+        const absTop = rect.top + window.scrollY;
+        const w = rect.width;
+        const h = rect.height;
+        if (w < 160 || h < 70) continue;
+
+        const aspect = w / h;
+        const linkEl = img.closest("a");
+        const href = linkEl?.getAttribute("href") || undefined;
+        const alt = img.alt?.trim() || linkEl?.getAttribute("aria-label")?.trim() || undefined;
+
+        if (w >= 580 && aspect >= 3.2) {
+          seenSrcs.add(src);
+          classifiedBanners.push({ imageUrl: src, alt, href, slot: "slim" });
+        } else if (w >= 580 && h >= 180 && absTop < 1050) {
+          seenSrcs.add(src);
+          classifiedBanners.push({ imageUrl: src, alt, href, slot: "hero" });
+        } else if (w >= 580 && h >= 160 && absTop >= 1050) {
+          seenSrcs.add(src);
+          classifiedBanners.push({ imageUrl: src, alt, href, slot: "secondary" });
+        } else if (w >= 180 && w <= 560 && h >= 150 && absTop >= 600) {
+          seenSrcs.add(src);
+          const containerText =
+            linkEl?.textContent?.replace(/\s+/g, " ").trim() ||
+            img.parentElement?.textContent?.replace(/\s+/g, " ").trim();
+          classifiedBanners.push({
+            imageUrl: src,
+            alt,
+            href,
+            slot: "mood",
+            label: containerText && containerText.length <= 42 ? containerText : alt,
+          });
+        }
+      }
+
+      const headerLogo = Array.from(
+        document.querySelectorAll<HTMLImageElement>("header img, .header img, .header_logo img")
+      )
         .map((img) => {
           const r = img.getBoundingClientRect();
           return { src: img.currentSrc || img.src, width: r.width, height: r.height };
         })
         .find((i) => i.src && i.width >= 40 && i.height >= 16 && i.width <= 420);
 
+      // Visible header nav links directly from live DOM
+      const liveNavLinks = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>(
+          ".header_nav_link, .header [class*='nav_link'], header [class*='nav_link'], header nav a, .header nav a, .js-nav-list-link, header a[href], .header a[href]"
+        )
+      )
+        .filter((a) => !a.closest("[class*='mega'], [class*='submenu'], [class*='dropdown']"))
+        .map((a) => ({
+          label: (a.textContent || "").replace(/\s+/g, " ").trim(),
+          href: a.href,
+        }))
+        .filter((item) => item.label.length >= 2 && item.label.length <= 34);
+
       return {
-        bodyBackground: pickVisibleBg(document.body) ?? pickVisibleBg(document.documentElement),
+        bodyBackground,
         bodyForeground: bodyStyle.color,
+        surfaceBackground,
+        announcementBackground: announcementBg,
+        announcementForeground: announcementFg,
+        announcementText,
         headerBackground: pickVisibleBg(headerEl),
         headerForeground: headerStyle?.color,
         headerIsOverlay,
+        footerBackground,
+        footerForeground,
         primaryButtonBg,
         primaryButtonColor,
+        secondaryButtonBg,
+        secondaryButtonColor,
         borderRadiusPx,
         headingFont,
         bodyFont,
-        wideImages,
+        classifiedBanners,
         headerLogoUrl: headerLogo?.src,
+        liveNavLinks,
       };
     });
 
@@ -594,12 +829,44 @@ export async function extractStoreFromUrl(
       parsed.logoUrl = domInspection.headerLogoUrl;
     }
 
-    if (domInspection.wideImages.length > 0) {
-      const mergedBanners = domInspection.wideImages.map((img) => ({
-        imageUrl: img.src,
-        alt: img.alt,
+    if (domInspection.liveNavLinks.length >= 3) {
+      const seenNav = new Set<string>();
+      const cleanNav: ExtractedStoreData["categories"] = [];
+      for (const link of domInspection.liveNavLinks) {
+        if (cleanNav.length >= 9) break;
+        if (isUsefulNavLink(link.label, link.href) && !seenNav.has(link.label.toLowerCase())) {
+          seenNav.add(link.label.toLowerCase());
+          cleanNav.push({
+            label: link.label,
+            href: resolveAssetUrl(link.href, normalizedUrl) ?? "#",
+          });
+        }
+      }
+      if (cleanNav.length >= 3) {
+        parsed.categories = cleanNav;
+      }
+    }
+
+    if (domInspection.classifiedBanners.length > 0) {
+      const mergedBanners: ExtractedBanner[] = domInspection.classifiedBanners.map((b) => ({
+        imageUrl: b.imageUrl,
+        alt: b.alt,
+        href: resolveAssetUrl(b.href, normalizedUrl),
+        slot: b.slot,
+        label: b.label,
       }));
+      const seenBannerUrls = new Set(mergedBanners.map((b) => b.imageUrl));
+      for (const hb of parsed.banners) {
+        if (!seenBannerUrls.has(hb.imageUrl)) {
+          seenBannerUrls.add(hb.imageUrl);
+          mergedBanners.push(hb);
+        }
+      }
       parsed.banners = mergedBanners;
+    }
+
+    if (domInspection.announcementText) {
+      parsed.announcementText = domInspection.announcementText;
     }
 
     if (parsed.detectedPlatform === "Shopify" && parsed.products.length < 6) {
@@ -610,14 +877,22 @@ export async function extractStoreFromUrl(
     }
 
     parsed.screenshotPath = screenshotPublicPath;
+    parsed.fullScreenshotPath = fullScreenshotPublicPath;
     parsed.tokens = {
       bodyBackground: domInspection.bodyBackground,
       bodyForeground: domInspection.bodyForeground,
+      surfaceBackground: domInspection.surfaceBackground,
+      announcementBackground: domInspection.announcementBackground,
+      announcementForeground: domInspection.announcementForeground,
       headerBackground: domInspection.headerBackground,
       headerForeground: domInspection.headerForeground,
       headerIsOverlay: domInspection.headerIsOverlay,
+      footerBackground: domInspection.footerBackground,
+      footerForeground: domInspection.footerForeground,
       primaryButtonBg: domInspection.primaryButtonBg,
       primaryButtonColor: domInspection.primaryButtonColor,
+      secondaryButtonBg: domInspection.secondaryButtonBg,
+      secondaryButtonColor: domInspection.secondaryButtonColor,
       accentColor: domInspection.primaryButtonBg,
       headingFont: domInspection.headingFont,
       bodyFont: domInspection.bodyFont,
@@ -626,7 +901,6 @@ export async function extractStoreFromUrl(
 
     return parsed;
   } catch (error) {
-    // Fallback to fast HTML extraction if Playwright fails
     if (fastHtml) {
       const fallback = extractStoreFromHtml(fastHtml, normalizedUrl);
       fallback.detectedPlatform = fastPlatform;

@@ -100,3 +100,20 @@ export function lightenHex(hex: string, amount = 0.88): string {
     b: rgb.b + (255 - rgb.b) * amount,
   });
 }
+
+export function contrastRatio(hexA: string, hexB: string): number {
+  const a = parseColorToRgb(hexA);
+  const b = parseColorToRgb(hexB);
+  if (!a || !b) return 1;
+  const lumA = relativeLuminance(a);
+  const lumB = relativeLuminance(b);
+  const brightest = Math.max(lumA, lumB);
+  const darkest = Math.min(lumA, lumB);
+  return Number(((brightest + 0.05) / (darkest + 0.05)).toFixed(2));
+}
+
+export function isLightColor(hex: string): boolean {
+  const rgb = parseColorToRgb(hex);
+  if (!rgb) return true;
+  return relativeLuminance(rgb) > 0.5;
+}

@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { StoreBlueprintSchema, type CompiledExport } from "@/lib/types/blueprint";
-import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
+import { StoreBlueprintSchema } from "@/lib/types/blueprint";
 import StudioClient from "@/components/StudioClient";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +22,6 @@ export default async function StudioPage({
     notFound();
   }
 
-  const compiledExport =
-    (preview.compiledExport as CompiledExport | null) ??
-    compileIrrobaExport(parsedBlueprint.data);
-
   return (
     <StudioClient
       id={preview.id}
@@ -36,7 +31,6 @@ export default async function StudioPage({
       generationMode={preview.generationMode}
       initialWhatsapp={preview.sellerWhatsapp ?? ""}
       initialBlueprint={parsedBlueprint.data}
-      initialExport={compiledExport}
     />
   );
 }

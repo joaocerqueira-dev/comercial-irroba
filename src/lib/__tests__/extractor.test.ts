@@ -104,4 +104,39 @@ describe("Platform Detection & Store HTML Extraction", () => {
     expect(extracted.products.map((p) => p.title)).toContain("Coturno Inglês Preto");
     expect(extracted.products.map((p) => p.title)).toContain("Creeper Acamurçado Preto");
   });
+
+  it("extracts .header_nav_link categories and multi-slot banners (hero, slim, mood, secondary)", () => {
+    const html = `<!DOCTYPE html>
+    <html>
+      <head><title>Estilo Veggie</title></head>
+      <body>
+        <div class="header">
+          <a class="header_nav_link" href="/lancamentos">Lançamentos</a>
+          <a class="header_nav_link" href="/coturnos">Coturnos</a>
+          <a class="header_nav_link" href="/creepers">Creepers</a>
+          <a class="header_nav_link" href="/sapatos">Sapatos</a>
+        </div>
+        <main>
+          <section data-store="home-hero"><img src="https://cdn.example.com/hero1.webp" /></section>
+          <section data-store="home-mood">
+            <h2>Escolha seu mood</h2>
+            <a href="/coturnos"><img src="https://cdn.example.com/mood1.webp" /><span>Coturnos</span></a>
+            <a href="/creepers"><img src="https://cdn.example.com/mood2.webp" /><span>Creepers</span></a>
+          </section>
+          <section data-store="home-banner-slim"><img src="https://cdn.example.com/slim.webp" /></section>
+          <section data-store="home-banner-full"><img src="https://cdn.example.com/full.webp" /></section>
+        </main>
+      </body>
+    </html>`;
+
+    const extracted = extractStoreFromHtml(html, "https://estiloveggieshoes.com.br/");
+    expect(extracted.categories.map((c) => c.label)).toEqual([
+      "Lançamentos",
+      "Coturnos",
+      "Creepers",
+      "Sapatos",
+    ]);
+    expect(extracted.sectionHeadings).toContain("Escolha seu mood");
+    expect(extracted.banners.map((b) => b.slot)).toEqual(["hero", "slim", "mood", "mood", "secondary"]);
+  });
 });
