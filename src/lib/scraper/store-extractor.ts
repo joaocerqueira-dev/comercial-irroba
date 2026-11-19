@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { getSharedBrowser } from "./browser";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import { mirrorFilePrefix } from "@/lib/files/captures";
+import { fetchPublic, followPublicRedirects } from "@/lib/net/safe-fetch";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
@@ -1193,13 +1194,20 @@ export async function mirrorCriticalImages(
       if (!(await isPublicHttpUrl(candidateUrl))) return null;
       try {
         if (pwRequest) {
-          const res = await pwRequest.get(candidateUrl, {
-            headers: {
-              Referer: refererUrl,
-              Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            },
-            timeout: 4500,
-          });
+          const res = await followPublicRedirects(
+            candidateUrl,
+            (u) =>
+              pwRequest.get(u, {
+                headers: {
+                  Referer: refererUrl,
+                  Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                },
+                timeout: 4500,
+                maxRedirects: 0,
+              }),
+            (r) => ({ status: r.status(), location: r.headers()["location"] })
+          );
+          if (!res) return null;
           if (!res.ok()) return null;
           const ct = res.headers()["content-type"] || "";
           if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
@@ -1213,7 +1221,7 @@ export async function mirrorCriticalImages(
         // fallback to native fetch below
       }
       try {
-        const res = await fetch(candidateUrl, {
+        const res = await fetchPublic(candidateUrl, {
           headers: {
             "User-Agent":
               BROWSER_USER_AGENT,
@@ -1222,7 +1230,7 @@ export async function mirrorCriticalImages(
           },
           signal: AbortSignal.timeout(4500),
         });
-        if (!res.ok) return null;
+        if (!res || !res.ok) return null;
         const ct = res.headers.get("content-type") || "";
         if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
           return null;
@@ -1309,8 +1317,7 @@ async function enrichProductsByCategory(
 
   const results = await Promise.allSettled(
     candidateCategories.map(async (cat) => {
-      if (!(await isPublicHttpUrl(cat.href))) throw new Error("URL interna bloqueada");
-      const res = await fetch(cat.href, {
+      const res = await fetchPublic(cat.href, {
         headers: {
           "User-Agent":
             BROWSER_USER_AGENT,
@@ -1318,6 +1325,7 @@ async function enrichProductsByCategory(
         },
         signal: AbortSignal.timeout(4500),
       });
+      if (!res) throw new Error("URL interna bloqueada");
       if (!res.ok) return { cat, products: [] as ExtractedProduct[] };
       const html = await res.text();
       const catData = extractStoreFromHtml(html, cat.href);

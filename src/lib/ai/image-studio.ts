@@ -2,7 +2,7 @@ import { mimeFromFilename } from "@/lib/files/mime";
 import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
 import { getSharedBrowser } from "@/lib/scraper/browser";
-import { isPublicHttpUrl } from "@/lib/net/safe-url";
+import { fetchPublic } from "@/lib/net/safe-fetch";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { escapeHtml, sanitizeCssColor, sanitizeFontName } from "@/lib/irroba-blocks/sanitize";
@@ -122,9 +122,8 @@ async function loadImageAsBuffer(
 
   // 2) External HTTP(S) image with anti-hotlink Referer
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    if (!(await isPublicHttpUrl(trimmed))) return null;
     try {
-      const res = await fetch(trimmed, {
+      const res = await fetchPublic(trimmed, {
         headers: {
           "User-Agent":
             BROWSER_USER_AGENT,
@@ -133,7 +132,7 @@ async function loadImageAsBuffer(
         },
         signal: AbortSignal.timeout(8000),
       });
-      if (!res.ok) return null;
+      if (!res || !res.ok) return null;
       const ct = (res.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
       if (!ct.startsWith("image/") && ct !== "application/octet-stream") return null;
       const buffer = Buffer.from(await res.arrayBuffer());
