@@ -9,7 +9,13 @@ import {
   sanitizeFontName,
   sanitizeUrl,
 } from "./sanitize";
-import type { CompiledExport, HtmlBlockExport, StoreBlueprint } from "@/lib/types/blueprint";
+import {
+  getNormalizedSectionLayout,
+  type CompiledExport,
+  type HtmlBlockExport,
+  type SectionKey,
+  type StoreBlueprint,
+} from "@/lib/types/blueprint";
 
 const RADIUS_MAP: Record<StoreBlueprint["theme"]["radius"], { css: string; label: string }> = {
   none: { css: "0px", label: "Sem arredondamento" },
@@ -24,59 +30,7 @@ const HEADER_POSITION_LABELS: Record<StoreBlueprint["visualOverrides"]["header"]
   overlay: "Fixo na tela (sobrepõe conteúdo)",
 };
 
-function buildMoodHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
-  const radius = RADIUS_MAP[bp.theme.radius].css;
-  const bodyColor = sanitizeCssColor(bp.theme.bodyForeground, "#111827");
-  const activeMoods = (bp.sections.moodBanners ?? []).filter((m) => m.enabled);
-
-  const items =
-    activeMoods.length > 0
-      ? activeMoods
-      : bp.sections.categories.slice(0, 4).map((c, idx) => ({
-          id: `cat-mood-${idx}`,
-          title: c.label,
-          subtitle: "Explorar",
-          imageUrl: c.imageUrl || bp.sections.hero.imageUrl,
-          href: c.href,
-          enabled: true,
-        }));
-
-  const cardsHtml = items
-    .slice(0, 4)
-    .map((item) => {
-      const title = escapeHtml(item.title);
-      const subtitle = escapeHtml(item.subtitle || "Ver coleção");
-      const imgUrl = sanitizeUrl(item.imageUrl, "");
-      const href = escapeAttr(sanitizeUrl(item.href, "#vitrines"));
-      return `<a href="${href}" data-irb-cat="${escapeAttr(item.title)}" style="position:relative;flex:1 1 220px;min-width:200px;height:280px;border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#18181b;">
-  <img src="${escapeAttr(imgUrl)}" alt="${title}" style="width:100%;height:100%;object-fit:cover;display:block;transition:transform .35s ease;" />
-  <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 45%,rgba(0,0,0,0.72) 100%);"></div>
-  <div style="position:absolute;left:18px;right:18px;bottom:18px;color:#ffffff;">
-    <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;opacity:0.85;margin-bottom:4px;">${subtitle}</div>
-    <div style="font-size:19px;font-weight:700;line-height:1.2;">${title}</div>
-  </div>
-</a>`;
-    })
-    .join("\n    ");
-
-  const html = `<div style="padding:36px 0;box-sizing:border-box;">
-  <h2 style="margin:0 0 22px 0;font-size:26px;font-weight:700;text-align:center;color:${bodyColor};">${escapeHtml(bp.sections.moodSectionTitle || "Explore por Categoria")}</h2>
-  <div style="display:flex;flex-wrap:wrap;gap:16px;justify-content:center;align-items:stretch;">
-    ${cardsHtml}
-  </div>
-</div>`;
-
-  return {
-    id: "irb-html-mood",
-    name: "Mosaico Visual de Categorias / Mood",
-    moduleTitle: "Conteúdo HTML · Mood & Coleções",
-    recommendedWidth: "Padrão do site (1280px)",
-    placementNote: "Adicionar em Página Inicial > Topo do Conteúdo logo após os benefícios.",
-    html,
-  };
-}
-
-function buildBenefitsHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
+function renderTarjaBenefitsHtml(bp: StoreBlueprint): string {
   const cfg = bp.sections.benefitsBanner;
   const bg = sanitizeCssColor(cfg?.backgroundColor ?? bp.theme.neutralBackground, "#F4F4F5");
   const primary = sanitizeCssColor(bp.theme.primaryBackground, "#111827");
@@ -96,39 +50,21 @@ function buildBenefitsHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
       )
       .join("\n      ");
 
-    const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:20px;box-sizing:border-box;">
+    return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:20px;box-sizing:border-box;">
   <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:center;">
       ${imgsHtml}
   </div>
 </div>`;
-
-    return {
-      id: "irb-html-benefits",
-      name: "Régua de Benefícios (Arte Original da Loja)",
-      moduleTitle: "Conteúdo HTML · Benefícios (Artes Originais)",
-      recommendedWidth: "Largura Total",
-      placementNote: "Reproduz exatamente as artes gráficas da faixa de benefícios da loja original.",
-      html,
-    };
   }
 
   // 2) Generated graphic SVG banner artwork
   if (cfg?.mode !== "cards") {
     const dataUri = generateBenefitsBannerDataUri(bp);
-    const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:6px 0;box-sizing:border-box;">
+    return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:6px 0;box-sizing:border-box;">
   <div style="max-width:1280px;margin:0 auto;padding:0 16px;">
     <img src="${escapeAttr(dataUri)}" alt="Vantagens ${escapeAttr(bp.brand.name)}" style="width:100%;height:auto;display:block;border-radius:${radius};" />
   </div>
 </div>`;
-
-    return {
-      id: "irb-html-benefits",
-      name: "Banner Arte de Benefícios (Gerado)",
-      moduleTitle: "Conteúdo HTML · Banner Benefícios (Arte)",
-      recommendedWidth: "Largura Total",
-      placementNote: "Arte gráfica gerada na paleta da marca (também pode ser baixada em PNG no Studio para subir em Banners).",
-      html,
-    };
   }
 
   // 3) Editable cards fallback with Material SVG icons (no emojis)
@@ -145,23 +81,14 @@ function buildBenefitsHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
     })
     .join("\n      ");
 
-  const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:24px 20px;box-sizing:border-box;">
+  return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:24px 20px;box-sizing:border-box;">
   <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;">
       ${itemsHtml}
   </div>
 </div>`;
-
-  return {
-    id: "irb-html-benefits",
-    name: "Régua de Benefícios & Confiança",
-    moduleTitle: "Conteúdo HTML · Benefícios",
-    recommendedWidth: "Largura Total",
-    placementNote: "Usa breakout 100vw da Irroba para faixa de fundo inteira.",
-    html,
-  };
 }
 
-function buildSlimBannerHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
+function renderSlimBannerHtml(bp: StoreBlueprint): string {
   const slim = bp.sections.slimBanner;
   const bg = sanitizeCssColor(slim?.backgroundColor ?? bp.theme.secondaryBackground, "#111827");
   const fg = sanitizeCssColor(slim?.textColor ?? bp.theme.secondaryForeground, "#FFFFFF");
@@ -169,14 +96,15 @@ function buildSlimBannerHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
   const btnFg = sanitizeCssColor(bp.theme.btnPrimaryColor, "#111827");
   const radius = RADIUS_MAP[bp.theme.radius].css;
 
-  const html =
-    slim?.mode === "image" && slim.imageUrl
-      ? `<div style="padding:10px 0;">
+  if (slim?.mode === "image" && slim.imageUrl) {
+    return `<div style="padding:10px 0;">
   <a href="#vitrines" style="display:block;border-radius:${radius};overflow:hidden;">
     <img src="${escapeAttr(sanitizeUrl(slim.imageUrl, ""))}" alt="${escapeAttr(slim.headline)}" style="width:100%;height:auto;display:block;object-fit:cover;" />
   </a>
-</div>`
-      : `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:18px 20px;box-sizing:border-box;">
+</div>`;
+  }
+
+  return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:18px 20px;box-sizing:border-box;">
   <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
       <span style="background:${btnBg};color:${btnFg};font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:${radius};">${escapeHtml(slim?.badgeText || "OFERTA")}</span>
@@ -185,20 +113,119 @@ function buildSlimBannerHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
     <a href="#vitrines" style="display:inline-block;padding:10px 20px;border:1px solid ${fg};color:${fg};text-decoration:none;font-size:13px;font-weight:700;border-radius:${radius};">${escapeHtml(slim?.ctaText || "Aproveitar")}</a>
   </div>
 </div>`;
+}
+
+function splitHeadlineForItalicAccent(raw: string): { lead: string; accent: string } {
+  const words = raw.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 2) {
+    return { lead: words[0] ?? "Coleção", accent: words.slice(1).join(" ") || "Exclusiva" };
+  }
+  return {
+    lead: words.slice(0, -1).join(" "),
+    accent: words[words.length - 1],
+  };
+}
+
+function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
+  const radius = RADIUS_MAP[bp.theme.radius].css;
+  const bodyBg = sanitizeCssColor(bp.theme.bodyBackground, "#FFFFFF");
+  const bodyColor = sanitizeCssColor(bp.theme.bodyForeground, "#111827");
+  const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, "#111827");
+  const headingFont = sanitizeFontName(bp.theme.headingFont, "Montserrat");
+  const activeMoods = (bp.sections.moodBanners ?? []).filter((m) => m.enabled);
+  const visibleProducts = bp.products.filter((p) => p.visible !== false);
+
+  const fallbackImgs = [
+    ...visibleProducts.map((p) => p.imageUrl),
+    bp.sections.hero.imageUrl,
+  ].filter(Boolean);
+
+  const rawItems =
+    activeMoods.length > 0
+      ? activeMoods
+      : bp.sections.categories.slice(0, 4).map((c, idx) => ({
+          id: `cat-mood-${idx}`,
+          title: c.label,
+          subtitle: "Curadoria",
+          imageUrl: c.imageUrl || fallbackImgs[idx % Math.max(1, fallbackImgs.length)] || "",
+          href: c.href,
+          enabled: true,
+        }));
+
+  const items = rawItems.slice(0, 4);
+  const totalStr = String(items.length).padStart(2, "0");
+  const { lead, accent } = splitHeadlineForItalicAccent(
+    bp.sections.moodSectionTitle || "Explore por Coleção"
+  );
+
+  const cardsHtml = items
+    .map((item, idx) => {
+      const title = escapeHtml(item.title);
+      const subtitle = escapeHtml(item.subtitle || "Curadoria Exclusiva");
+      const imgUrl = sanitizeUrl(
+        item.imageUrl || fallbackImgs[idx % Math.max(1, fallbackImgs.length)] || "",
+        ""
+      );
+      const href = escapeAttr(sanitizeUrl(item.href, "#vitrines"));
+      const indexStr = String(idx + 1).padStart(2, "0");
+
+      const mediaMarkup = imgUrl
+        ? `<img src="${escapeAttr(imgUrl)}" alt="${title}" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.55s ease;" />`
+        : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${primaryBg},#18181b);"></div>`;
+
+      return `<a href="${href}" data-irb-cat="${escapeAttr(item.title)}" style="position:relative;flex:1 0 min(260px,74vw);scroll-snap-align:start;aspect-ratio:3/4;min-height:340px;border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#141416;color:#ffffff;box-sizing:border-box;">
+    ${mediaMarkup}
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.18) 0%,rgba(0,0,0,0.03) 40%,rgba(0,0,0,0.82) 100%);"></div>
+    <div style="position:absolute;top:18px;left:18px;right:18px;display:flex;align-items:center;justify-content:space-between;">
+      <span style="font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.92);padding:5px 10px;border:1px solid rgba(255,255,255,0.3);border-radius:999px;background:rgba(0,0,0,0.22);">${indexStr} / ${totalStr}</span>
+      <span style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.78);">${subtitle}</span>
+    </div>
+    <div style="position:absolute;left:22px;right:22px;bottom:22px;color:#ffffff;">
+      <div style="font-family:'${headingFont}',sans-serif;font-size:clamp(21px,2.1vw,27px);font-weight:400;line-height:1.1;letter-spacing:-0.01em;margin:0 0 12px 0;">${title}</div>
+      <span style="display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#ffffff;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.7);">Explorar &#8594;</span>
+    </div>
+  </a>`;
+    })
+    .join("\n      ");
+
+  const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bodyBg};color:${bodyColor};padding:clamp(46px,6vw,78px) clamp(20px,4vw,52px);box-sizing:border-box;">
+  <div style="max-width:1280px;margin:0 auto;">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:clamp(28px,3.8vw,44px);">
+      <div style="flex:1 1 380px;">
+        <div style="display:inline-flex;align-items:center;gap:10px;font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;opacity:0.68;margin-bottom:12px;">
+          <span style="display:inline-block;width:28px;height:1px;background:${primaryBg};"></span>
+          <span>Curadoria · ${escapeHtml(bp.brand.niche)}</span>
+        </div>
+        <h2 style="margin:0;font-family:'${headingFont}',sans-serif;font-size:clamp(30px,4vw,50px);font-weight:300;line-height:1.02;letter-spacing:-0.02em;color:${bodyColor};">${escapeHtml(lead)} <em style="font-style:italic;font-weight:400;color:${primaryBg};">${escapeHtml(accent)}</em></h2>
+      </div>
+      <div style="flex:0 1 340px;">
+        <p style="margin:0 0 14px 0;font-size:14px;line-height:1.65;opacity:0.78;">Seleção editorial pensada para destacar as principais linhas da ${escapeHtml(bp.brand.name)} com navegação fluida em qualquer tela.</p>
+        <a href="#categoria" data-irb-cat="all" style="display:inline-block;font-size:11px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;color:${bodyColor};text-decoration:none;padding-bottom:4px;border-bottom:1px solid ${bodyColor};">Ver catálogo completo &#8594;</a>
+      </div>
+    </div>
+    <div style="display:flex;gap:clamp(14px,1.8vw,22px);overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:8px;scrollbar-width:thin;">
+      ${cardsHtml}
+    </div>
+  </div>
+</div>`;
 
   return {
-    id: "irb-html-slim",
-    name: "Banner Slim Promocional",
-    moduleTitle: "Conteúdo HTML · Banner Slim",
-    recommendedWidth: slim?.mode === "image" ? "Padrão do site (1280px)" : "Largura Total",
-    placementNote: "Faixa horizontal de alto impacto acima da primeira vitrine.",
+    id: "irb-html-editorial-gallery",
+    name: "Galeria Editorial de Coleções (3:4 + Movimento Suave)",
+    moduleTitle: "Conteúdo HTML · Galeria Editorial",
+    recommendedWidth: "Largura Total",
+    placementNote:
+      "Posicionar em Página Inicial > Topo do Conteúdo logo após a Tarja Informativa. Usa 100% CSS inline + animação SVG SMIL nativa sem JavaScript (compatível com SunEditor).",
     html,
   };
 }
 
-function buildBrandStoryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
+function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
+  const neutralBg = sanitizeCssColor(bp.theme.neutralBackground, "#F4F4F5");
+  const neutralFg = sanitizeCssColor(bp.theme.neutralForeground, "#111827");
   const secondaryBg = sanitizeCssColor(bp.theme.secondaryBackground, "#18181B");
   const secondaryFg = sanitizeCssColor(bp.theme.secondaryForeground, "#FFFFFF");
+  const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, "#111827");
   const btnBg = sanitizeCssColor(bp.theme.btnPrimaryBackground, "#111827");
   const btnFg = sanitizeCssColor(bp.theme.btnPrimaryColor, "#FFFFFF");
   const btnBorder = sanitizeCssColor(
@@ -207,38 +234,104 @@ function buildBrandStoryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
       : bp.theme.btnPrimaryBorder,
     "transparent"
   );
+  const headingFont = sanitizeFontName(bp.theme.headingFont, "Montserrat");
   const radius = RADIUS_MAP[bp.theme.radius].css;
 
-  const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${secondaryBg};color:${secondaryFg};padding:48px 20px;box-sizing:border-box;">
-  <div style="max-width:1080px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:24px;">
-    <div style="flex:1 1 460px;">
-      <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.8;margin-bottom:8px;">Sobre a ${escapeHtml(bp.brand.name)}</div>
-      <h2 style="margin:0 0 12px 0;font-size:28px;font-weight:700;line-height:1.2;color:${secondaryFg};">${escapeHtml(bp.sections.promoStripText)}</h2>
-      <p style="margin:0;font-size:15px;line-height:1.6;opacity:0.9;">${escapeHtml(bp.footer.aboutText)}</p>
+  const visibleProducts = bp.products.filter((p) => p.visible !== false);
+  const lookbook = bp.sections.lookbook;
+  const mainPhoto = sanitizeUrl(
+    lookbook?.mainImageUrl ||
+      bp.sections.secondaryBanner?.imageUrl ||
+      bp.sections.moodBanners?.[0]?.imageUrl ||
+      visibleProducts[0]?.imageUrl ||
+      bp.sections.hero.imageUrl,
+    ""
+  );
+  const detailProduct = visibleProducts[1] ?? visibleProducts[0];
+  const insetPhoto = sanitizeUrl(
+    lookbook?.insetImageUrl || detailProduct?.imageUrl || bp.sections.hero.imageUrl,
+    ""
+  );
+
+  const pillars = bp.sections.benefits
+    .slice(0, 3)
+    .map((b) => b.title.trim())
+    .filter(Boolean)
+    .join("  ·  ");
+
+  const { lead, accent } = splitHeadlineForItalicAccent(
+    lookbook?.headline || bp.sections.promoStripText || `A essência da ${bp.brand.name}`
+  );
+  const lookbookEyebrow = lookbook?.eyebrow || "01 / Manifesto";
+  const lookbookDesc = lookbook?.description || bp.footer.aboutText;
+  const lookbookCta = lookbook?.ctaText || bp.sections.hero.ctaText || "Explorar Coleção";
+
+  const insetThumbHtml = insetPhoto
+    ? `<div ${detailProduct ? `data-open-pdp="${escapeAttr(detailProduct.id)}"` : ""} style="position:absolute;right:-10px;bottom:-18px;width:clamp(108px,14vw,156px);aspect-ratio:1/1;border-radius:${radius};overflow:hidden;border:4px solid ${neutralBg};box-shadow:0 18px 36px rgba(0,0,0,0.16);background:#ffffff;cursor:pointer;">
+          <img src="${escapeAttr(insetPhoto)}" alt="${escapeAttr(detailProduct?.title || bp.brand.name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block;" />
+        </div>`
+    : "";
+
+  const html = `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${neutralBg};color:${neutralFg};padding:clamp(48px,7vw,88px) clamp(20px,4vw,52px) 0;box-sizing:border-box;">
+  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:clamp(32px,5vw,68px);padding-bottom:clamp(54px,7vw,84px);">
+    <div style="flex:1.25 1 360px;position:relative;">
+      <div style="position:relative;aspect-ratio:10/7;border-radius:${radius};overflow:hidden;background:#18181b;">
+        ${
+          mainPhoto
+            ? `<img src="${escapeAttr(mainPhoto)}" alt="Editorial ${escapeAttr(bp.brand.name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block;" />`
+            : ""
+        }
+        <span style="position:absolute;top:16px;left:16px;font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#ffffff;background:rgba(0,0,0,0.45);padding:6px 12px;border-radius:999px;">Lookbook · ${escapeHtml(bp.brand.name)}</span>
+      </div>
+      ${insetThumbHtml}
     </div>
-    <div style="flex:0 0 auto;">
-      <a href="#vitrines" style="display:inline-block;padding:14px 28px;background:${btnBg};color:${btnFg};border:1px solid ${btnBorder};text-decoration:none;font-weight:700;font-size:14px;border-radius:${radius};">${escapeHtml(bp.sections.hero.ctaText)}</a>
+    <div style="flex:1 1 320px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;padding-bottom:14px;border-bottom:1px solid rgba(0,0,0,0.14);opacity:0.76;">
+        <span>${escapeHtml(lookbookEyebrow)}</span>
+        <span>${escapeHtml(bp.brand.niche)}</span>
+      </div>
+      <h2 style="margin:22px 0 16px 0;font-family:'${headingFont}',sans-serif;font-size:clamp(28px,3.6vw,46px);font-weight:300;line-height:1.05;letter-spacing:-0.02em;color:${neutralFg};">${escapeHtml(lead)} <em style="font-style:italic;font-weight:400;color:${primaryBg};">${escapeHtml(accent)}</em></h2>
+      ${
+        pillars
+          ? `<div style="font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;opacity:0.65;margin-bottom:18px;">${escapeHtml(pillars)}</div>`
+          : ""
+      }
+      <p style="margin:0 0 28px 0;font-size:15px;line-height:1.75;opacity:0.86;">${escapeHtml(lookbookDesc)}</p>
+      <a href="#vitrines" style="display:inline-flex;align-items:center;gap:10px;padding:13px 26px;border:1px solid ${neutralFg};color:${neutralFg};background:transparent;text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;border-radius:${radius};">${escapeHtml(lookbookCta)} &#8594;</a>
+    </div>
+  </div>
+  <div style="margin:0 calc(-1 * clamp(20px,4vw,52px));background:${secondaryBg};color:${secondaryFg};padding:clamp(34px,4.5vw,54px) clamp(20px,4vw,52px);box-sizing:border-box;">
+    <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:22px;">
+      <div style="flex:1 1 440px;">
+        <div style="font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;opacity:0.72;margin-bottom:8px;">Experiência ${escapeHtml(bp.brand.name)}</div>
+        <div style="font-family:'${headingFont}',sans-serif;font-size:clamp(20px,2.4vw,28px);font-weight:400;line-height:1.25;color:${secondaryFg};">${escapeHtml(bp.sections.announcementText || bp.sections.promoStripText)}</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;">
+        <a href="#vitrines" style="display:inline-block;padding:13px 26px;background:${btnBg};color:${btnFg};border:1px solid ${btnBorder};text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;border-radius:${radius};">Comprar Agora</a>
+        <a href="#categoria" data-irb-cat="all" style="display:inline-block;padding:13px 26px;background:transparent;color:${secondaryFg};border:1px solid ${secondaryFg};text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;border-radius:${radius};">Ver Tudo</a>
+      </div>
     </div>
   </div>
 </div>`;
 
   return {
-    id: "irb-html-story",
-    name: "Bloco Institucional / Diferenciais",
-    moduleTitle: "Conteúdo HTML · História da Marca",
+    id: "irb-html-editorial-lookbook",
+    name: "Lookbook Split + Faixa Manifesto da Marca",
+    moduleTitle: "Conteúdo HTML · Lookbook & Manifesto",
     recommendedWidth: "Largura Total",
-    placementNote: "Ideal entre as vitrines ou antes dos depoimentos.",
+    placementNote:
+      "Posicionar entre a 1ª e 2ª Lista de Produtos ou antes das Avaliações. Eleva o posicionamento da marca com composição editorial 10:7 + detalhe 1:1 e fechamento contrastado.",
     html,
   };
 }
 
 export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
   const radiusInfo = RADIUS_MAP[bp.theme.radius];
+  // Conteúdo HTML reservado exclusivamente para seções editoriais sofisticadas
+  // (Banners -> Personalizar Loja > Banners | Benefícios -> Tarja Informativa | Vitrines -> Listas de Produtos)
   const htmlBlocks = [
-    buildBenefitsHtmlBlock(bp),
-    buildMoodHtmlBlock(bp),
-    buildSlimBannerHtmlBlock(bp),
-    buildBrandStoryHtmlBlock(bp),
+    buildEditorialGalleryHtmlBlock(bp),
+    buildEditorialLookbookHtmlBlock(bp),
   ];
 
   const limeSettings: CompiledExport["limeSettings"] = [
@@ -271,7 +364,7 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
 
   const themeVisualChecklist: CompiledExport["themeVisualChecklist"] = [
     {
-      section: "Tarja Informativa (#overlineEditor)",
+      section: "Barra de Aviso / Overline (#overlineEditor)",
       controls: [
         { label: "Cor de fundo", value: bp.visualOverrides.announcement.background },
         { label: "Cor do texto", value: bp.visualOverrides.announcement.foreground },
@@ -296,6 +389,19 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
         {
           label: "Largura",
           value: bp.visualOverrides.banner.width === "full" ? "Largura Total" : "Padrão do site (1280px)",
+        },
+      ],
+    },
+    {
+      section: "Tarja Informativa (#bannerTarjaEditor)",
+      controls: [
+        {
+          label: "Cor de fundo",
+          value: bp.sections.benefitsBanner?.backgroundColor ?? bp.theme.neutralBackground,
+        },
+        {
+          label: "Cor do texto",
+          value: bp.sections.benefitsBanner?.textColor ?? bp.theme.neutralForeground,
         },
       ],
     },
@@ -348,27 +454,88 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
       .filter((s) => s.enabled)
       .map((s, idx) => ({
         slotName: `Banner Principal — Slide ${idx + 1}`,
+        bannerType: "Carrossel" as const,
         moduleType: "Personalizar Loja > Banners (Banner Versão 2)",
+        recommendedSize: "1920×1080 (Desktop) / 900×1500 (Mobile)",
         imageUrl: s.imageUrl,
         notes:
           s.mode === "artwork"
-            ? "Arte original pronta (subir imagem direto no carrossel sem texto sobreposto)."
-            : `Modo editorial — Título: "${s.headline}" | CTA: "${s.ctaText}"`,
+            ? "Tipo: Carrossel. Subir imagem original em 'Lista de banners para desktop' e versão vertical no Mobile."
+            : `Tipo: Carrossel. Incluir arte com texto "${s.headline}" e CTA "${s.ctaText}" (Banner V2 não sobrepõe texto nativamente).`,
       })),
+    ...(bp.sections.slimBanner?.enabled
+      ? [
+          {
+            slotName: "Banner Slim Promocional (Faixa Horizontal)",
+            bannerType: "Grade" as const,
+            moduleType: "Personalizar Loja > Banners (Banner Versão 2)",
+            recommendedSize: "1920×220 (Desktop) / 900×280 (Mobile)",
+            imageUrl: bp.sections.slimBanner.imageUrl || "(Usar arte horizontal da campanha)",
+            notes:
+              bp.sections.slimBanner.mode === "image" && bp.sections.slimBanner.imageUrl
+                ? "Tipo: Grade (1 coluna). Posicionar acima da 1ª Lista de Produtos."
+                : `Criar peça horizontal com texto "${bp.sections.slimBanner.headline}" e subir em Personalizar Loja > Banners (Grade 1 coluna).`,
+          },
+        ]
+      : []),
     ...(bp.sections.secondaryBanner?.enabled && bp.sections.secondaryBanner.imageUrl
       ? [
           {
             slotName: "Banner Secundário de Campanha",
+            bannerType: "Grade" as const,
             moduleType: "Personalizar Loja > Banners (Banner Versão 2)",
+            recommendedSize: "1920×650 (Desktop) / 900×900 (Mobile)",
             imageUrl: bp.sections.secondaryBanner.imageUrl,
             notes:
               bp.sections.secondaryBanner.mode === "artwork"
-                ? "Posicionar entre a 1ª e 2ª Lista de Produtos em Topo do Conteúdo."
-                : `Banner editorial: "${bp.sections.secondaryBanner.headline}"`,
+                ? "Tipo: Grade (1 coluna). Posicionar entre a 1ª e 2ª Lista de Produtos."
+                : `Tipo: Grade. Banner de campanha com título "${bp.sections.secondaryBanner.headline}" e link para coleção.`,
           },
         ]
       : []),
   ];
+
+  const benefitsCfg = bp.sections.benefitsBanner;
+  const isSiteBenefits =
+    benefitsCfg?.mode === "site-images" && (benefitsCfg.siteImageUrls?.length ?? 0) > 0;
+
+  const tarjaChecklist: CompiledExport["tarjaChecklist"] = {
+    moduleName: "Personalizar Loja > Tarja Informativa (Exclusivo Tema LIME)",
+    itemLayout: isSiteBenefits ? "Apenas Imagem" : "Horizontal",
+    visibleDesktop: isSiteBenefits ? Math.min(6, benefitsCfg.siteImageUrls.length) : 4,
+    visibleTablet: 2,
+    visibleMobile: 1,
+    items: isSiteBenefits
+      ? benefitsCfg.siteImageUrls.slice(0, 6).map((url, idx) => ({
+          title: `Benefício ${idx + 1}`,
+          description: "Arte original extraída do site",
+          imageUrl: url,
+        }))
+      : bp.sections.benefits.slice(0, 4).map((b) => ({
+          title: b.title,
+          description: b.subtitle,
+        })),
+    notes: isSiteBenefits
+      ? "Selecionar 'Layout do Item: Apenas Imagem' e subir as artes originais na ordem abaixo. Ativar slider no Mobile."
+      : "Selecionar 'Layout do Item: Horizontal' e cadastrar os 4 itens (Título + Descrição + ícone PNG). Se preferir faixa única, baixe a arte PNG gerada no Studio e use em 'Banner Versão 2'.",
+  };
+
+  const productListsChecklist: CompiledExport["productListsChecklist"] = bp.sections.showcases.map(
+    (sc, idx) => ({
+      title: sc.title,
+      sourceType:
+        idx === 0
+          ? "Mais Vendidos ou Lista de Produtos"
+          : idx === 1
+            ? "Lançamentos ou Por Categoria"
+            : "Por Categoria / Promoção",
+      displayMode: "Carrossel" as const,
+      desktopItems: 4,
+      mobileItems: 1.2,
+      titleAlign: bp.visualOverrides.productCard.titleAlign,
+      limit: Math.max(8, sc.productIds.length),
+    })
+  );
 
   const customCss = `/* CSS Personalizado — Tema LIME (${bp.brand.name}) */
 /* Cole em: Editar tema > Código > CSS Personalizado */
@@ -386,6 +553,9 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
   border-radius: ${radiusInfo.css};
   border: 1px solid ${sanitizeCssColor(bp.visualOverrides.productCard.buyBtnBorder, "transparent")};
 }
+.htmlContent a {
+  transition: transform 0.35s ease, opacity 0.25s ease;
+}
 .htmlContent a:hover img {
   transform: scale(1.04);
 }`;
@@ -394,6 +564,8 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
     limeSettings,
     themeVisualChecklist,
     bannerModulesChecklist,
+    tarjaChecklist,
+    productListsChecklist,
     htmlBlocks,
     customCss,
   };
@@ -425,7 +597,7 @@ function buildProductCardMarkup(p: StoreBlueprint["products"][number], buyButton
   return `<article class="product product-grid" data-product-id="${escapeAttr(p.id)}" data-title="${escapeAttr(p.title.toLowerCase())}" data-category="${escapeAttr(allCats.toLowerCase())}">
   <div class="product-image-wrap" data-open-pdp="${escapeAttr(p.id)}">
     ${discountPct > 0 ? `<span class="product-badge">-${discountPct}%</span>` : ""}
-    <img src="${escapeAttr(sanitizeUrl(p.imageUrl, ""))}" alt="${escapeAttr(p.title)}" loading="lazy" />
+    <img src="${escapeAttr(sanitizeUrl(p.imageUrl, ""))}" alt="${escapeAttr(p.title)}" referrerpolicy="no-referrer" loading="lazy" />
   </div>
   <div class="product-info">
     <span class="product-cat">${escapeHtml(p.category)}</span>
@@ -480,10 +652,10 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
   const legalFg = sanitizeCssColor(bp.visualOverrides.footer.legalForeground, "#FFFFFF");
 
   const exportPkg = compileIrrobaExport(bp);
-  const benefitsBlock = exportPkg.htmlBlocks[0];
-  const moodBlock = exportPkg.htmlBlocks[1];
-  const slimBlock = exportPkg.htmlBlocks[2];
-  const storyBlock = exportPkg.htmlBlocks[3];
+  const editorialGalleryBlock = exportPkg.htmlBlocks[0];
+  const editorialLookbookBlock = exportPkg.htmlBlocks[1];
+  const tarjaBenefitsHtml = renderTarjaBenefitsHtml(bp);
+  const slimBannerHtml = renderSlimBannerHtml(bp);
 
   const visibleProducts = bp.products.filter((p) => p.visible !== false);
   const productMap = new Map(visibleProducts.map((p) => [p.id, p]));
@@ -599,7 +771,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     .join("\n");
 
   const fontsParam = Array.from(new Set([headingFont, bodyFont]))
-    .map((f) => `family=${encodeURIComponent(f)}:wght@400;500;600;700`)
+    .map((f) => `family=${encodeURIComponent(f)}:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400`)
     .join("&");
 
   const headerPosClass =
@@ -725,7 +897,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       letter-spacing: 0.03em;
     }
 
-    /* Cabeçalho Tema LIME (.headerContent) */
+    /* Cabeçalho Tema LIME (.headerContent) — Ícones puros + Busca expansível ao clicar na lupa */
     header.irb-header {
       background: var(--header-background);
       color: var(--header-foreground);
@@ -734,18 +906,18 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       border-bottom: 1px solid rgba(0, 0, 0, 0.08);
       z-index: 40;
       width: 100%;
+      position: relative;
     }
     header.header--sticky { position: sticky; top: 0; }
     .headerContent {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 18px;
+      gap: 20px;
       padding: 14px 0;
-      flex-wrap: wrap;
     }
-    .headerContent--layout-2 { flex-direction: column; gap: 12px; }
-    .headerLeftGroup { display: flex; align-items: center; gap: 12px; }
+    .headerContent--layout-2 { flex-direction: column; gap: 10px; }
+    .headerLeftGroup { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
     .headerMenuBtn {
       display: none;
       background: transparent;
@@ -755,25 +927,77 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       cursor: pointer;
     }
     .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
-    .headerContent_logo_img { max-height: 48px; max-width: 195px; object-fit: contain; }
+    .headerContent_logo_img { max-height: 46px; max-width: 185px; object-fit: contain; }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
     }
+    .headerContent_navInline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 22px;
+      flex: 1 1 auto;
+      padding: 0 12px;
+    }
+    .headerContent_actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .headerIconBtn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: transparent;
+      color: var(--header-foreground);
+      border: none;
+      border-radius: 999px;
+      padding: 0;
+      cursor: pointer;
+      transition: background .15s ease, opacity .15s ease;
+    }
+    .headerIconBtn:hover { background: rgba(0, 0, 0, 0.06); }
+    .headerIconBtn.is-active { background: rgba(0, 0, 0, 0.09); }
+    .cartCountBadge {
+      position: absolute;
+      top: 3px;
+      right: 2px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: var(--primary-background);
+      color: var(--primary-foreground);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .headerSearchDrawer {
+      display: none;
+      border-top: 1px solid rgba(0, 0, 0, 0.07);
+      background: var(--header-background);
+      padding: 12px 0;
+    }
+    .headerSearchDrawer.open { display: block; }
     .headerContent_search {
-      flex: 1 1 260px;
-      max-width: 460px;
+      max-width: 680px;
+      margin: 0 auto;
       position: relative;
       display: flex;
       align-items: center;
+      gap: 8px;
     }
     .headerContent_search input {
       width: 100%;
-      padding: 10px 44px 10px 14px;
+      padding: 11px 44px 11px 16px;
       border-radius: var(--irb-radius);
-      border: 1px solid #d1d5db;
+      border: 1px solid rgba(0, 0, 0, 0.18);
       font-family: var(--text-font-family);
       font-size: 14px;
       outline: none;
@@ -781,57 +1005,33 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       color: #111827;
     }
     .headerContent_search input:focus { border-color: var(--primary-background); }
-    .headerSearchBtn {
+    .headerSearchSubmit {
       position: absolute;
-      right: 6px;
+      right: 44px;
       top: 50%;
       transform: translateY(-50%);
       border: none;
       background: transparent;
-      color: #4b5563;
+      color: #374151;
       padding: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
     }
-    .headerContent_actions { display: flex; align-items: center; gap: 8px; }
-    .headerIconAction {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
+    .headerSearchClose {
+      border: none;
       background: transparent;
       color: var(--header-foreground);
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      padding: 8px 13px;
-      border-radius: var(--irb-radius);
-      font-family: var(--text-font-family);
-      font-weight: 600;
-      font-size: 13px;
-      cursor: pointer;
-      transition: background .15s, border-color .15s;
-    }
-    .headerIconAction:hover { background: rgba(0, 0, 0, 0.04); }
-    .headerIconAction--cart {
-      background: var(--btn-primary-background);
-      color: var(--btn-primary-color);
-      border: 1px solid var(--btn-primary-border);
-    }
-    .headerIconAction--cart:hover { opacity: 0.92; background: var(--btn-primary-background); }
-    .cartCountBadge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 20px;
-      height: 20px;
-      padding: 0 5px;
+      font-size: 22px;
+      line-height: 1;
+      width: 34px;
+      height: 34px;
       border-radius: 999px;
-      background: var(--primary-foreground);
-      color: var(--primary-background);
-      font-size: 11px;
-      font-weight: 700;
+      cursor: pointer;
+      flex-shrink: 0;
     }
+    .headerSearchClose:hover { background: rgba(0, 0, 0, 0.06); }
     .headerContent_categories {
       display: flex;
       flex-wrap: wrap;
@@ -844,19 +1044,17 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       text-decoration: none;
       color: var(--header-foreground);
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 500;
       text-transform: ${bp.visualOverrides.header.categoryCase};
-      letter-spacing: 0.04em;
-      transition: color .15s;
+      letter-spacing: 0.05em;
+      transition: color .15s, opacity .15s;
       cursor: pointer;
     }
-    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); text-decoration: underline; }
+    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
 
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
       .headerMenuBtn { display: inline-flex; }
-      .headerContent_categories { display: none; }
-      .headerActionLabel { display: none; }
-      .headerContent_search { order: 3; flex: 1 1 100%; max-width: 100%; }
+      .headerContent_navInline, .headerContent_categories { display: none; }
     }
 
     /* Views Control */
@@ -1344,37 +1542,58 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
           <a href="#home" class="headerContent_logo" id="irb-go-home-logo">${logoHtml}</a>
         </div>
 
-        <form class="headerContent_search" id="irb-search-form">
-          <input type="search" id="irb-search-input" placeholder="O que você está procurando?" aria-label="Buscar produtos" />
-          <button type="submit" class="headerSearchBtn" aria-label="Pesquisar">
-            ${IRROBA_ICONS.search}
-          </button>
-        </form>
+        ${
+          bp.theme.headerLayout === "layout-1"
+            ? `<nav class="headerContent_navInline" aria-label="Categorias">
+          <a href="#home" class="categoryLink active" data-go-home="1">Início</a>
+          ${navLinksHtml}
+        </nav>`
+            : ""
+        }
 
         <div class="headerContent_actions">
-          <button type="button" class="headerIconAction" id="irb-open-account" aria-label="Minha Conta">
-            ${IRROBA_ICONS.person}
-            <span class="headerActionLabel">Entrar</span>
+          <button type="button" class="headerIconBtn" id="irb-toggle-search" aria-label="Pesquisar" title="Pesquisar">
+            ${IRROBA_ICONS.search}
           </button>
-          <button type="button" class="headerIconAction headerIconAction--cart" id="irb-open-cart" aria-label="Sacola">
+          <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" title="Entrar">
+            ${IRROBA_ICONS.person}
+          </button>
+          <button type="button" class="headerIconBtn" id="irb-open-cart" aria-label="Sacola" title="Sacola">
             ${IRROBA_ICONS.shoppingBag}
-            <span class="headerActionLabel">Sacola</span>
             <span class="cartCountBadge" id="irb-cart-count">0</span>
           </button>
         </div>
       </div>
 
-      <nav class="headerContent_categories" aria-label="Categorias">
+      ${
+        bp.theme.headerLayout !== "layout-1"
+          ? `<nav class="headerContent_categories" aria-label="Categorias">
         <a href="#home" class="categoryLink active" data-go-home="1">Início</a>
         ${navLinksHtml}
-      </nav>
+      </nav>`
+          : ""
+      }
+    </div>
+
+    <div class="headerSearchDrawer" id="irb-search-drawer" aria-hidden="true">
+      <div class="container">
+        <form class="headerContent_search" id="irb-search-form">
+          <input type="search" id="irb-search-input" placeholder="O que você está procurando?" aria-label="Buscar produtos" />
+          <button type="submit" class="headerSearchSubmit" aria-label="Pesquisar">
+            ${IRROBA_ICONS.search}
+          </button>
+          <button type="button" class="headerSearchClose" id="irb-close-search" aria-label="Fechar busca">&times;</button>
+        </form>
+      </div>
     </div>
   </header>
 
   <main>
-    <!-- 1. VIEW: PÁGINA INICIAL -->
+    <!-- 1. VIEW: PÁGINA INICIAL (Ordem dinâmica controlada pelo Editor de Seções) -->
     <div id="irb-view-home" class="storeView active">
-      <section class="bannerModule">
+      ${(() => {
+        const homeSectionMap: Record<SectionKey, string> = {
+          hero: `<section class="bannerModule" data-irb-section="hero">
         <div class="${bp.visualOverrides.banner.width === "container" ? "container" : ""}" style="position:relative;">
           ${heroSlidesHtml}
           ${
@@ -1390,35 +1609,26 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
               : ""
           }
         </div>
-      </section>
-
-      <section class="htmlContent" id="htmlContent-benefits">
-        <div class="container">${benefitsBlock.html}</div>
-      </section>
-
-      <section class="htmlContent" id="htmlContent-mood">
-        <div class="container">${moodBlock.html}</div>
-      </section>
-
-      ${
-        bp.sections.slimBanner?.enabled !== false
-          ? `<section class="htmlContent" id="htmlContent-slim"><div class="container">${slimBlock.html}</div></section>`
-          : ""
-      }
-
-      <div id="vitrines">
+      </section>`,
+          tarja: `<section class="bannerTarjaModule" id="bannerTarja-benefits" data-irb-section="tarja">
+        <div class="container">${tarjaBenefitsHtml}</div>
+      </section>`,
+          editorialGallery: `<section class="htmlContent" id="htmlContent-editorial-gallery" data-irb-section="editorialGallery">
+        <div class="container">${editorialGalleryBlock.html}</div>
+      </section>`,
+          slimBanner:
+            bp.sections.slimBanner?.enabled !== false
+              ? `<section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container">${slimBannerHtml}</div></section>`
+              : "",
+          showcase1: `<div id="vitrines" data-irb-section="showcase1">
         ${firstShowcaseHtml}
-      </div>
-
-      ${secondaryBannerHtml}
-
-      <section class="htmlContent" id="htmlContent-story">
-        <div class="container">${storyBlock.html}</div>
-      </section>
-
-      ${extraShowcasesHtml}
-
-      <section class="reviewModule">
+      </div>`,
+          secondaryBanner: secondaryBannerHtml,
+          editorialLookbook: `<section class="htmlContent" id="htmlContent-editorial-lookbook" data-irb-section="editorialLookbook">
+        <div class="container">${editorialLookbookBlock.html}</div>
+      </section>`,
+          extraShowcases: extraShowcasesHtml,
+          testimonials: `<section class="reviewModule" data-irb-section="testimonials">
         <div class="container">
           <div class="productList__header" style="text-align:center;">
             <h2 class="productList__title">${escapeHtml(bp.sections.testimonialsTitle || "Quem compra recomenda")}</h2>
@@ -1426,9 +1636,8 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
           </div>
           <div class="reviewGrid">${testimonialsHtml}</div>
         </div>
-      </section>
-
-      <section class="newsletterModule">
+      </section>`,
+          newsletter: `<section class="newsletterModule" data-irb-section="newsletter">
         <div class="container">
           <div class="newsletterBox">
             <div>
@@ -1441,7 +1650,14 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
             </form>
           </div>
         </div>
-      </section>
+      </section>`,
+        };
+
+        return getNormalizedSectionLayout(bp.sections.layout)
+          .filter((sec) => sec.enabled)
+          .map((sec) => homeSectionMap[sec.id] || "")
+          .join("\n      ");
+      })()}
     </div>
 
     <!-- 2. VIEW: TELA DE CATEGORIA / BUSCA (.pageLayout--category) -->
@@ -1922,9 +2138,36 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
         openCategoryPage(activeCategory, searchQuery);
       });
 
+      const searchDrawer = document.getElementById('irb-search-drawer');
+      const searchToggleBtn = document.getElementById('irb-toggle-search');
+      const searchCloseBtn = document.getElementById('irb-close-search');
+      const searchInput = document.getElementById('irb-search-input');
+
+      function setSearchOpen(open) {
+        if (!searchDrawer) return;
+        searchDrawer.classList.toggle('open', open);
+        searchDrawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+        if (searchToggleBtn) searchToggleBtn.classList.toggle('is-active', open);
+        if (open && searchInput) setTimeout(() => searchInput.focus(), 40);
+      }
+
+      if (searchToggleBtn) {
+        searchToggleBtn.addEventListener('click', () => {
+          const isOpen = searchDrawer && searchDrawer.classList.contains('open');
+          setSearchOpen(!isOpen);
+        });
+      }
+      if (searchCloseBtn) {
+        searchCloseBtn.addEventListener('click', () => setSearchOpen(false));
+      }
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') setSearchOpen(false);
+      });
+
       document.getElementById('irb-search-form').addEventListener('submit', (e) => {
         e.preventDefault();
-        const q = document.getElementById('irb-search-input').value || '';
+        const q = (searchInput && searchInput.value) || '';
+        setSearchOpen(false);
         openCategoryPage('all', q);
       });
 

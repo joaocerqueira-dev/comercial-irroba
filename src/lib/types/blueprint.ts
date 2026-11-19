@@ -122,6 +122,64 @@ export const MoodBannerSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+export const SectionKeySchema = z.enum([
+  "hero",
+  "tarja",
+  "editorialGallery",
+  "slimBanner",
+  "showcase1",
+  "secondaryBanner",
+  "editorialLookbook",
+  "extraShowcases",
+  "testimonials",
+  "newsletter",
+]);
+
+export type SectionKey = z.infer<typeof SectionKeySchema>;
+
+export const SectionConfigSchema = z.object({
+  id: SectionKeySchema,
+  label: z.string(),
+  irrobaModule: z.string(),
+  enabled: z.boolean().default(true),
+});
+
+export type SectionConfig = z.infer<typeof SectionConfigSchema>;
+
+export const DEFAULT_SECTION_LAYOUT: SectionConfig[] = [
+  { id: "hero", label: "Banner Principal", irrobaModule: "Banner Versão 2", enabled: true },
+  { id: "tarja", label: "Tarja de Benefícios", irrobaModule: "Tarja Informativa", enabled: true },
+  { id: "editorialGallery", label: "Galeria Editorial", irrobaModule: "Conteúdo HTML", enabled: true },
+  { id: "slimBanner", label: "Banner Slim Promocional", irrobaModule: "Banner Versão 2", enabled: true },
+  { id: "showcase1", label: "Vitrine Principal", irrobaModule: "Listas de Produtos", enabled: true },
+  { id: "secondaryBanner", label: "Banner Secundário", irrobaModule: "Banner Versão 2", enabled: true },
+  { id: "editorialLookbook", label: "Lookbook & Manifesto", irrobaModule: "Conteúdo HTML", enabled: true },
+  { id: "extraShowcases", label: "Vitrines Adicionais", irrobaModule: "Listas de Produtos", enabled: true },
+  { id: "testimonials", label: "Avaliações de Clientes", irrobaModule: "Avaliações", enabled: true },
+  { id: "newsletter", label: "Newsletter", irrobaModule: "Newsletter", enabled: true },
+];
+
+export function getNormalizedSectionLayout(
+  layout?: SectionConfig[]
+): SectionConfig[] {
+  if (!layout || layout.length === 0) {
+    return DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s }));
+  }
+  const seen = new Set<SectionKey>();
+  const normalized: SectionConfig[] = [];
+  for (const item of layout) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    normalized.push({ ...item });
+  }
+  for (const def of DEFAULT_SECTION_LAYOUT) {
+    if (!seen.has(def.id)) {
+      normalized.push({ ...def });
+    }
+  }
+  return normalized;
+}
+
 export const StoreBlueprintSchema = z.object({
   brand: z.object({
     name: z.string().min(1),
@@ -267,6 +325,17 @@ export const StoreBlueprintSchema = z.object({
         comment: z.string(),
       })
     ),
+    lookbook: z
+      .object({
+        eyebrow: z.string().default("01 / Manifesto"),
+        headline: z.string().optional(),
+        description: z.string().optional(),
+        ctaText: z.string().optional(),
+        mainImageUrl: z.string().default(""),
+        insetImageUrl: z.string().default(""),
+      })
+      .optional(),
+    layout: z.array(SectionConfigSchema).optional(),
   }),
   products: z.array(
     z.object({
@@ -315,9 +384,29 @@ export interface CompiledExport {
   }>;
   bannerModulesChecklist: Array<{
     slotName: string;
+    bannerType: "Carrossel" | "Grade";
     moduleType: string;
+    recommendedSize: string;
     imageUrl: string;
     notes: string;
+  }>;
+  tarjaChecklist: {
+    moduleName: string;
+    itemLayout: "Apenas Imagem" | "Horizontal" | "Vertical";
+    visibleDesktop: number;
+    visibleTablet: number;
+    visibleMobile: number;
+    items: Array<{ title: string; description: string; imageUrl?: string }>;
+    notes: string;
+  };
+  productListsChecklist: Array<{
+    title: string;
+    sourceType: string;
+    displayMode: "Carrossel" | "Grade";
+    desktopItems: number;
+    mobileItems: number;
+    titleAlign: string;
+    limit: number;
   }>;
   htmlBlocks: HtmlBlockExport[];
   customCss: string;

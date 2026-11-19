@@ -54,18 +54,22 @@ export function generateBenefitsBannerSvgString(bp: StoreBlueprint): string {
           ? `<line x1="${x}" y1="36" x2="${x}" y2="${height - 36}" stroke="${fg}" stroke-opacity="0.12" stroke-width="1"/>`
           : "";
 
-      const title = escapeHtml(item.title.toUpperCase()).slice(0, 24);
-      const subtitle = escapeHtml(item.subtitle).slice(0, 34);
+      const rawTitle = item.title.trim().toUpperCase();
+      const rawSubtitle = item.subtitle.trim();
+      const title = escapeHtml(rawTitle.length > 22 ? `${rawTitle.slice(0, 21)}…` : rawTitle);
+      const subtitle = escapeHtml(
+        rawSubtitle.length > 34 ? `${rawSubtitle.slice(0, 33)}…` : rawSubtitle
+      );
 
       return `${divider}
       <g transform="translate(${x}, 0)">
-        <rect x="24" y="28" width="${colW - 48}" height="${height - 56}" rx="12" fill="#FFFFFF" fill-opacity="0.65" stroke="${fg}" stroke-opacity="0.08"/>
-        <circle cx="62" cy="${cy}" r="24" fill="${accent}"/>
-        <g transform="translate(50, ${cy - 12})">
+        <rect x="16" y="28" width="${colW - 32}" height="${height - 56}" rx="12" fill="#FFFFFF" fill-opacity="0.72" stroke="${fg}" stroke-opacity="0.08"/>
+        <circle cx="52" cy="${cy}" r="22" fill="${accent}"/>
+        <g transform="translate(40, ${cy - 12})">
           ${benefitVectorPath(item.icon, accentFg)}
         </g>
-        <text x="100" y="${cy - 6}" font-family="${escapeHtml(font)}, Arial, sans-serif" font-size="14" font-weight="800" letter-spacing="0.4" fill="${fg}">${title}</text>
-        <text x="100" y="${cy + 16}" font-family="${escapeHtml(font)}, Arial, sans-serif" font-size="12.5" font-weight="500" fill="${fg}" fill-opacity="0.72">${subtitle}</text>
+        <text x="86" y="${cy - 6}" font-family="${escapeHtml(font)}, Arial, sans-serif" font-size="13.5" font-weight="800" letter-spacing="0.4" fill="${fg}">${title}</text>
+        <text x="86" y="${cy + 15}" font-family="${escapeHtml(font)}, Arial, sans-serif" font-size="11.5" font-weight="500" fill="${fg}" fill-opacity="0.74">${subtitle}</text>
       </g>`;
     })
     .join("\n");

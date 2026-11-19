@@ -600,9 +600,61 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
   };
 }
 
+export interface ArchitectResult {
+  blueprint: StoreBlueprint;
+  mode: "gemini" | "heuristic";
+  modelUsed?: string;
+  aiError?: string;
+}
+
+const DEFAULT_GEMINI_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-flash-latest",
+];
+
+function extractJsonObject(raw: string): Record<string, unknown> {
+  const cleaned = raw
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  return JSON.parse(cleaned) as Record<string, unknown>;
+}
+
+async function callGeminiWithTimeout(
+  ai: GoogleGenAI,
+  model: string,
+  parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
+  timeoutMs = 35000
+) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      ai.models.generateContent({
+        model,
+        contents: parts,
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.25,
+        },
+      }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`Timeout após ${Math.round(timeoutMs / 1000)}s em ${model}`)),
+          timeoutMs
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function buildStoreBlueprint(
   extracted: ExtractedStoreData
-): Promise<{ blueprint: StoreBlueprint; mode: "gemini" | "heuristic" }> {
+): Promise<ArchitectResult> {
   const baseBlueprint = buildHeuristicBlueprint(extracted);
   const apiKey = process.env.GEMINI_API_KEY?.trim();
 
@@ -610,228 +662,454 @@ export async function buildStoreBlueprint(
     return { blueprint: baseBlueprint, mode: "heuristic" };
   }
 
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+  const preferredModel = process.env.GEMINI_MODEL?.trim();
+  const modelQueue = Array.from(
+    new Set([preferredModel || "gemini-3.5-flash", ...DEFAULT_GEMINI_MODELS])
+  );
 
-    for (const imgPath of [extracted.screenshotPath, extracted.fullScreenshotPath]) {
-      if (!imgPath) continue;
-      const filename = path.basename(imgPath);
-      const diskPath = path.join(process.cwd(), "public", "captures", filename);
-      try {
-        const imgBuffer = await fs.readFile(diskPath);
-        parts.push({
-          inlineData: {
-            mimeType: "image/png",
-            data: imgBuffer.toString("base64"),
-          },
-        });
-      } catch {
-        // Skip unavailable captures
-      }
+  const ai = new GoogleGenAI({ apiKey });
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+
+  const capturePaths = [
+    { imgPath: extracted.screenshotPath, maxBytes: 4_000_000 },
+    { imgPath: extracted.fullScreenshotPath, maxBytes: 2_600_000 },
+  ];
+
+  let attachedScreenshots = 0;
+  for (const { imgPath, maxBytes } of capturePaths) {
+    if (!imgPath) continue;
+    const filename = path.basename(imgPath);
+    const diskPath = path.join(process.cwd(), "public", "captures", filename);
+    try {
+      const stat = await fs.stat(diskPath);
+      if (stat.size > maxBytes) continue;
+      const imgBuffer = await fs.readFile(diskPath);
+      parts.push({
+        inlineData: {
+          mimeType: "image/png",
+          data: imgBuffer.toString("base64"),
+        },
+      });
+      attachedScreenshots += 1;
+    } catch {
+      // Skip unavailable captures
     }
+  }
 
-    const prompt = `Você é um Diretor de E-commerce e Brand Designer da plataforma Irroba (Tema LIME).
-Sua prioridade absoluta é FIDELIDADE À IDENTIDADE DA MARCA analisando os screenshots e dados da loja "${extracted.storeName}" (${extracted.detectedPlatform}).
+  const prompt = `Você é um Diretor de Arte, Especialista em Identidade Visual e CRO da plataforma Irroba E-commerce (Tema LIME).
+Analise visualmente ${attachedScreenshots > 0 ? "os screenshots anexados" : "os dados extraídos"} da loja "${extracted.storeName}" (${extracted.detectedPlatform}) para recriar fielmente a IDENTIDADE VISUAL da marca no Tema LIME da Irroba.
 
-Dados extraídos:
+Dados extraídos do DOM:
+- URL: ${extracted.sourceUrl}
+- Descrição: ${extracted.description || "Não informada"}
 - Categorias do menu: ${extracted.categories.map((c) => c.label).join(", ") || "Nenhuma"}
 - Títulos de seções encontrados no site: ${extracted.sectionHeadings.join(" | ") || "Nenhum"}
 - Amostra de produtos: ${extracted.products
-      .slice(0, 8)
-      .map((p) => `${p.title} (R$ ${p.price.toFixed(2)})`)
-      .join(" | ")}
-- Paleta fiel extraída: primary=${baseBlueprint.theme.primaryBackground}, secondary=${baseBlueprint.theme.secondaryBackground}, neutral=${baseBlueprint.theme.neutralBackground}, body=${baseBlueprint.theme.bodyBackground}
+    .slice(0, 10)
+    .map((p) => `${p.title} (${p.category} - R$ ${p.price.toFixed(2)})`)
+    .join(" | ")}
+- Paleta base detectada via CSS: body=${baseBlueprint.theme.bodyBackground}, header=${baseBlueprint.visualOverrides.header.background}, announcement=${baseBlueprint.visualOverrides.announcement.background}, primary=${baseBlueprint.theme.primaryBackground}, secondary=${baseBlueprint.theme.secondaryBackground}, neutral=${baseBlueprint.theme.neutralBackground}
 
-Instruções:
-1. Mantenha a paleta fiel ao screenshot original (só sugira ajustes em "paletteSuggestion" se houver problema real de contraste ou oportunidade clara de conversão).
-2. Classifique se o banner Hero principal já possui arte/texto gráfico ("artwork") ou se é foto limpa que precisa de texto sobreposto ("editorial").
-3. Adapte os títulos das seções (vitrines, mood, slim banner, banner secundário) para refletir exatamente o tom de voz da marca.
+Diretrizes obrigatórias:
+1. FIDELIDADE VISUAL ACIMA DE TUDO: Observe cuidadosamente as cores REAIS nos screenshots (barra superior, cabeçalho, fundo principal, faixas de destaque, cor real dos botões de compra e cor real do rodapé). Corrija qualquer erro da extração CSS caso o screenshot mostre outra cor dominante da marca.
+2. ESTRUTURA & TIPOGRAFIA: Escolha o par de fontes Google, arredondamento (radius), layout de cabeçalho, alinhamento e espaçamento de cards que melhor espelham a personalidade visual vista no screenshot (ex: boutique sofisticada -> Cormorant Garamond/Playfair + radius none/small; moderna/streetwear -> Anton/Montserrat + uppercase; clean/tech -> Poppins/Manrope + medium).
+3. BANNERS: Classifique se o banner Hero principal já possui arte gráfica com texto ("artwork") ou se é foto limpa precisando de texto editorial ("editorial").
+4. COPY & DIFERENCIAIS REAIS DA MARCA: Escreva 4 benefícios reais coerentes com o que a loja oferece (sem jargões genéricos) e 3 depoimentos realistas mencionando o tipo de produto real da marca.
+5. DIAGNÓSTICO DE IDENTIDADE & CONVERSÃO: Traga de 2 a 3 insights práticos observados no screenshot do site original (um de identidade/paleta preservada e 1-2 sugestões de melhoria de contraste/CTA/UX com cor alternativa opcional para teste em 1 clique).
 
-Retorne APENAS JSON válido neste formato:
+Retorne APENAS um JSON válido com esta estrutura exata:
 {
   "niche": "string curta em PT-BR",
   "tone": "modern" | "luxury" | "vibrant" | "minimal" | "tech",
   "heroMode": "artwork" | "editorial",
-  "primaryBackground": "#HEX fiel ao site",
-  "secondaryBackground": "#HEX fiel ao rodapé/destaque do site",
-  "neutralBackground": "#HEX fiel às faixas neutras do site",
-  "headingFont": "Cormorant Garamond" | "Playfair Display" | "Montserrat" | "Poppins" | "Oswald" | "Anton",
+  "bodyBackground": "#HEX real do fundo da loja",
+  "headerBackground": "#HEX real do cabeçalho",
+  "announcementBackground": "#HEX real da barra superior",
+  "primaryBackground": "#HEX real da cor principal da marca",
+  "secondaryBackground": "#HEX real do rodapé ou segunda cor da marca",
+  "neutralBackground": "#HEX real das faixas neutras/alternadas (ex: bege, creme, cinza suave)",
+  "btnPrimaryBackground": "#HEX real do botão de compra/CTA",
+  "btnSecondaryOutline": true | false,
+  "headingFont": "Cormorant Garamond" | "Playfair Display" | "Montserrat" | "Poppins" | "Oswald" | "Anton" | "Lato",
   "bodyFont": "Jost" | "Lora" | "Poppins" | "Cabin" | "Roboto" | "Manrope",
-  "announcementText": "texto fiel ou refinado com até 90 chars",
+  "radius": "none" | "small" | "medium" | "large",
+  "headerLayout": "layout-1" | "layout-2" | "layout-3",
+  "headerPosition": "default" | "sticky" | "overlay",
+  "categoryCase": "uppercase" | "capitalize" | "normal",
+  "productCardAlign": "left" | "center" | "right",
+  "productCardPaddingX": 8 | 16 | 24 | 40,
+  "announcementText": "texto fiel ou refinado da barra superior (até 90 chars)",
   "moodSectionTitle": "título da seção de estilos/categorias",
-  "slimHeadline": "frase curta para banner horizontal",
-  "secondaryHeadline": "título para banner de campanha intermediário",
-  "secondarySubheadline": "subtítulo de apoio",
+  "slimHeadline": "frase curta comercial na voz da marca para o banner slim",
+  "secondaryHeadline": "título para o banner secundário de campanha",
+  "secondarySubheadline": "subtítulo de apoio persuasivo",
+  "promoStripText": "frase institucional de impacto sobre a marca",
+  "aboutText": "resumo institucional autêntico da loja (até 190 chars)",
   "showcase1Title": "título da vitrine 1",
   "showcase2Title": "título da vitrine 2",
-  "buyButtonText": "Comprar" | "Comprar agora" | "Adicionar à sacola",
-  "paletteSuggestionTitle": "título curto de sugestão de melhoria de cor/UX (opcional)",
-  "paletteSuggestionDesc": "explicação prática da sugestão (opcional)",
-  "suggestedCtaHex": "#HEX opcional de CTA alternativo para teste"
+  "buyButtonText": "Comprar" | "Comprar agora" | "Adicionar à sacola" | "Eu quero",
+  "benefits": [
+    { "icon": "truck" | "credit-card" | "shield-check" | "refresh-cw", "title": "curto", "subtitle": "curto" }
+  ],
+  "testimonials": [
+    { "author": "Nome S.", "rating": 5, "comment": "depoimento natural coerente com o produto real da loja" }
+  ],
+  "insights": [
+    {
+      "category": "palette" | "contrast" | "banners" | "conversion",
+      "severity": "info" | "suggestion",
+      "title": "título curto do insight",
+      "description": "explicação objetiva baseada no visual analisado",
+      "suggestedCtaHex": "#HEX opcional quando houver sugestão de teste de cor CTA"
+    }
+  ]
 }`;
 
-    parts.push({ text: prompt });
+  parts.push({ text: prompt });
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: parts,
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.3,
-      },
-    });
+  let lastErrorMsg = "";
 
-    const text = response.text?.trim();
-    if (!text) return { blueprint: baseBlueprint, mode: "heuristic" };
+  for (const model of modelQueue) {
+    try {
+      const response = await callGeminiWithTimeout(ai, model, parts, 35000);
+      const text = response.text?.trim();
+      if (!text) {
+        lastErrorMsg = `Resposta vazia do modelo ${model}`;
+        continue;
+      }
 
-    const aiData = JSON.parse(text) as Record<string, unknown>;
-    const primaryBg = normalizeHex(
-      typeof aiData.primaryBackground === "string" ? aiData.primaryBackground : undefined,
-      baseBlueprint.theme.primaryBackground
-    );
-    const primaryFg = getContrastingForeground(primaryBg);
-    const secondaryBg = normalizeHex(
-      typeof aiData.secondaryBackground === "string" ? aiData.secondaryBackground : undefined,
-      baseBlueprint.theme.secondaryBackground
-    );
-    const secondaryFg = getContrastingForeground(secondaryBg);
-    const neutralBg = normalizeHex(
-      typeof aiData.neutralBackground === "string" ? aiData.neutralBackground : undefined,
-      baseBlueprint.theme.neutralBackground
-    );
-    const neutralFg = getContrastingForeground(neutralBg);
+      const aiData = extractJsonObject(text);
 
-    const extraInsights = [...baseBlueprint.designInsights];
-    if (
-      typeof aiData.paletteSuggestionTitle === "string" &&
-      typeof aiData.paletteSuggestionDesc === "string"
-    ) {
-      const sugHex =
-        typeof aiData.suggestedCtaHex === "string"
-          ? normalizeHex(aiData.suggestedCtaHex, "")
-          : "";
-      extraInsights.unshift({
-        id: "gemini-brand-insight",
-        category: "palette",
-        severity: "suggestion",
-        title: aiData.paletteSuggestionTitle,
-        description: aiData.paletteSuggestionDesc,
-        ...(sugHex
-          ? {
-              actionLabel: `Aplicar CTA ${sugHex}`,
-              suggestedThemePatch: {
-                btnPrimaryBackground: sugHex,
-                btnPrimaryColor: getContrastingForeground(sugHex),
-                buyBtnBackground: sugHex,
-                buyBtnForeground: getContrastingForeground(sugHex),
-              },
-            }
-          : {}),
-      });
-    }
+      const bodyBg = normalizeHex(
+        typeof aiData.bodyBackground === "string" ? aiData.bodyBackground : undefined,
+        baseBlueprint.theme.bodyBackground
+      );
+      const bodyFg = getContrastingForeground(bodyBg);
 
-    const heroMode = aiData.heroMode === "editorial" ? "editorial" : "artwork";
+      const headerBg = normalizeHex(
+        typeof aiData.headerBackground === "string" ? aiData.headerBackground : undefined,
+        baseBlueprint.visualOverrides.header.background
+      );
+      const headerFg = getContrastingForeground(headerBg);
 
-    const merged: StoreBlueprint = {
-      ...baseBlueprint,
-      brand: {
-        ...baseBlueprint.brand,
-        niche: typeof aiData.niche === "string" ? aiData.niche : baseBlueprint.brand.niche,
-        tone: ["modern", "luxury", "vibrant", "minimal", "tech"].includes(String(aiData.tone))
-          ? (aiData.tone as StoreBlueprint["brand"]["tone"])
-          : baseBlueprint.brand.tone,
-      },
-      theme: {
-        ...baseBlueprint.theme,
-        primaryBackground: primaryBg,
-        primaryForeground: primaryFg,
-        secondaryBackground: secondaryBg,
-        secondaryForeground: secondaryFg,
-        neutralBackground: neutralBg,
-        neutralForeground: neutralFg,
-        btnPrimaryBackground: primaryBg,
-        btnPrimaryColor: primaryFg,
-        headingFont:
-          typeof aiData.headingFont === "string"
-            ? aiData.headingFont
-            : baseBlueprint.theme.headingFont,
-        bodyFont:
-          typeof aiData.bodyFont === "string" ? aiData.bodyFont : baseBlueprint.theme.bodyFont,
-      },
-      visualOverrides: {
-        ...baseBlueprint.visualOverrides,
-        productCard: {
-          ...baseBlueprint.visualOverrides.productCard,
-          buyBtnBackground: primaryBg,
-          buyBtnForeground: primaryFg,
+      const announcementBg = normalizeHex(
+        typeof aiData.announcementBackground === "string" ? aiData.announcementBackground : undefined,
+        baseBlueprint.visualOverrides.announcement.background
+      );
+      const announcementFg = getContrastingForeground(announcementBg);
+
+      const primaryBg = normalizeHex(
+        typeof aiData.primaryBackground === "string" ? aiData.primaryBackground : undefined,
+        baseBlueprint.theme.primaryBackground
+      );
+      const primaryFg = getContrastingForeground(primaryBg);
+
+      const secondaryBg = normalizeHex(
+        typeof aiData.secondaryBackground === "string" ? aiData.secondaryBackground : undefined,
+        baseBlueprint.theme.secondaryBackground
+      );
+      const secondaryFg = getContrastingForeground(secondaryBg);
+
+      const neutralBg = normalizeHex(
+        typeof aiData.neutralBackground === "string" ? aiData.neutralBackground : undefined,
+        baseBlueprint.theme.neutralBackground
+      );
+      const neutralFg = getContrastingForeground(neutralBg);
+
+      const btnPrimaryBg = normalizeHex(
+        typeof aiData.btnPrimaryBackground === "string" ? aiData.btnPrimaryBackground : undefined,
+        primaryBg
+      );
+      const btnPrimaryFg = getContrastingForeground(btnPrimaryBg);
+
+      const aiInsightsRaw = Array.isArray(aiData.insights) ? aiData.insights : [];
+      const parsedAiInsights: DesignInsight[] = aiInsightsRaw
+        .slice(0, 4)
+        .map((item, idx): DesignInsight | null => {
+          if (!item || typeof item !== "object") return null;
+          const rec = item as Record<string, unknown>;
+          const title = typeof rec.title === "string" ? rec.title.trim() : "";
+          const description = typeof rec.description === "string" ? rec.description.trim() : "";
+          if (!title || !description) return null;
+
+          const category = ["palette", "contrast", "banners", "conversion"].includes(
+            String(rec.category)
+          )
+            ? (rec.category as DesignInsight["category"])
+            : "palette";
+          const severity = rec.severity === "info" ? "info" : "suggestion";
+          const sugHex =
+            typeof rec.suggestedCtaHex === "string"
+              ? normalizeHex(rec.suggestedCtaHex, "")
+              : "";
+
+          return {
+            id: `gemini-insight-${idx + 1}`,
+            category,
+            severity,
+            title,
+            description,
+            ...(sugHex
+              ? {
+                  actionLabel: `Aplicar CTA ${sugHex}`,
+                  suggestedThemePatch: {
+                    btnPrimaryBackground: sugHex,
+                    btnPrimaryColor: getContrastingForeground(sugHex),
+                    buyBtnBackground: sugHex,
+                    buyBtnForeground: getContrastingForeground(sugHex),
+                  },
+                }
+              : {}),
+          };
+        })
+        .filter((x): x is DesignInsight => x !== null);
+
+      const finalInsights: DesignInsight[] = [
+        {
+          id: "gemini-visual-analysis-badge",
+          category: "palette",
+          severity: "info",
+          title: `Identidade visual analisada por ${model}`,
+          description: `O modelo multimodal analisou ${attachedScreenshots > 0 ? `${attachedScreenshots} captura(s) visual(is)` : "os dados"} da loja original para calibrar paleta, tipografia, espaçamento e tom de voz no Tema LIME.`,
         },
-        pageProduct: {
-          ...baseBlueprint.visualOverrides.pageProduct,
-          buyButtonText:
-            typeof aiData.buyButtonText === "string"
-              ? aiData.buyButtonText
-              : baseBlueprint.visualOverrides.pageProduct.buyButtonText,
+        ...parsedAiInsights,
+      ];
+
+      const rawBenefits = Array.isArray(aiData.benefits) ? aiData.benefits : [];
+      const parsedBenefits = rawBenefits
+        .slice(0, 4)
+        .map((b) => {
+          if (!b || typeof b !== "object") return null;
+          const rec = b as Record<string, unknown>;
+          if (typeof rec.title !== "string" || typeof rec.subtitle !== "string") return null;
+          const icon = ["truck", "credit-card", "shield-check", "refresh-cw"].includes(
+            String(rec.icon)
+          )
+            ? String(rec.icon)
+            : "shield-check";
+          return { icon, title: rec.title.slice(0, 32), subtitle: rec.subtitle.slice(0, 52) };
+        })
+        .filter((x): x is StoreBlueprint["sections"]["benefits"][number] => x !== null);
+
+      const rawTestimonials = Array.isArray(aiData.testimonials) ? aiData.testimonials : [];
+      const parsedTestimonials = rawTestimonials
+        .slice(0, 3)
+        .map((t) => {
+          if (!t || typeof t !== "object") return null;
+          const rec = t as Record<string, unknown>;
+          if (typeof rec.author !== "string" || typeof rec.comment !== "string") return null;
+          return {
+            author: rec.author.slice(0, 40),
+            rating: 5,
+            comment: rec.comment.slice(0, 200),
+          };
+        })
+        .filter((x): x is StoreBlueprint["sections"]["testimonials"][number] => x !== null);
+
+      const heroMode = aiData.heroMode === "editorial" ? "editorial" : "artwork";
+      const validRadius = ["none", "small", "medium", "large"].includes(String(aiData.radius))
+        ? (aiData.radius as StoreBlueprint["theme"]["radius"])
+        : baseBlueprint.theme.radius;
+      const validHeaderLayout = ["layout-1", "layout-2", "layout-3"].includes(
+        String(aiData.headerLayout)
+      )
+        ? (aiData.headerLayout as StoreBlueprint["theme"]["headerLayout"])
+        : baseBlueprint.theme.headerLayout;
+      const validHeaderPos = ["default", "sticky", "overlay"].includes(
+        String(aiData.headerPosition)
+      )
+        ? (aiData.headerPosition as "default" | "sticky" | "overlay")
+        : baseBlueprint.visualOverrides.header.position;
+      const validCatCase = ["normal", "uppercase", "lowercase", "capitalize"].includes(
+        String(aiData.categoryCase)
+      )
+        ? (aiData.categoryCase as "normal" | "uppercase" | "lowercase" | "capitalize")
+        : baseBlueprint.visualOverrides.header.categoryCase;
+      const validAlign = ["left", "center", "right"].includes(String(aiData.productCardAlign))
+        ? (aiData.productCardAlign as "left" | "center" | "right")
+        : baseBlueprint.visualOverrides.productCard.titleAlign;
+      const validPadding = [8, 16, 24, 40].includes(Number(aiData.productCardPaddingX))
+        ? (Number(aiData.productCardPaddingX) as 8 | 16 | 24 | 40)
+        : baseBlueprint.visualOverrides.productCard.paddingX;
+
+      const merged: StoreBlueprint = {
+        ...baseBlueprint,
+        brand: {
+          ...baseBlueprint.brand,
+          niche: typeof aiData.niche === "string" ? aiData.niche : baseBlueprint.brand.niche,
+          tone: ["modern", "luxury", "vibrant", "minimal", "tech"].includes(String(aiData.tone))
+            ? (aiData.tone as StoreBlueprint["brand"]["tone"])
+            : baseBlueprint.brand.tone,
+        },
+        theme: {
+          ...baseBlueprint.theme,
+          bodyBackground: bodyBg,
+          bodyForeground: bodyFg,
+          primaryBackground: primaryBg,
+          primaryForeground: primaryFg,
+          secondaryBackground: secondaryBg,
+          secondaryForeground: secondaryFg,
+          neutralBackground: neutralBg,
+          neutralForeground: neutralFg,
+          btnPrimaryBackground: btnPrimaryBg,
+          btnPrimaryColor: btnPrimaryFg,
+          btnSecondaryOutline:
+            typeof aiData.btnSecondaryOutline === "boolean"
+              ? aiData.btnSecondaryOutline
+              : baseBlueprint.theme.btnSecondaryOutline,
+          headingFont:
+            typeof aiData.headingFont === "string"
+              ? aiData.headingFont
+              : baseBlueprint.theme.headingFont,
+          bodyFont:
+            typeof aiData.bodyFont === "string" ? aiData.bodyFont : baseBlueprint.theme.bodyFont,
+          radius: validRadius,
+          headerLayout: validHeaderLayout,
+        },
+        visualOverrides: {
+          ...baseBlueprint.visualOverrides,
+          announcement: {
+            background: announcementBg,
+            foreground: announcementFg,
+          },
+          header: {
+            ...baseBlueprint.visualOverrides.header,
+            background: headerBg,
+            foreground: headerFg,
+            position: validHeaderPos,
+            categoryCase: validCatCase,
+          },
+          productCard: {
+            ...baseBlueprint.visualOverrides.productCard,
+            titleAlign: validAlign,
+            paddingX: validPadding,
+            cardBackground: bodyBg,
+            priceColor: bodyFg,
+            buyBtnBackground: btnPrimaryBg,
+            buyBtnForeground: btnPrimaryFg,
+          },
+          pageProduct: {
+            ...baseBlueprint.visualOverrides.pageProduct,
+            buyButtonText:
+              typeof aiData.buyButtonText === "string"
+                ? aiData.buyButtonText
+                : baseBlueprint.visualOverrides.pageProduct.buyButtonText,
+          },
+          footer: {
+            ...baseBlueprint.visualOverrides.footer,
+            background: secondaryBg,
+            foreground: secondaryFg,
+            legalBackground: darkenHex(secondaryBg, 0.25),
+            legalForeground: secondaryFg,
+          },
+        },
+        sections: {
+          ...baseBlueprint.sections,
+          announcementText:
+            typeof aiData.announcementText === "string"
+              ? aiData.announcementText
+              : baseBlueprint.sections.announcementText,
+          heroSlides: baseBlueprint.sections.heroSlides.map((s, idx) =>
+            idx === 0 ? { ...s, mode: heroMode } : s
+          ),
+          benefitsBanner: baseBlueprint.sections.benefitsBanner
+            ? {
+                ...baseBlueprint.sections.benefitsBanner,
+                backgroundColor:
+                  baseBlueprint.sections.benefitsBanner.mode === "site-images"
+                    ? baseBlueprint.sections.benefitsBanner.backgroundColor
+                    : neutralBg,
+                textColor:
+                  baseBlueprint.sections.benefitsBanner.mode === "site-images"
+                    ? baseBlueprint.sections.benefitsBanner.textColor
+                    : neutralFg,
+              }
+            : undefined,
+          moodSectionTitle:
+            typeof aiData.moodSectionTitle === "string"
+              ? aiData.moodSectionTitle
+              : baseBlueprint.sections.moodSectionTitle,
+          slimBanner: baseBlueprint.sections.slimBanner
+            ? {
+                ...baseBlueprint.sections.slimBanner,
+                headline:
+                  typeof aiData.slimHeadline === "string"
+                    ? aiData.slimHeadline
+                    : baseBlueprint.sections.slimBanner.headline,
+                backgroundColor: secondaryBg,
+                textColor: secondaryFg,
+              }
+            : undefined,
+          secondaryBanner: baseBlueprint.sections.secondaryBanner
+            ? {
+                ...baseBlueprint.sections.secondaryBanner,
+                headline:
+                  typeof aiData.secondaryHeadline === "string"
+                    ? aiData.secondaryHeadline
+                    : baseBlueprint.sections.secondaryBanner.headline,
+                subheadline:
+                  typeof aiData.secondarySubheadline === "string"
+                    ? aiData.secondarySubheadline
+                    : baseBlueprint.sections.secondaryBanner.subheadline,
+                backgroundColor: secondaryBg,
+                textColor: secondaryFg,
+              }
+            : undefined,
+          promoStripText:
+            typeof aiData.promoStripText === "string"
+              ? aiData.promoStripText
+              : baseBlueprint.sections.promoStripText,
+          benefits: parsedBenefits.length >= 3 ? parsedBenefits : baseBlueprint.sections.benefits,
+          testimonials:
+            parsedTestimonials.length >= 2
+              ? parsedTestimonials
+              : baseBlueprint.sections.testimonials,
+          showcases: baseBlueprint.sections.showcases.map((sc, idx) => {
+            if (idx === 0 && typeof aiData.showcase1Title === "string") {
+              return { ...sc, title: aiData.showcase1Title };
+            }
+            if (idx === 1 && typeof aiData.showcase2Title === "string") {
+              return { ...sc, title: aiData.showcase2Title };
+            }
+            return sc;
+          }),
         },
         footer: {
-          ...baseBlueprint.visualOverrides.footer,
-          background: secondaryBg,
-          foreground: secondaryFg,
-          legalBackground: darkenHex(secondaryBg, 0.25),
-          legalForeground: secondaryFg,
+          ...baseBlueprint.footer,
+          aboutText:
+            typeof aiData.aboutText === "string"
+              ? aiData.aboutText
+              : baseBlueprint.footer.aboutText,
         },
-      },
-      sections: {
-        ...baseBlueprint.sections,
-        announcementText:
-          typeof aiData.announcementText === "string"
-            ? aiData.announcementText
-            : baseBlueprint.sections.announcementText,
-        heroSlides: baseBlueprint.sections.heroSlides.map((s, idx) =>
-          idx === 0 ? { ...s, mode: heroMode } : s
-        ),
-        moodSectionTitle:
-          typeof aiData.moodSectionTitle === "string"
-            ? aiData.moodSectionTitle
-            : baseBlueprint.sections.moodSectionTitle,
-        slimBanner: baseBlueprint.sections.slimBanner
-          ? {
-              ...baseBlueprint.sections.slimBanner,
-              headline:
-                typeof aiData.slimHeadline === "string"
-                  ? aiData.slimHeadline
-                  : baseBlueprint.sections.slimBanner.headline,
-            }
-          : undefined,
-        secondaryBanner: baseBlueprint.sections.secondaryBanner
-          ? {
-              ...baseBlueprint.sections.secondaryBanner,
-              headline:
-                typeof aiData.secondaryHeadline === "string"
-                  ? aiData.secondaryHeadline
-                  : baseBlueprint.sections.secondaryBanner.headline,
-              subheadline:
-                typeof aiData.secondarySubheadline === "string"
-                  ? aiData.secondarySubheadline
-                  : baseBlueprint.sections.secondaryBanner.subheadline,
-            }
-          : undefined,
-        showcases: baseBlueprint.sections.showcases.map((sc, idx) => {
-          if (idx === 0 && typeof aiData.showcase1Title === "string") {
-            return { ...sc, title: aiData.showcase1Title };
-          }
-          if (idx === 1 && typeof aiData.showcase2Title === "string") {
-            return { ...sc, title: aiData.showcase2Title };
-          }
-          return sc;
-        }),
-      },
-      designInsights: extraInsights,
-    };
+        designInsights: finalInsights,
+      };
 
-    const validated = StoreBlueprintSchema.parse(merged);
-    return { blueprint: validated, mode: "gemini" };
-  } catch {
-    return { blueprint: baseBlueprint, mode: "heuristic" };
+      const validated = StoreBlueprintSchema.parse(merged);
+      return { blueprint: validated, mode: "gemini", modelUsed: model };
+    } catch (err) {
+      lastErrorMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[architect] Falha no modelo ${model}:`, lastErrorMsg);
+    }
   }
+
+  // Fallback with transparent diagnostic insight (never fail silently)
+  const fallbackWithNotice: StoreBlueprint = {
+    ...baseBlueprint,
+    designInsights: [
+      {
+        id: "gemini-fallback-notice",
+        category: "palette",
+        severity: "suggestion",
+        title: "Fallback heurístico ativado (Gemini indisponível)",
+        description: `Não foi possível concluir a análise visual com Gemini 3.5 Flash nesta tentativa (${lastErrorMsg.slice(0, 140)}). Clique em "Reanalisar com Gemini 3.5" para tentar novamente sem raspar o site do zero.`,
+      },
+      ...baseBlueprint.designInsights,
+    ],
+  };
+
+  return {
+    blueprint: fallbackWithNotice,
+    mode: "heuristic",
+    aiError: lastErrorMsg,
+  };
 }

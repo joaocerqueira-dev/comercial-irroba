@@ -1,0 +1,457 @@
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { chromium } from "playwright";
+import { escapeHtml, sanitizeCssColor, sanitizeFontName } from "@/lib/irroba-blocks/sanitize";
+
+export type AiImageAspectRatio = "16:9" | "21:9" | "3:4" | "1:1";
+export type AiImageMode = "enhance" | "resize" | "generate";
+
+export interface AiImageRequest {
+  previewId: string;
+  prompt: string;
+  mode: AiImageMode;
+  aspectRatio: AiImageAspectRatio;
+  sourceImageUrl?: string;
+  sourceStoreUrl?: string;
+  slotLabel?: string;
+  brandName: string;
+  niche: string;
+  headingFont?: string;
+  bodyFont?: string;
+  palette: {
+    primary: string;
+    primaryFg: string;
+    secondary: string;
+    secondaryFg: string;
+    neutral: string;
+  };
+}
+
+export interface AiImageResult {
+  imageUrl: string;
+  width: number;
+  height: number;
+  engine: "gemini-image" | "gemini-art-studio";
+  modelUsed: string;
+  notice?: string;
+}
+
+const DIMENSIONS_BY_RATIO: Record<AiImageAspectRatio, { width: number; height: number }> = {
+  "16:9": { width: 1920, height: 1080 },
+  "21:9": { width: 1920, height: 420 },
+  "3:4": { width: 900, height: 1200 },
+  "1:1": { width: 1080, height: 1080 },
+};
+
+const GEMINI_IMAGE_MODELS = Array.from(
+  new Set(
+    [
+      process.env.GEMINI_IMAGE_MODEL?.trim(),
+      "gemini-3.1-flash-image",
+      "gemini-3.1-flash-lite-image",
+      "gemini-2.5-flash-image",
+    ].filter((m): m is string => Boolean(m))
+  )
+);
+
+const GEMINI_TEXT_MODELS = Array.from(
+  new Set(
+    [
+      process.env.GEMINI_MODEL?.trim(),
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+    ].filter((m): m is string => Boolean(m))
+  )
+);
+
+async function loadImageAsBuffer(
+  imageUrl: string | undefined,
+  refererUrl?: string
+): Promise<{ buffer: Buffer; mimeType: string } | null> {
+  if (!imageUrl || !imageUrl.trim()) return null;
+  const trimmed = imageUrl.trim();
+
+  // 1) Local cached capture / asset
+  if (trimmed.startsWith("/api/captures/")) {
+    const safeName = path.basename(trimmed.replace("/api/captures/", ""));
+    const diskPath = path.join(process.cwd(), "public", "captures", safeName);
+    try {
+      const buffer = await fs.readFile(diskPath);
+      const ext = path.extname(safeName).toLowerCase();
+      const mimeType =
+        ext === ".webp"
+          ? "image/webp"
+          : ext === ".jpg" || ext === ".jpeg"
+            ? "image/jpeg"
+            : ext === ".svg"
+              ? "image/svg+xml"
+              : "image/png";
+      return { buffer, mimeType };
+    } catch {
+      return null;
+    }
+  }
+
+  // 2) External HTTP(S) image with anti-hotlink Referer
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const res = await fetch(trimmed, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          ...(refererUrl ? { Referer: refererUrl } : {}),
+          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return null;
+      const ct = (res.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
+      if (!ct.startsWith("image/") && ct !== "application/octet-stream") return null;
+      const buffer = Buffer.from(await res.arrayBuffer());
+      if (buffer.length < 300) return null;
+      return { buffer, mimeType: ct.startsWith("image/") ? ct : "image/jpeg" };
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+async function tryGeminiNativeImage(
+  req: AiImageRequest,
+  sourceImage: { buffer: Buffer; mimeType: string } | null
+): Promise<{ buffer: Buffer; mimeType: string; modelUsed: string } | { error: string }> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) return { error: "GEMINI_API_KEY não configurada." };
+
+  const ratioForApi = req.aspectRatio === "21:9" ? "16:9" : req.aspectRatio;
+  const modeInstruction =
+    req.mode === "enhance"
+      ? "Melhore a nitidez, iluminação de estúdio e resolução desta imagem preservando fielmente o produto/sujeito original, sem textos indesejados."
+      : req.mode === "resize"
+        ? `Reenquadre e estenda o cenário naturalmente para a proporção ${req.aspectRatio} em alta definição, mantendo o produto centralizado e sem cortes nem distorções.`
+        : `Crie uma fotografia/arte publicitária sofisticada de e-commerce em alta definição para a marca "${req.brandName}" (nicho: ${req.niche}), harmonizando com a paleta ${req.palette.primary} e ${req.palette.neutral}.`;
+
+  const fullPrompt = `${modeInstruction}
+Solicitação específica do diretor criativo: ${req.prompt.trim() || "Visual editorial limpo, luxuoso e de alta conversão para loja virtual."}
+Slot: ${req.slotLabel || "Banner de Loja Virtual"}.
+Entregue imagem limpa, fotográfica ou editorial de altíssima qualidade, sem marcas d'água.`;
+
+  const parts: Array<Record<string, unknown>> = [{ text: fullPrompt }];
+  if (sourceImage && sourceImage.mimeType !== "image/svg+xml") {
+    parts.push({
+      inlineData: {
+        mimeType: sourceImage.mimeType,
+        data: sourceImage.buffer.toString("base64"),
+      },
+    });
+  }
+
+  let lastError = "Modelo de imagem indisponível.";
+  for (const model of GEMINI_IMAGE_MODELS) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: {
+            responseModalities: ["IMAGE"],
+            imageConfig: { aspectRatio: ratioForApi },
+          },
+        }),
+        signal: AbortSignal.timeout(35000),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        if (res.status === 429) {
+          lastError = "Cota de geração de imagem nativa (Gemini Image) não habilitada na chave atual.";
+        } else {
+          lastError = `${model} HTTP ${res.status}: ${errText.slice(0, 140)}`;
+        }
+        continue;
+      }
+
+      const data = (await res.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }>;
+          };
+        }>;
+      };
+      const imgPart = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+      if (imgPart?.inlineData?.data) {
+        return {
+          buffer: Buffer.from(imgPart.inlineData.data, "base64"),
+          mimeType: imgPart.inlineData.mimeType || "image/png",
+          modelUsed: model,
+        };
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  return { error: lastError };
+}
+
+interface ArtDirectionSpec {
+  eyebrow: string;
+  headline: string;
+  subheadline: string;
+  badge: string;
+  bgColor: string;
+  textColor: string;
+  accentColor: string;
+  fitMode: "cover" | "contain-backdrop";
+  brightness: number;
+  contrast: number;
+  saturate: number;
+  showTextOverlay: boolean;
+}
+
+async function getGeminiArtDirection(
+  req: AiImageRequest,
+  hasSourceImage: boolean
+): Promise<{ spec: ArtDirectionSpec; modelUsed: string }> {
+  const defaultBg = sanitizeCssColor(
+    req.mode === "generate" ? req.palette.secondary : req.palette.neutral,
+    "#141416"
+  );
+  const defaultFg = sanitizeCssColor(
+    req.mode === "generate" ? req.palette.secondaryFg : req.palette.primary,
+    "#FFFFFF"
+  );
+  const defaultAccent = sanitizeCssColor(req.palette.primary, "#111827");
+
+  const fallback: ArtDirectionSpec = {
+    eyebrow: req.brandName.toUpperCase(),
+    headline: req.slotLabel || `Coleção ${req.brandName}`,
+    subheadline:
+      req.prompt.trim() || `Seleção exclusiva em ${req.niche} com acabamento premium.`,
+    badge: "EDIÇÃO ESPECIAL",
+    bgColor: defaultBg,
+    textColor: defaultFg,
+    accentColor: defaultAccent,
+    fitMode: req.mode === "resize" ? "contain-backdrop" : "cover",
+    brightness: req.mode === "enhance" ? 1.05 : 1.02,
+    contrast: req.mode === "enhance" ? 1.09 : 1.04,
+    saturate: req.mode === "enhance" ? 1.08 : 1.03,
+    showTextOverlay: req.mode === "generate" || !hasSourceImage,
+  };
+
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) return { spec: fallback, modelUsed: "local-art-studio" };
+
+  const prompt = `Você é um Diretor de Arte de e-commerce de luxo. Retorne APENAS JSON válido (sem markdown) para compor uma imagem PNG HD (${req.aspectRatio}) da loja "${req.brandName}" (nicho: ${req.niche}).
+Modo solicitado: ${req.mode}. Tem imagem base: ${hasSourceImage ? "sim" : "não"}.
+Pedido do consultor: "${req.prompt}"
+Paleta da marca: primária=${req.palette.primary}, secundária=${req.palette.secondary}, neutra=${req.palette.neutral}.
+
+Regras:
+- Se modo for "enhance" ou "resize" e houver imagem base SEM pedido explícito de texto, defina "showTextOverlay": false para entregar fotografia limpa em alta definição.
+- Se modo for "generate" ou não houver imagem base (ou o pedido pedir texto/oferta), defina "showTextOverlay": true e escreva textos curtos, elegantes e em PT-BR.
+- "fitMode": use "contain-backdrop" quando o pedido pedir redimensionar/enquadrar sem cortar o produto; use "cover" para preenchimento total.
+
+Formato JSON:
+{
+  "eyebrow": "string curta",
+  "headline": "string até 5 palavras",
+  "subheadline": "string até 12 palavras",
+  "badge": "string curta",
+  "bgColor": "#HEX",
+  "textColor": "#HEX",
+  "accentColor": "#HEX",
+  "fitMode": "cover | contain-backdrop",
+  "brightness": 1.05,
+  "contrast": 1.08,
+  "saturate": 1.06,
+  "showTextOverlay": false
+}`;
+
+  for (const model of GEMINI_TEXT_MODELS) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              temperature: 0.4,
+              responseMimeType: "application/json",
+            },
+          }),
+          signal: AbortSignal.timeout(12000),
+        }
+      );
+      if (!res.ok) continue;
+      const data = (await res.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as Partial<ArtDirectionSpec>;
+      return {
+        spec: {
+          eyebrow: parsed.eyebrow || fallback.eyebrow,
+          headline: parsed.headline || fallback.headline,
+          subheadline: parsed.subheadline || fallback.subheadline,
+          badge: parsed.badge || fallback.badge,
+          bgColor: sanitizeCssColor(parsed.bgColor, fallback.bgColor),
+          textColor: sanitizeCssColor(parsed.textColor, fallback.textColor),
+          accentColor: sanitizeCssColor(parsed.accentColor, fallback.accentColor),
+          fitMode: parsed.fitMode === "contain-backdrop" ? "contain-backdrop" : "cover",
+          brightness: Math.min(1.25, Math.max(0.85, Number(parsed.brightness) || fallback.brightness)),
+          contrast: Math.min(1.25, Math.max(0.9, Number(parsed.contrast) || fallback.contrast)),
+          saturate: Math.min(1.3, Math.max(0.8, Number(parsed.saturate) || fallback.saturate)),
+          showTextOverlay:
+            typeof parsed.showTextOverlay === "boolean"
+              ? parsed.showTextOverlay
+              : fallback.showTextOverlay,
+        },
+        modelUsed: `${model} + Art Studio HD`,
+      };
+    } catch {
+      continue;
+    }
+  }
+
+  return { spec: fallback, modelUsed: "local-art-studio" };
+}
+
+async function renderArtStudioPng(
+  req: AiImageRequest,
+  sourceImage: { buffer: Buffer; mimeType: string } | null,
+  spec: ArtDirectionSpec,
+  width: number,
+  height: number
+): Promise<Buffer> {
+  const dataUri = sourceImage
+    ? `data:${sourceImage.mimeType};base64,${sourceImage.buffer.toString("base64")}`
+    : null;
+  const headingFont = sanitizeFontName(req.headingFont, "Montserrat");
+  const bodyFont = sanitizeFontName(req.bodyFont, "Poppins");
+  const isSlim = req.aspectRatio === "21:9";
+  const isVertical = req.aspectRatio === "3:4";
+
+  const filterCss = `brightness(${spec.brightness}) contrast(${spec.contrast}) saturate(${spec.saturate})`;
+
+  let bodyHtml = "";
+  if (dataUri && !spec.showTextOverlay) {
+    // Clean HD upscale / smart reframe without distorting aspect ratio
+    if (spec.fitMode === "contain-backdrop") {
+      bodyHtml = `
+        <div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:${spec.bgColor};display:flex;align-items:center;justify-content:center;">
+          <img src="${dataUri}" style="position:absolute;inset:-8%;width:116%;height:116%;object-fit:cover;filter:blur(42px) brightness(0.88) saturate(1.1);opacity:0.65;transform:scale(1.08);" />
+          <div style="position:absolute;inset:0;background:radial-gradient(circle at center, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0.28) 100%);"></div>
+          <img src="${dataUri}" style="position:relative;z-index:2;max-width:92%;max-height:92%;object-fit:contain;filter:${filterCss};box-shadow:0 28px 70px rgba(0,0,0,0.28);border-radius:10px;" />
+        </div>`;
+    } else {
+      bodyHtml = `
+        <div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:${spec.bgColor};">
+          <img src="${dataUri}" style="width:100%;height:100%;object-fit:cover;object-position:center;filter:${filterCss};display:block;" />
+          <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.03) 0%,rgba(0,0,0,0.12) 100%);"></div>
+        </div>`;
+    }
+  } else {
+    // Editorial luxury artwork composition (with optional real product/photo inset)
+    const headlineSize = isSlim ? "44px" : isVertical ? "66px" : "86px";
+    const subSize = isSlim ? "20px" : isVertical ? "24px" : "28px";
+
+    bodyHtml = `
+      <div style="position:relative;width:100vw;height:100vh;overflow:hidden;background:linear-gradient(135deg, ${spec.bgColor} 0%, #0f1115 100%);color:${spec.textColor};display:flex;align-items:center;justify-content:space-between;padding:${isSlim ? "36px 88px" : isVertical ? "72px 64px" : "88px 112px"};box-sizing:border-box;${isVertical ? "flex-direction:column;justify-content:flex-end;align-items:flex-start;" : ""}">
+        ${
+          dataUri
+            ? `<img src="${dataUri}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:${filterCss} brightness(0.76);opacity:0.86;" />
+               <div style="position:absolute;inset:0;background:linear-gradient(${isVertical ? "180deg, rgba(0,0,0,0.12) 0%, rgba(0,0,0,0.82) 100%" : "90deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.34) 55%, rgba(0,0,0,0.15) 100%"});"></div>`
+            : `<div style="position:absolute;right:-120px;top:-120px;width:620px;height:620px;border-radius:999px;background:${spec.accentColor};opacity:0.22;filter:blur(80px);"></div>
+               <div style="position:absolute;left:-80px;bottom:-140px;width:540px;height:540px;border-radius:999px;background:${spec.textColor};opacity:0.08;filter:blur(90px);"></div>
+               <div style="position:absolute;inset:28px;border:1px solid rgba(255,255,255,0.14);pointer-events:none;"></div>`
+        }
+        <div style="position:relative;z-index:2;max-width:${isVertical ? "100%" : isSlim ? "68%" : "58%"};color:#ffffff;">
+          <div style="display:inline-flex;align-items:center;gap:14px;font-family:'${bodyFont}',sans-serif;font-size:${isSlim ? "14px" : "17px"};font-weight:700;letter-spacing:0.24em;text-transform:uppercase;opacity:0.88;margin-bottom:${isSlim ? "10px" : "24px"};">
+            <span style="display:inline-block;width:36px;height:2px;background:#ffffff;"></span>
+            <span>${escapeHtml(spec.eyebrow)}</span>
+          </div>
+          <h1 style="margin:0 0 ${isSlim ? "8px" : "22px"} 0;font-family:'${headingFont}',Georgia,serif;font-size:${headlineSize};font-weight:300;line-height:1.02;letter-spacing:-0.02em;color:#ffffff;">${escapeHtml(spec.headline)}</h1>
+          <p style="margin:0;font-family:'${bodyFont}',sans-serif;font-size:${subSize};font-weight:400;line-height:1.5;color:rgba(255,255,255,0.86);max-width:680px;">${escapeHtml(spec.subheadline)}</p>
+        </div>
+        ${
+          !isVertical
+            ? `<div style="position:relative;z-index:2;padding:16px 34px;border:1.5px solid rgba(255,255,255,0.75);font-family:'${bodyFont}',sans-serif;font-size:16px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#ffffff;backdrop-filter:blur(8px);background:rgba(0,0,0,0.22);">${escapeHtml(spec.badge)}</div>`
+            : ""
+        }
+      </div>`;
+  }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8" />
+    <style>html,body{margin:0;padding:0;width:${width}px;height:${height}px;overflow:hidden;background:#111;}</style>
+  </head><body>${bodyHtml}</body></html>`;
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+  });
+  try {
+    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+    await page.setContent(html, { waitUntil: "load" });
+    await page.waitForTimeout(150);
+    return await page.screenshot({ type: "png" });
+  } finally {
+    await browser.close().catch(() => undefined);
+  }
+}
+
+export async function processAiImageRequest(req: AiImageRequest): Promise<AiImageResult> {
+  const { width, height } = DIMENSIONS_BY_RATIO[req.aspectRatio] ?? DIMENSIONS_BY_RATIO["16:9"];
+  const capturesDir = path.join(process.cwd(), "public", "captures");
+  await fs.mkdir(capturesDir, { recursive: true });
+
+  const sourceImage = await loadImageAsBuffer(req.sourceImageUrl, req.sourceStoreUrl);
+
+  // 1) Try native Gemini Image generation / image-to-image editing first
+  const nativeAttempt = await tryGeminiNativeImage(req, sourceImage);
+  if ("buffer" in nativeAttempt) {
+    const ext = nativeAttempt.mimeType.includes("jpeg")
+      ? ".jpg"
+      : nativeAttempt.mimeType.includes("webp")
+        ? ".webp"
+        : ".png";
+    const hash = crypto.randomBytes(5).toString("hex");
+    const filename = `ai-${req.previewId.slice(0, 10)}-${Date.now()}-${hash}${ext}`;
+    await fs.writeFile(path.join(capturesDir, filename), nativeAttempt.buffer);
+
+    return {
+      imageUrl: `/api/captures/${filename}`,
+      width,
+      height,
+      engine: "gemini-image",
+      modelUsed: nativeAttempt.modelUsed,
+    };
+  }
+
+  // 2) Guaranteed HD fallback: Gemini 3.5 Art Direction + Playwright High-Res PNG rendering
+  const { spec, modelUsed } = await getGeminiArtDirection(req, Boolean(sourceImage));
+  const pngBuffer = await renderArtStudioPng(req, sourceImage, spec, width, height);
+
+  const hash = crypto.randomBytes(5).toString("hex");
+  const filename = `ai-${req.previewId.slice(0, 10)}-${Date.now()}-${hash}.png`;
+  await fs.writeFile(path.join(capturesDir, filename), pngBuffer);
+
+  return {
+    imageUrl: `/api/captures/${filename}`,
+    width,
+    height,
+    engine: "gemini-art-studio",
+    modelUsed,
+    notice: nativeAttempt.error.includes("Cota")
+      ? `Imagem gerada em HD (${width}×${height}) via ${modelUsed}. Para fotorrealismo generativo nativo (Gemini 3.1 Image), ative o faturamento de imagem na sua chave API.`
+      : undefined,
+  };
+}

@@ -4,15 +4,20 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Check,
   Code2,
   Copy,
   Download,
   ExternalLink,
   Eye,
+  EyeOff,
+  GripVertical,
   Image as ImageIcon,
   LayoutGrid,
+  Loader2,
   Monitor,
   Palette,
   Plus,
@@ -22,10 +27,17 @@ import {
   Smartphone,
   Sparkles,
   Trash2,
+  Wand2,
 } from "lucide-react";
 import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
 import { compileIrrobaExport, compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
-import type { DesignInsight, StoreBlueprint } from "@/lib/types/blueprint";
+import {
+  DEFAULT_SECTION_LAYOUT,
+  getNormalizedSectionLayout,
+  type DesignInsight,
+  type SectionKey,
+  type StoreBlueprint,
+} from "@/lib/types/blueprint";
 
 interface StudioClientProps {
   id: string;
@@ -85,6 +97,214 @@ const FONT_OPTIONS = [
   "Manrope",
 ];
 
+type AiRatio = "16:9" | "21:9" | "3:4" | "1:1";
+
+function AiImageSlot({
+  previewId,
+  label,
+  value,
+  defaultAspectRatio,
+  minRecommendedWidth = 800,
+  onChange,
+}: {
+  previewId: string;
+  label: string;
+  value: string;
+  defaultAspectRatio: AiRatio;
+  minRecommendedWidth?: number;
+  onChange: (nextUrl: string) => void;
+}) {
+  const [imgStatus, setImgStatus] = useState<"idle" | "ok" | "error">("idle");
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [ratio, setRatio] = useState<AiRatio>(defaultAspectRatio);
+  const [busyMode, setBusyMode] = useState<"enhance" | "resize" | "generate" | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+
+  const isLowRes = Boolean(dims && dims.w > 0 && dims.w < minRecommendedWidth);
+  const isMissing = !value || !value.trim() || imgStatus === "error";
+
+  const runAiImage = async (mode: "enhance" | "resize" | "generate") => {
+    setBusyMode(mode);
+    setFeedback(null);
+    try {
+      const res = await fetch(`/api/previews/${previewId}/ai-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt:
+            prompt.trim() ||
+            (mode === "enhance"
+              ? `Melhorar nitidez, iluminação e resolução HD para ${label}`
+              : mode === "resize"
+                ? `Redimensionar e reenquadrar sem distorcer para ${ratio}`
+                : `Criar arte editorial sofisticada para ${label}`),
+          mode,
+          aspectRatio: ratio,
+          sourceImageUrl: mode === "generate" && isMissing ? undefined : value || undefined,
+          slotLabel: label,
+        }),
+      });
+      const data = (await res.json()) as {
+        imageUrl?: string;
+        width?: number;
+        height?: number;
+        modelUsed?: string;
+        notice?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.imageUrl) {
+        throw new Error(data.error || "Não foi possível gerar/ajustar a imagem.");
+      }
+      setImgStatus("idle");
+      setDims(data.width && data.height ? { w: data.width, h: data.height } : null);
+      onChange(data.imageUrl);
+      setFeedback(
+        data.notice ||
+          `Imagem atualizada (${data.width ?? ""}×${data.height ?? ""}px · ${data.modelUsed ?? "IA"}).`
+      );
+    } catch (err) {
+      setFeedback(err instanceof Error ? err.message : "Erro ao ajustar imagem com IA.");
+    } finally {
+      setBusyMode(null);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-medium text-slate-600">{label}</span>
+        {isMissing ? (
+          <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+            Ausente / Falhou
+          </span>
+        ) : isLowRes && dims ? (
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+            Baixa res. ({dims.w}×{dims.h})
+          </span>
+        ) : dims ? (
+          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+            {dims.w}×{dims.h}px
+          </span>
+        ) : null}
+      </div>
+
+      {/* Live visual preview thumbnail */}
+      <div className="relative h-20 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+        {value && imgStatus !== "error" ? (
+          <img
+            src={value}
+            alt={label}
+            referrerPolicy="no-referrer"
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              setImgStatus("ok");
+              setDims({ w: img.naturalWidth, h: img.naturalHeight });
+            }}
+            onError={() => {
+              setImgStatus("error");
+              setDims(null);
+            }}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-[10px] text-slate-500">
+            <ImageIcon className="h-4 w-4 text-slate-400" />
+            <span>Imagem indisponível — clique em IA abaixo</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-1.5">
+        <input
+          type="text"
+          value={value}
+          placeholder="https://... ou /api/captures/..."
+          onChange={(e) => {
+            setImgStatus("idle");
+            onChange(e.target.value);
+          }}
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800"
+        />
+        <button
+          type="button"
+          onClick={() => setAiOpen((prev) => !prev)}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition ${
+            isMissing || isLowRes
+              ? "bg-emerald-600 text-white hover:bg-emerald-500"
+              : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+          }`}
+        >
+          <Wand2 className="h-3 w-3" />
+          IA
+        </button>
+      </div>
+
+      {(aiOpen || isMissing) && (
+        <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-900">
+              Ajuste / Recriação de Imagem por IA
+            </span>
+            <select
+              value={ratio}
+              onChange={(e) => setRatio(e.target.value as AiRatio)}
+              className="rounded border border-emerald-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-700"
+            >
+              <option value="16:9">16:9 (Banner HD)</option>
+              <option value="21:9">21:9 (Slim)</option>
+              <option value="3:4">3:4 (Editorial)</option>
+              <option value="1:1">1:1 (Quadrado)</option>
+            </select>
+          </div>
+          <textarea
+            rows={2}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Ex: Aumentar resolução sem distorcer, fundo de estúdio minimalista, iluminação quente..."
+            className="w-full rounded-md border border-emerald-200 bg-white px-2 py-1.5 text-[11px] text-slate-800 placeholder:text-slate-400"
+          />
+          <div className="grid grid-cols-3 gap-1">
+            <button
+              type="button"
+              disabled={busyMode !== null || isMissing}
+              onClick={() => runAiImage("enhance")}
+              className="inline-flex items-center justify-center gap-1 rounded bg-slate-900 px-1.5 py-1.5 text-[10px] font-bold text-white hover:bg-slate-800 disabled:opacity-40"
+            >
+              {busyMode === "enhance" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Melhorar HD
+            </button>
+            <button
+              type="button"
+              disabled={busyMode !== null || isMissing}
+              onClick={() => runAiImage("resize")}
+              className="inline-flex items-center justify-center gap-1 rounded bg-indigo-600 px-1.5 py-1.5 text-[10px] font-bold text-white hover:bg-indigo-500 disabled:opacity-40"
+            >
+              {busyMode === "resize" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Redimensionar
+            </button>
+            <button
+              type="button"
+              disabled={busyMode !== null}
+              onClick={() => runAiImage("generate")}
+              className="inline-flex items-center justify-center gap-1 rounded bg-emerald-600 px-1.5 py-1.5 text-[10px] font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+            >
+              {busyMode === "generate" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+              Recriar IA
+            </button>
+          </div>
+          {feedback && (
+            <div className="rounded bg-white/90 px-2 py-1 text-[10px] leading-snug text-slate-700">
+              {feedback}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function StudioClient({
   id,
   slug,
@@ -96,22 +316,57 @@ export default function StudioClient({
 }: StudioClientProps) {
   const [bp, setBp] = useState<StoreBlueprint>(initialBlueprint);
   const [baselineTheme, setBaselineTheme] = useState(initialBlueprint.theme);
+  const [currentMode, setCurrentMode] = useState(generationMode);
   const [sellerWhatsapp, setSellerWhatsapp] = useState(initialWhatsapp);
   const [activeTab, setActiveTab] = useState<"preview" | "export">("preview");
   const [editorTab, setEditorTab] = useState<EditorSubTab>("insights");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [isSaving, setIsSaving] = useState(false);
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
 
   const liveHtml = useMemo(() => compileStorefrontDocument(bp), [bp]);
   const compiled = useMemo(() => compileIrrobaExport(bp), [bp]);
+  const sectionLayout = useMemo(() => getNormalizedSectionLayout(bp.sections.layout), [bp.sections.layout]);
 
   const updateBp = (updater: (prev: StoreBlueprint) => StoreBlueprint) => {
     setBp((prev) => updater(prev));
     setHasUnsavedChanges(true);
+  };
+
+  const moveSection = (fromIdx: number, toIdx: number) => {
+    if (toIdx < 0 || toIdx >= sectionLayout.length || fromIdx === toIdx) return;
+    updateBp((prev) => {
+      const next = getNormalizedSectionLayout(prev.sections.layout);
+      const [moved] = next.splice(fromIdx, 1);
+      if (!moved) return prev;
+      next.splice(toIdx, 0, moved);
+      return { ...prev, sections: { ...prev.sections, layout: next } };
+    });
+  };
+
+  const toggleSection = (sectionId: SectionKey) => {
+    updateBp((prev) => {
+      const next = getNormalizedSectionLayout(prev.sections.layout).map((s) =>
+        s.id === sectionId ? { ...s, enabled: !s.enabled } : s
+      );
+      return { ...prev, sections: { ...prev.sections, layout: next } };
+    });
+  };
+
+  const resetSectionLayout = () => {
+    updateBp((prev) => ({
+      ...prev,
+      sections: {
+        ...prev.sections,
+        layout: DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s })),
+      },
+    }));
   };
 
   const copyText = async (key: string, text: string) => {
@@ -122,20 +377,53 @@ export default function StudioClient({
 
   const handleSave = async () => {
     setIsSaving(true);
+    setActionError(null);
     try {
       const res = await fetch(`/api/previews/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ blueprint: bp, sellerWhatsapp }),
       });
-      if (res.ok) {
-        setBaselineTheme(bp.theme);
-        setHasUnsavedChanges(false);
-        setSavedNotice(true);
-        setTimeout(() => setSavedNotice(false), 2000);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error((errData as { error?: string }).error || "Falha ao salvar alterações");
       }
+      setBaselineTheme(bp.theme);
+      setHasUnsavedChanges(false);
+      setSavedNotice(true);
+      setTimeout(() => setSavedNotice(false), 2000);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Erro de conexão ao salvar");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleReanalyzeWithGemini = async () => {
+    setIsReanalyzing(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/previews/${id}/reanalyze`, { method: "POST" });
+      const data = (await res.json().catch(() => ({}))) as {
+        blueprint?: StoreBlueprint;
+        mode?: string;
+        aiError?: string | null;
+        error?: string;
+      };
+      if (!res.ok || !data.blueprint) {
+        throw new Error(data.error || "Falha ao reanalisar com Gemini");
+      }
+      setBp(data.blueprint);
+      setBaselineTheme(data.blueprint.theme);
+      setCurrentMode(data.mode || "heuristic");
+      setHasUnsavedChanges(false);
+      if (data.aiError) {
+        setActionError(`Gemini 3.5 indisponível: ${data.aiError}`);
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Erro ao conectar com Gemini");
+    } finally {
+      setIsReanalyzing(false);
     }
   };
 
@@ -228,9 +516,15 @@ export default function StudioClient({
               <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
                 Origem: {detectedPlatform}
               </span>
-              <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+              <span
+                className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold ${
+                  currentMode === "gemini"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-slate-100 text-slate-700"
+                }`}
+              >
                 <Sparkles className="h-3 w-3" />
-                {generationMode === "gemini" ? "Gemini IA" : "Análise Profunda"}
+                {currentMode === "gemini" ? "Gemini 3.5 Flash" : "Modo Heurístico"}
               </span>
               {hasUnsavedChanges && (
                 <span className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
@@ -361,7 +655,7 @@ export default function StudioClient({
               }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              <span>Estrutura</span>
+              <span>Seções</span>
             </button>
           </div>
 
@@ -369,8 +663,14 @@ export default function StudioClient({
             {/* TAB 1: DIAGNÓSTICO, PALETA FIEL & MARCA */}
             {editorTab === "insights" && (
               <div className="space-y-4">
+                {actionError && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-[11px] text-rose-700">
+                    {actionError}
+                  </div>
+                )}
+
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="mb-2 flex items-center justify-between">
+                  <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="font-bold text-slate-900">
                       Diagnóstico de Paleta &amp; Conversão
                     </span>
@@ -384,6 +684,22 @@ export default function StudioClient({
                       Original
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={handleReanalyzeWithGemini}
+                    disabled={isReanalyzing}
+                    className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-[11px] font-bold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+                  >
+                    {isReanalyzing ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5" />
+                    )}
+                    {isReanalyzing
+                      ? "Analisando identidade com Gemini 3.5..."
+                      : "Reanalisar Identidade com Gemini 3.5"}
+                  </button>
 
                   {bp.designInsights.length === 0 ? (
                     <p className="text-slate-500">
@@ -992,25 +1308,25 @@ export default function StudioClient({
                         </select>
                       </div>
 
-                      <div>
-                        <label className="mb-1 block text-[11px] text-slate-500">URL da Imagem</label>
-                        <input
-                          type="text"
-                          value={slide.imageUrl}
-                          onChange={(e) =>
-                            updateBp((prev) => ({
-                              ...prev,
-                              sections: {
-                                ...prev.sections,
-                                heroSlides: prev.sections.heroSlides.map((s, i) =>
-                                  i === idx ? { ...s, imageUrl: e.target.value } : s
-                                ),
-                              },
-                            }))
-                          }
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
-                        />
-                      </div>
+                      <AiImageSlot
+                        previewId={id}
+                        label={`Imagem do Slide ${idx + 1}`}
+                        value={slide.imageUrl}
+                        defaultAspectRatio="16:9"
+                        minRecommendedWidth={1000}
+                        onChange={(nextUrl) =>
+                          updateBp((prev) => ({
+                            ...prev,
+                            sections: {
+                              ...prev.sections,
+                              hero: idx === 0 ? { ...prev.sections.hero, imageUrl: nextUrl } : prev.sections.hero,
+                              heroSlides: prev.sections.heroSlides.map((s, i) =>
+                                i === idx ? { ...s, imageUrl: nextUrl } : s
+                              ),
+                            },
+                          }))
+                        }
+                      />
 
                       {slide.mode === "editorial" && (
                         <>
@@ -1243,22 +1559,23 @@ export default function StudioClient({
                       <option value="image">Imagem Banner Slim</option>
                     </select>
                     {bp.sections.slimBanner.mode === "image" ? (
-                      <input
-                        type="text"
-                        placeholder="URL da imagem slim"
+                      <AiImageSlot
+                        previewId={id}
+                        label="Arte Banner Slim (21:9)"
                         value={bp.sections.slimBanner.imageUrl}
-                        onChange={(e) =>
+                        defaultAspectRatio="21:9"
+                        minRecommendedWidth={1000}
+                        onChange={(nextUrl) =>
                           updateBp((prev) => ({
                             ...prev,
                             sections: {
                               ...prev.sections,
                               slimBanner: prev.sections.slimBanner
-                                ? { ...prev.sections.slimBanner, imageUrl: e.target.value }
+                                ? { ...prev.sections.slimBanner, imageUrl: nextUrl }
                                 : undefined,
                             },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
                       />
                     ) : (
                       <>
@@ -1357,22 +1674,23 @@ export default function StudioClient({
                       <option value="artwork">Arte Completa (Imagem Larga)</option>
                       <option value="editorial">Editorial (Imagem + Texto + Botão)</option>
                     </select>
-                    <input
-                      type="text"
+                    <AiImageSlot
+                      previewId={id}
+                      label="Imagem Banner Secundário"
                       value={bp.sections.secondaryBanner.imageUrl}
-                      placeholder="URL da imagem"
-                      onChange={(e) =>
+                      defaultAspectRatio="16:9"
+                      minRecommendedWidth={900}
+                      onChange={(nextUrl) =>
                         updateBp((prev) => ({
                           ...prev,
                           sections: {
                             ...prev.sections,
                             secondaryBanner: prev.sections.secondaryBanner
-                              ? { ...prev.sections.secondaryBanner, imageUrl: e.target.value }
+                              ? { ...prev.sections.secondaryBanner, imageUrl: nextUrl }
                               : undefined,
                           },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
                     />
                     {bp.sections.secondaryBanner.mode === "editorial" && (
                       <>
@@ -1415,7 +1733,12 @@ export default function StudioClient({
 
                 {/* Mosaico Mood / Categorias */}
                 <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Mosaico Visual (Mood / Coleções)</div>
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800">Galeria Editorial (Mood / Coleções)</span>
+                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      Conteúdo HTML
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={bp.sections.moodSectionTitle}
@@ -1463,15 +1786,260 @@ export default function StudioClient({
                         }
                         className="w-full rounded border border-slate-200 bg-white px-2 py-1"
                       />
+                      <AiImageSlot
+                        previewId={id}
+                        label={`Foto Card ${idx + 1} (3:4)`}
+                        value={m.imageUrl}
+                        defaultAspectRatio="3:4"
+                        minRecommendedWidth={500}
+                        onChange={(nextUrl) =>
+                          updateBp((prev) => ({
+                            ...prev,
+                            sections: {
+                              ...prev.sections,
+                              moodBanners: prev.sections.moodBanners.map((item, i) =>
+                                i === idx ? { ...item, imageUrl: nextUrl } : item
+                              ),
+                            },
+                          }))
+                        }
+                      />
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* TAB 4: TIPOGRAFIA, LAYOUT, CATEGORIAS & PRODUTOS */}
+            {/* TAB 4: MANIPULAÇÃO DE SEÇÕES, LOOKBOOK, TIPOGRAFIA, CATEGORIAS & PRODUTOS */}
             {editorTab === "structure" && (
               <div className="space-y-4">
+                {/* 1. Manipulador de Seções da Página Inicial */}
+                <div className="space-y-2.5 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-slate-900">Seções da Página Inicial</div>
+                      <div className="text-[10px] text-slate-500">
+                        Arraste, mova (↑/↓) ou oculte qualquer seção em tempo real
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetSectionLayout}
+                      title="Restaurar ordem padrão"
+                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Padrão
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {sectionLayout.map((sec, idx) => (
+                      <div
+                        key={sec.id}
+                        draggable
+                        onDragStart={() => setDragSectionIdx(idx)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => {
+                          if (dragSectionIdx !== null) {
+                            moveSection(dragSectionIdx, idx);
+                            setDragSectionIdx(null);
+                          }
+                        }}
+                        onDragEnd={() => setDragSectionIdx(null)}
+                        className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 transition ${
+                          sec.enabled
+                            ? "border-slate-200 bg-white text-slate-800"
+                            : "border-dashed border-slate-200 bg-slate-100/80 text-slate-400"
+                        } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-emerald-400" : ""}`}
+                      >
+                        <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-slate-400" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-semibold leading-tight">{sec.label}</div>
+                          <div className="truncate text-[9px] font-medium uppercase tracking-wide text-slate-400">
+                            {sec.irrobaModule}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => moveSection(idx, idx - 1)}
+                            title="Mover para cima"
+                            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === sectionLayout.length - 1}
+                            onClick={() => moveSection(idx, idx + 1)}
+                            title="Mover para baixo"
+                            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleSection(sec.id)}
+                            title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
+                            className={`rounded p-1 ${
+                              sec.enabled
+                                ? "text-emerald-600 hover:bg-emerald-50"
+                                : "text-slate-400 hover:bg-slate-200"
+                            }`}
+                          >
+                            {sec.enabled ? (
+                              <Eye className="h-3.5 w-3.5" />
+                            ) : (
+                              <EyeOff className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Editor do Lookbook & Manifesto (Conteúdo HTML) */}
+                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800">Lookbook &amp; Manifesto</span>
+                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      Conteúdo HTML
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Etiqueta (ex: 01 / Manifesto)"
+                    value={bp.sections.lookbook?.eyebrow ?? "01 / Manifesto"}
+                    onChange={(e) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          lookbook: {
+                            mainImageUrl: prev.sections.lookbook?.mainImageUrl ?? "",
+                            insetImageUrl: prev.sections.lookbook?.insetImageUrl ?? "",
+                            ...prev.sections.lookbook,
+                            eyebrow: e.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Título do Manifesto"
+                    value={bp.sections.lookbook?.headline ?? bp.sections.promoStripText}
+                    onChange={(e) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          lookbook: {
+                            eyebrow: prev.sections.lookbook?.eyebrow ?? "01 / Manifesto",
+                            mainImageUrl: prev.sections.lookbook?.mainImageUrl ?? "",
+                            insetImageUrl: prev.sections.lookbook?.insetImageUrl ?? "",
+                            ...prev.sections.lookbook,
+                            headline: e.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                  <textarea
+                    rows={2}
+                    placeholder="Texto institucional / narrativa da marca"
+                    value={bp.sections.lookbook?.description ?? bp.footer.aboutText}
+                    onChange={(e) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          lookbook: {
+                            eyebrow: prev.sections.lookbook?.eyebrow ?? "01 / Manifesto",
+                            mainImageUrl: prev.sections.lookbook?.mainImageUrl ?? "",
+                            insetImageUrl: prev.sections.lookbook?.insetImageUrl ?? "",
+                            ...prev.sections.lookbook,
+                            description: e.target.value,
+                          },
+                        },
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                  <AiImageSlot
+                    previewId={id}
+                    label="Foto Principal do Lookbook (16:9)"
+                    value={
+                      bp.sections.lookbook?.mainImageUrl ||
+                      bp.sections.secondaryBanner?.imageUrl ||
+                      bp.sections.hero.imageUrl
+                    }
+                    defaultAspectRatio="16:9"
+                    minRecommendedWidth={800}
+                    onChange={(nextUrl) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          lookbook: {
+                            eyebrow: prev.sections.lookbook?.eyebrow ?? "01 / Manifesto",
+                            insetImageUrl: prev.sections.lookbook?.insetImageUrl ?? "",
+                            ...prev.sections.lookbook,
+                            mainImageUrl: nextUrl,
+                          },
+                        },
+                      }))
+                    }
+                  />
+                  <AiImageSlot
+                    previewId={id}
+                    label="Foto Detalhe Sobreposta (1:1)"
+                    value={
+                      bp.sections.lookbook?.insetImageUrl ||
+                      bp.products[1]?.imageUrl ||
+                      bp.products[0]?.imageUrl ||
+                      ""
+                    }
+                    defaultAspectRatio="1:1"
+                    minRecommendedWidth={500}
+                    onChange={(nextUrl) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          lookbook: {
+                            eyebrow: prev.sections.lookbook?.eyebrow ?? "01 / Manifesto",
+                            mainImageUrl: prev.sections.lookbook?.mainImageUrl ?? "",
+                            ...prev.sections.lookbook,
+                            insetImageUrl: nextUrl,
+                          },
+                        },
+                      }))
+                    }
+                  />
+                </div>
+
+                {/* 3. Barra de Aviso Superior */}
+                <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+                  <div className="font-bold text-slate-800">Barra de Aviso do Topo</div>
+                  <input
+                    type="text"
+                    value={bp.sections.announcementText}
+                    onChange={(e) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: { ...prev.sections, announcementText: e.target.value },
+                      }))
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                </div>
+
                 <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
                   <div className="font-bold text-slate-800">Tipografia &amp; Arredondamento</div>
                   <div className="grid grid-cols-2 gap-2">
@@ -1860,15 +2428,18 @@ export default function StudioClient({
                 </div>
               </section>
 
-              {/* Passo 3: Banners Nativos */}
+              {/* Passo 3: Banners Nativos (Banner Versão 2) */}
               {compiled.bannerModulesChecklist.length > 0 && (
                 <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <div className="mb-3 flex items-center gap-2">
+                  <div className="mb-1 flex items-center gap-2">
                     <LayoutGrid className="h-4 w-4 text-emerald-600" />
                     <h3 className="text-sm font-bold text-slate-900">
                       3. Personalizar Loja &gt; Banners (Banner Versão 2)
                     </h3>
                   </div>
+                  <p className="mb-3 text-xs text-slate-500">
+                    Todos os banners (Hero Carrossel, Banner Slim e Banner Secundário) devem ser cadastrados no módulo nativo de Banners da Irroba, nunca em Conteúdo HTML.
+                  </p>
                   <div className="space-y-2.5 text-xs">
                     {compiled.bannerModulesChecklist.map((b, idx) => (
                       <div
@@ -1876,30 +2447,159 @@ export default function StudioClient({
                         className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="font-bold text-slate-900">{b.slotName}</div>
-                          <div className="text-slate-600">{b.notes}</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-slate-900">{b.slotName}</span>
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                              Tipo: {b.bannerType}
+                            </span>
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                              {b.recommendedSize}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-slate-600">{b.notes}</div>
                           <div className="mt-1 truncate font-mono text-[11px] text-slate-500">
                             {b.imageUrl}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => copyText(`banner-${idx}`, b.imageUrl)}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
-                        >
-                          {copiedKey === `banner-${idx}` ? "URL Copiada ✓" : "Copiar URL"}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {b.imageUrl.startsWith("/api/captures/") && (
+                            <a
+                              href={b.imageUrl}
+                              download
+                              className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1.5 font-semibold text-white hover:bg-emerald-500"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              Baixar
+                            </a>
+                          )}
+                          {(b.imageUrl.startsWith("http") || b.imageUrl.startsWith("/api/captures/")) && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                copyText(
+                                  `banner-${idx}`,
+                                  b.imageUrl.startsWith("/")
+                                    ? `${window.location.origin}${b.imageUrl}`
+                                    : b.imageUrl
+                                )
+                              }
+                              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
+                            >
+                              {copiedKey === `banner-${idx}` ? "URL Copiada ✓" : "Copiar URL"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
                 </section>
               )}
 
-              {/* Passo 4: Blocos Conteúdo HTML (SunEditor) */}
+              {/* Passo 4: Tarja Informativa (Nativo LIME) */}
+              <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      4. {compiled.tarjaChecklist.moduleName}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">{compiled.tarjaChecklist.notes}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                      <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 font-semibold text-indigo-700">
+                        Layout do Item: {compiled.tarjaChecklist.itemLayout}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-medium text-slate-700">
+                        Desktop: {compiled.tarjaChecklist.visibleDesktop} · Tablet:{" "}
+                        {compiled.tarjaChecklist.visibleTablet} · Mobile:{" "}
+                        {compiled.tarjaChecklist.visibleMobile}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDownloadBenefitsPng}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Baixar Arte PNG
+                  </button>
+                </div>
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {compiled.tarjaChecklist.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-800">
+                          {idx + 1}. {item.title}
+                        </div>
+                        <div className="truncate text-[11px] text-slate-500">{item.description}</div>
+                      </div>
+                      {item.imageUrl && (
+                        <button
+                          type="button"
+                          onClick={() => copyText(`tarja-img-${idx}`, item.imageUrl || "")}
+                          className="shrink-0 rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          {copiedKey === `tarja-img-${idx}` ? "Copiado ✓" : "Copiar Arte"}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Passo 5: Listas de Produtos (Nativo Irroba) */}
+              {compiled.productListsChecklist.length > 0 && (
+                <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    5. Produtos &gt; Listas de Produtos (Vitrines Nativas)
+                  </h3>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Cadastre cada vitrine usando o módulo nativo de Listas de Produtos após importar o CSV do catálogo.
+                  </p>
+                  <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                    {compiled.productListsChecklist.map((pl, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs"
+                      >
+                        <div className="font-bold text-slate-900">
+                          Vitrine {idx + 1}: {pl.title}
+                        </div>
+                        <div className="mt-1.5 space-y-0.5 text-[11px] text-slate-600">
+                          <div>
+                            Origem: <strong className="text-slate-800">{pl.sourceType}</strong>
+                          </div>
+                          <div>
+                            Exibição: <strong className="text-slate-800">{pl.displayMode}</strong> (
+                            {pl.desktopItems} Desktop · {pl.mobileItems} Mobile)
+                          </div>
+                          <div>
+                            Alinhamento: <strong className="text-slate-800">{pl.titleAlign}</strong> ·
+                            Limite: <strong className="text-slate-800">{pl.limit} produtos</strong>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Passo 6: Blocos Conteúdo HTML Sofisticados (SunEditor) */}
               <section className="space-y-4">
-                <h3 className="text-sm font-bold text-slate-900">
-                  4. Blocos Low-Code (Configurações &gt; Módulos &gt; Conteúdo HTML · SunEditor)
-                </h3>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-emerald-600" />
+                    <h3 className="text-sm font-bold text-slate-900">
+                      6. Configurações &gt; Módulos &gt; Conteúdo HTML (Seções Editoriais Sofisticadas · SunEditor)
+                    </h3>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Reservado exclusivamente para seções editoriais personalizadas (Galeria 3:4 com movimento SVG sem JS e Lookbook &amp; Manifesto) — 100% CSS inline pronto para colar em <strong>Mostrar códigos</strong> no SunEditor.
+                  </p>
+                </div>
                 {compiled.htmlBlocks.map((blk) => (
                   <div key={blk.id} className="rounded-2xl border border-slate-200 bg-white p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1932,12 +2632,12 @@ export default function StudioClient({
                 ))}
               </section>
 
-              {/* Passo 5: CSS Personalizado */}
+              {/* Passo 7: CSS Personalizado */}
               <section className="rounded-2xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
-                      5. Editar tema &gt; Código &gt; CSS Personalizado
+                      7. Editar tema &gt; Código &gt; CSS Personalizado
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-500">
                       Refinamentos globais de hover, bordas e arredondamento para o Tema LIME.

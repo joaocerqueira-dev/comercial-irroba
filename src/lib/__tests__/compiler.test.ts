@@ -121,14 +121,27 @@ describe("Irroba LIME Compiler & Export", () => {
     expect(html).toContain("&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;");
   });
 
-  it("generates SunEditor-safe Conteúdo HTML blocks without <style> or <script> tags", () => {
+  it("separates native Irroba modules (Banners, Tarja, Product Lists) and reserves Conteúdo HTML for 2 editorial blocks", () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     const exported = compileIrrobaExport(bp);
 
     expect(exported.limeSettings.length).toBeGreaterThanOrEqual(10);
-    expect(exported.themeVisualChecklist.length).toBeGreaterThanOrEqual(5);
+    expect(exported.themeVisualChecklist.length).toBeGreaterThanOrEqual(6);
     expect(exported.bannerModulesChecklist.length).toBeGreaterThanOrEqual(1);
-    expect(exported.htmlBlocks.length).toBe(4);
+    expect(exported.bannerModulesChecklist[0]?.bannerType).toBe("Carrossel");
+    expect(exported.bannerModulesChecklist[0]?.recommendedSize).toContain("1920");
+
+    expect(exported.tarjaChecklist.moduleName).toContain("Tarja Informativa");
+    expect(exported.tarjaChecklist.items.length).toBeGreaterThanOrEqual(1);
+    expect(exported.productListsChecklist.length).toBeGreaterThanOrEqual(1);
+
+    // Conteúdo HTML is strictly reserved for the 2 sophisticated editorial blocks
+    expect(exported.htmlBlocks.length).toBe(2);
+    expect(exported.htmlBlocks[0]?.id).toBe("irb-html-editorial-gallery");
+    expect(exported.htmlBlocks[0]?.html).toContain('referrerpolicy="no-referrer"');
+    expect(exported.htmlBlocks[0]?.html).toContain("100vw");
+    expect(exported.htmlBlocks[1]?.id).toBe("irb-html-editorial-lookbook");
+    expect(exported.htmlBlocks[1]?.html).toContain("100vw");
 
     for (const blk of exported.htmlBlocks) {
       expect(blk.html).toContain("style=");
@@ -136,6 +149,29 @@ describe("Irroba LIME Compiler & Export", () => {
       expect(blk.html.toLowerCase()).not.toContain("<script");
     }
     expect(exported.customCss).toContain(".product.product-grid");
+  });
+
+  it("renders LIME icon-only header with collapsible search drawer and honors custom section layout order/visibility", () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    bp.sections.layout = [
+      { id: "showcase1", label: "Vitrine Principal", irrobaModule: "Listas de Produtos", enabled: true },
+      { id: "hero", label: "Banner Principal", irrobaModule: "Banner Versão 2", enabled: true },
+      { id: "newsletter", label: "Newsletter", irrobaModule: "Newsletter", enabled: false },
+    ];
+    const html = compileStorefrontDocument(bp);
+
+    // LIME icon-only header + collapsible search drawer
+    expect(html).toContain('id="irb-toggle-search"');
+    expect(html).toContain('id="irb-search-drawer"');
+    expect(html).not.toContain('<span class="headerActionLabel">Entrar</span>');
+    expect(html).not.toContain('<span class="headerActionLabel">Sacola</span>');
+
+    // Reordered sections: showcase1 appears before hero, and disabled newsletter is omitted
+    const showcasePos = html.indexOf('data-irb-section="showcase1"');
+    const heroPos = html.indexOf('data-irb-section="hero"');
+    expect(showcasePos).toBeGreaterThan(-1);
+    expect(heroPos).toBeGreaterThan(showcasePos);
+    expect(html).not.toContain('data-irb-section="newsletter"');
   });
 
   it("preserves original client monochrome/cream palette without forcing green and emits designInsights", () => {

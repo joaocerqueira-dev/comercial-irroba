@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
+import { processAiImageRequest } from "@/lib/ai/image-studio";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 
 const GenerateRequestSchema = z.object({
@@ -74,17 +75,61 @@ export async function POST(req: NextRequest) {
 
         const extracted = await extractStoreFromUrl(normalizedUrl, slug);
 
+        const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
         sendEvent("progress", {
           step: "architect",
-          message: `Plataforma detectada: ${extracted.detectedPlatform}. Montando layout adaptado ao Tema LIME da Irroba...`,
+          message: hasGeminiKey
+            ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com Gemini 3.5 Flash...`
+            : `Plataforma: ${extracted.detectedPlatform}. Montando layout adaptado ao Tema LIME da Irroba...`,
           progress: 65,
         });
 
-        const { blueprint, mode } = await buildStoreBlueprint(extracted);
+        const { blueprint, mode, modelUsed } = await buildStoreBlueprint(extracted);
+
+        // Ensure hero banner always has a valid high-resolution image (AI fallback if missing)
+        const firstHero = blueprint.sections.heroSlides[0];
+        if (!blueprint.sections.hero.imageUrl || (firstHero && !firstHero.imageUrl)) {
+          sendEvent("progress", {
+            step: "media",
+            message: "Gerando arte de banner em alta definição com IA para completar o preview...",
+            progress: 82,
+          });
+          try {
+            const generatedHero = await processAiImageRequest({
+              previewId: initialRecord.id,
+              prompt: `Banner principal sofisticado de lançamento para ${blueprint.brand.name} (${blueprint.brand.niche})`,
+              mode: "generate",
+              aspectRatio: "16:9",
+              sourceStoreUrl: normalizedUrl,
+              slotLabel: blueprint.sections.hero.headline,
+              brandName: blueprint.brand.name,
+              niche: blueprint.brand.niche,
+              headingFont: blueprint.theme.headingFont,
+              bodyFont: blueprint.theme.bodyFont,
+              palette: {
+                primary: blueprint.theme.primaryBackground,
+                primaryFg: blueprint.theme.primaryForeground,
+                secondary: blueprint.theme.secondaryBackground,
+                secondaryFg: blueprint.theme.secondaryForeground,
+                neutral: blueprint.theme.neutralBackground,
+              },
+            });
+            blueprint.sections.hero.imageUrl = generatedHero.imageUrl;
+            if (firstHero) {
+              firstHero.imageUrl = generatedHero.imageUrl;
+              firstHero.mode = "artwork";
+            }
+          } catch {
+            // Keep existing fallback cleanly
+          }
+        }
 
         sendEvent("progress", {
           step: "compile",
-          message: "Compilando preview interativo e blocos low-code (SunEditor + LIME)...",
+          message:
+            mode === "gemini"
+              ? `Identidade visual refinada (${modelUsed || "gemini-3.5-flash"}). Compilando blocos Irroba...`
+              : "Compilando preview interativo e blocos low-code (SunEditor + LIME)...",
           progress: 90,
         });
 

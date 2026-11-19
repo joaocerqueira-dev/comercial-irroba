@@ -123,6 +123,7 @@ export default function HomePage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm("Tem certeza que deseja excluir este preview?")) return;
     await fetch(`/api/previews/${id}`, { method: "DELETE" });
     setPreviews((prev) => prev.filter((p) => p.id !== id));
   };
@@ -205,7 +206,7 @@ export default function HomePage() {
               <button
                 type="submit"
                 disabled={isGenerating}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isGenerating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -294,7 +295,7 @@ export default function HomePage() {
                       {item.detectedPlatform || "E-commerce"}
                     </span>
                     <span className="absolute right-2.5 top-2.5 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
-                      {item.generationMode === "gemini" ? "Gemini IA" : "Auto"}
+                      {item.generationMode === "gemini" ? "Gemini 3.5" : "Auto"}
                     </span>
                   </div>
 

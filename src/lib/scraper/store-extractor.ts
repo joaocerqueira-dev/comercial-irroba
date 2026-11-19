@@ -1,7 +1,8 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
-import { chromium } from "playwright";
+import { chromium, type APIRequestContext } from "playwright";
 import { detectPlatform } from "./platform-detector";
 import type {
   ExtractedBanner,
@@ -57,22 +58,41 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
   if (!trimmed || trimmed.startsWith("data:image/svg+xml") || trimmed.startsWith("data:image/gif")) {
     return undefined;
   }
-  if (trimmed.includes(",")) {
+  // Parse srcset candidates safely (only split on commas followed by a URL / whitespace, not Cloudinary transforms)
+  if (/\s\d+[wx]\b/.test(trimmed)) {
     const candidates = trimmed
-      .split(",")
-      .map((part) => part.trim().split(/\s+/)[0])
-      .filter(Boolean);
-    trimmed = candidates[candidates.length - 1] ?? candidates[0] ?? "";
+      .split(/,\s+(?=(?:https?:|\/\/|\/))/)
+      .map((part) => {
+        const tokens = part.trim().split(/\s+/);
+        const url = tokens[0] ?? "";
+        const desc = tokens[1] ?? "";
+        const score = desc.endsWith("w")
+          ? parseFloat(desc) || 0
+          : desc.endsWith("x")
+            ? (parseFloat(desc) || 1) * 1000
+            : 0;
+        return { url, score };
+      })
+      .filter((c) => Boolean(c.url))
+      .sort((a, b) => b.score - a.score);
+    trimmed = candidates[0]?.url ?? trimmed;
+  } else if (trimmed.includes(", http")) {
+    const parts = trimmed.split(/,\s+/).map((p) => p.trim().split(/\s+/)[0]).filter(Boolean);
+    trimmed = parts[parts.length - 1] ?? parts[0] ?? "";
   }
   if (trimmed.startsWith("//")) {
     trimmed = `https:${trimmed}`;
   }
   try {
-    const resolved = new URL(trimmed, baseUrl).toString();
-    if (resolved.startsWith("http://") || resolved.startsWith("https://")) {
-      return resolved;
+    let resolved = new URL(trimmed, baseUrl).toString();
+    if (!resolved.startsWith("http://") && !resolved.startsWith("https://")) {
+      return undefined;
     }
-    return undefined;
+    // Upgrade small Nuvemshop thumbnails (-240-0, -320-0, -480-0) to higher resolution
+    if (/mitiendanube\.com/i.test(resolved)) {
+      resolved = resolved.replace(/-(?:240|320|480)-0\.(webp|jpg|jpeg|png)$/i, "-1024-1024.$1");
+    }
+    return resolved;
   } catch {
     return undefined;
   }
@@ -948,6 +968,7 @@ export async function extractStoreFromUrl(
     };
 
     await enrichProductsByCategory(parsed, normalizedUrl);
+    await mirrorCriticalImages(parsed, normalizedUrl, capturesDir, slug, page.request);
 
     return parsed;
   } catch (error) {
@@ -959,6 +980,7 @@ export async function extractStoreFromUrl(
         if (shopifyProducts.length > 0) fallback.products = shopifyProducts;
       }
       await enrichProductsByCategory(fallback, normalizedUrl);
+      await mirrorCriticalImages(fallback, normalizedUrl, capturesDir, slug);
       return fallback;
     }
     throw error;
@@ -967,6 +989,133 @@ export async function extractStoreFromUrl(
       await browser.close().catch(() => undefined);
     }
   }
+}
+
+function extFromContentType(ct: string, url: string): string {
+  const lower = ct.toLowerCase();
+  if (lower.includes("webp")) return ".webp";
+  if (lower.includes("png")) return ".png";
+  if (lower.includes("jpeg") || lower.includes("jpg")) return ".jpg";
+  if (lower.includes("svg")) return ".svg";
+  if (lower.includes("gif")) return ".gif";
+  if (lower.includes("avif")) return ".avif";
+  const pathExt = path.extname(url.split("?")[0] ?? "").toLowerCase();
+  if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".avif"].includes(pathExt)) {
+    return pathExt === ".jpeg" ? ".jpg" : pathExt;
+  }
+  return ".jpg";
+}
+
+async function mirrorCriticalImages(
+  store: ExtractedStoreData,
+  refererUrl: string,
+  capturesDir: string,
+  slug: string,
+  pwRequest?: APIRequestContext
+): Promise<void> {
+  const urlsToMirror = new Set<string>();
+  const addUrl = (u?: string) => {
+    if (u && (u.startsWith("http://") || u.startsWith("https://"))) {
+      urlsToMirror.add(u);
+    }
+  };
+
+  addUrl(store.logoUrl);
+  for (const b of store.banners) addUrl(b.imageUrl);
+  for (const c of store.categories.slice(0, 8)) addUrl(c.imageUrl);
+  for (const p of store.products.slice(0, 28)) {
+    addUrl(p.imageUrl);
+    if (p.images[1]) addUrl(p.images[1]);
+  }
+
+  const urlList = Array.from(urlsToMirror).slice(0, 48);
+  const localMap = new Map<string, string>();
+
+  const downloadOne = async (rawUrl: string): Promise<void> => {
+    const hash = crypto.createHash("sha1").update(rawUrl).digest("hex").slice(0, 12);
+    const tryDownload = async (candidateUrl: string): Promise<{ buf: Buffer; ct: string } | null> => {
+      try {
+        if (pwRequest) {
+          const res = await pwRequest.get(candidateUrl, {
+            headers: {
+              Referer: refererUrl,
+              Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            },
+            timeout: 4500,
+          });
+          if (!res.ok()) return null;
+          const ct = res.headers()["content-type"] || "";
+          if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
+            return null;
+          }
+          const buf = await res.body();
+          if (buf.length < 300) return null;
+          return { buf, ct };
+        }
+      } catch {
+        // fallback to native fetch below
+      }
+      try {
+        const res = await fetch(candidateUrl, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            Referer: refererUrl,
+            Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          },
+          signal: AbortSignal.timeout(4500),
+        });
+        if (!res.ok) return null;
+        const ct = res.headers.get("content-type") || "";
+        if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
+          return null;
+        }
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length < 300) return null;
+        return { buf, ct };
+      } catch {
+        return null;
+      }
+    };
+
+    let downloaded = await tryDownload(rawUrl);
+    // If upgraded -1024-1024 Nuvemshop URL returned 404, gracefully retry -640-0 / -480-0
+    if (!downloaded && /-1024-1024\.(webp|jpg|jpeg|png)$/i.test(rawUrl)) {
+      downloaded =
+        (await tryDownload(rawUrl.replace(/-1024-1024\./i, "-640-0."))) ??
+        (await tryDownload(rawUrl.replace(/-1024-1024\./i, "-480-0.")));
+    }
+
+    if (!downloaded) return;
+    const ext = extFromContentType(downloaded.ct, rawUrl);
+    const filename = `m-${slug.slice(0, 18)}-${hash}${ext}`;
+    const diskPath = path.join(capturesDir, filename);
+    await fs.writeFile(diskPath, downloaded.buf);
+    localMap.set(rawUrl, `/api/captures/${filename}`);
+  };
+
+  // Controlled concurrency of 8 downloads at a time
+  const BATCH = 8;
+  for (let i = 0; i < urlList.length; i += BATCH) {
+    await Promise.allSettled(urlList.slice(i, i + BATCH).map((u) => downloadOne(u)));
+  }
+
+  const remap = (u?: string): string | undefined => (u ? localMap.get(u) ?? u : u);
+
+  store.logoUrl = remap(store.logoUrl);
+  store.banners = store.banners.map((b) => ({
+    ...b,
+    imageUrl: localMap.get(b.imageUrl) ?? b.imageUrl,
+  }));
+  store.categories = store.categories.map((c) => ({
+    ...c,
+    imageUrl: remap(c.imageUrl),
+  }));
+  store.products = store.products.map((p) => ({
+    ...p,
+    imageUrl: localMap.get(p.imageUrl) ?? p.imageUrl,
+    images: p.images.map((img) => localMap.get(img) ?? img),
+  }));
 }
 
 async function enrichProductsByCategory(
