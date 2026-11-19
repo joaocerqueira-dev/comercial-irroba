@@ -1159,7 +1159,8 @@ function extFromContentType(ct: string, url: string): string | null {
   return ".jpg";
 }
 
-async function mirrorCriticalImages(
+/** Exportada para testes. */
+export async function mirrorCriticalImages(
   store: ExtractedStoreData,
   refererUrl: string,
   capturesDir: string,
@@ -1188,6 +1189,8 @@ async function mirrorCriticalImages(
   const downloadOne = async (rawUrl: string): Promise<void> => {
     const hash = crypto.createHash("sha1").update(rawUrl).digest("hex").slice(0, 12);
     const tryDownload = async (candidateUrl: string): Promise<{ buf: Buffer; ct: string } | null> => {
+      // SSRF: valida antes de qualquer requisição (Playwright ou fetch)
+      if (!(await isPublicHttpUrl(candidateUrl))) return null;
       try {
         if (pwRequest) {
           const res = await pwRequest.get(candidateUrl, {
@@ -1209,7 +1212,6 @@ async function mirrorCriticalImages(
       } catch {
         // fallback to native fetch below
       }
-      if (!(await isPublicHttpUrl(candidateUrl))) return null;
       try {
         const res = await fetch(candidateUrl, {
           headers: {
