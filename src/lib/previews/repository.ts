@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
+import { collectCaptureRefs, deletePreviewCaptures, legacyMirrorPrefix } from "@/lib/files/captures";
 import { StoreBlueprintSchema, type StoreBlueprint } from "@/lib/types/blueprint";
 
 type PreviewRow = NonNullable<Awaited<ReturnType<typeof prisma.storePreview.findUnique>>>;
@@ -56,4 +57,20 @@ export async function saveBlueprint(
       compiledExport: compileIrrobaExport(blueprint) as object,
     },
   });
+}
+
+/**
+ * Apaga os arquivos de um preview já removido do banco. Espelhos antigos
+ * (prefixo curto, compartilhado) só saem se nenhum outro preview os citar.
+ */
+export async function deletePreviewFiles(preview: { id: string; slug: string }): Promise<number> {
+  const slugPrefix = legacyMirrorPrefix(preview.slug).slice(2, -1);
+  const others = await prisma.storePreview.findMany({
+    where: { slug: { startsWith: slugPrefix }, NOT: { id: preview.id } },
+    select: { extractedData: true, blueprint: true, compiledExport: true },
+  });
+  const referencedElsewhere = collectCaptureRefs(
+    others.flatMap((o) => [o.extractedData, o.blueprint, o.compiledExport])
+  );
+  return deletePreviewCaptures(preview.slug, preview.id, { referencedElsewhere });
 }

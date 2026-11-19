@@ -2,6 +2,7 @@ import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
 import { getSharedBrowser } from "./browser";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
+import { mirrorFilePrefix } from "@/lib/files/captures";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
@@ -1243,7 +1244,7 @@ async function mirrorCriticalImages(
     if (!downloaded) return;
     const ext = extFromContentType(downloaded.ct, rawUrl);
     if (!ext) return;
-    const filename = `m-${slug.slice(0, 18)}-${hash}${ext}`;
+    const filename = `${mirrorFilePrefix(slug)}${hash}${ext}`;
     const diskPath = path.join(capturesDir, filename);
     await fs.writeFile(diskPath, downloaded.buf);
     localMap.set(rawUrl, `/api/captures/${filename}`);

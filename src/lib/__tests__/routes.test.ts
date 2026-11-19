@@ -8,6 +8,7 @@ const db = vi.hoisted(() => ({
     findUnique: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    findMany: vi.fn(async () => []),
   },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
