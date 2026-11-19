@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ExtractedStoreDataSchema } from "@/lib/types/blueprint";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
-import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 
 export async function POST(
   _req: NextRequest,
@@ -38,20 +37,8 @@ export async function POST(
     );
   }
 
-  const compiledExport = compileIrrobaExport(blueprint);
-
-  const updated = await prisma.storePreview.update({
-    where: { id },
-    data: {
-      storeName: blueprint.brand.name,
-      generationMode: mode,
-      blueprint: blueprint as object,
-      compiledExport: compiledExport as object,
-    },
-  });
-
+  // Não grava: o estúdio decide (substituir tudo / só paleta) e salva via PATCH.
   return NextResponse.json({
-    preview: updated,
     blueprint,
     mode,
     modelUsed: modelUsed ?? null,

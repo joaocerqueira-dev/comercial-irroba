@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { readEventStream } from "@/lib/sse/readEventStream";
+import { copyToClipboard } from "@/lib/client/clipboard";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -37,6 +39,11 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<PreviewSummary[]>([]);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+  };
 
   const loadPreviews = async () => {
     try {
@@ -63,9 +70,13 @@ export default function HomePage() {
     setStatusMessage("Conectando ao site do cliente...");
     setError(null);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const response = await fetch("/api/previews/generate", {
         method: "POST",
+        signal: controller.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim(), sellerWhatsapp: sellerWhatsapp.trim() }),
       });
@@ -75,57 +86,54 @@ export default function HomePage() {
         throw new Error((errData as { error?: string }).error || "Erro ao iniciar geração");
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const chunks = buffer.split("\n\n");
-        buffer = chunks.pop() ?? "";
-
-        for (const chunk of chunks) {
-          const eventMatch = chunk.match(/event:\s*(.+)/);
-          const dataMatch = chunk.match(/data:\s*(.+)/);
-          if (!eventMatch || !dataMatch) continue;
-
-          const eventName = eventMatch[1].trim();
-          const payload = JSON.parse(dataMatch[1].trim()) as Record<string, unknown>;
-
-          if (eventName === "progress") {
-            setProgress(Number(payload.progress ?? 50));
-            setStatusMessage(String(payload.message ?? "Processando..."));
-          } else if (eventName === "done") {
-            setProgress(100);
-            setStatusMessage("Preview Beta gerado com sucesso!");
-            await loadPreviews();
-            router.push(`/studio/${String(payload.id)}`);
-            return;
-          } else if (eventName === "error") {
-            throw new Error(String(payload.message ?? "Falha na extração da loja"));
-          }
+      await readEventStream(response.body, async ({ event: eventName, data: payload }) => {
+        if (eventName === "progress") {
+          setProgress(Number(payload.progress ?? 50));
+          setStatusMessage(String(payload.message ?? "Processando..."));
+        } else if (eventName === "done") {
+          setProgress(100);
+          setStatusMessage("Preview Beta gerado com sucesso!");
+          await loadPreviews();
+          router.push(`/studio/${String(payload.id)}`);
+          return true;
+        } else if (eventName === "error") {
+          throw new Error(String(payload.message ?? "Falha na extração da loja"));
         }
-      }
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao gerar preview");
+      if (controller.signal.aborted) {
+        setError("Geração cancelada.");
+      } else {
+        setError(err instanceof Error ? err.message : "Erro ao gerar preview");
+      }
       setIsGenerating(false);
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
   const handleCopyClientLink = async (slug: string) => {
     const shareUrl = `${window.location.origin}/preview/${slug}`;
-    await navigator.clipboard.writeText(shareUrl);
+    if (!(await copyToClipboard(shareUrl))) {
+      window.prompt("Copie o link do cliente:", shareUrl);
+      return;
+    }
     setCopiedSlug(slug);
     setTimeout(() => setCopiedSlug(null), 2000);
   };
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("Tem certeza que deseja excluir este preview?")) return;
-    await fetch(`/api/previews/${id}`, { method: "DELETE" });
-    setPreviews((prev) => prev.filter((p) => p.id !== id));
+    try {
+      const res = await fetch(`/api/previews/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || `Falha ao excluir (HTTP ${res.status})`);
+      }
+      setPreviews((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro ao excluir preview");
+    }
   };
 
   return (
@@ -234,7 +242,16 @@ export default function HomePage() {
             <div className="mt-5 rounded-xl border border-emerald-500/20 bg-slate-900/80 p-4">
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span className="font-medium text-emerald-300">{statusMessage}</span>
-                <span className="font-bold text-white">{progress}%</span>
+                <span className="flex items-center gap-3">
+                  <span className="font-bold text-white">{progress}%</span>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="rounded-md border border-white/20 px-2 py-0.5 font-semibold text-slate-200 hover:bg-white/10"
+                  >
+                    Cancelar
+                  </button>
+                </span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
                 <div

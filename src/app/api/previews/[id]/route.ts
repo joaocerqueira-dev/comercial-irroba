@@ -30,7 +30,16 @@ export async function PATCH(
     );
   }
 
+  const exists = await prisma.storePreview.findUnique({ where: { id }, select: { id: true } });
+  if (!exists) {
+    return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
+  }
+
   const compiledExport = compileIrrobaExport(parsed.data);
+  const generationMode =
+    typeof body?.generationMode === "string" && ["gemini", "heuristic"].includes(body.generationMode)
+      ? (body.generationMode as string)
+      : undefined;
 
   const updated = await prisma.storePreview.update({
     where: { id },
@@ -40,6 +49,7 @@ export async function PATCH(
         typeof body?.sellerWhatsapp === "string"
           ? body.sellerWhatsapp.replace(/\D/g, "") || null
           : undefined,
+      ...(generationMode ? { generationMode } : {}),
       blueprint: parsed.data as object,
       compiledExport: compiledExport as object,
     },
@@ -53,6 +63,17 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  await prisma.storePreview.delete({ where: { id } }).catch(() => null);
+  try {
+    await prisma.storePreview.delete({ where: { id } });
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "P2025") {
+      return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
+    }
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Falha ao excluir preview" },
+      { status: 500 }
+    );
+  }
   return NextResponse.json({ ok: true });
 }

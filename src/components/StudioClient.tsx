@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { absolutizeCaptureUrls, listCaptureUrls, toAbsolutePublicUrl } from "@/lib/public-url";
+import { copyToClipboard } from "@/lib/client/clipboard";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -328,6 +329,9 @@ export default function StudioClient({
   const router = useRouter();
   const [bp, setBp] = useState<StoreBlueprint>(initialBlueprint);
   const [baselineTheme, setBaselineTheme] = useState(initialBlueprint.theme);
+  // Último blueprint salvo/aceito: base do botão "Original"
+  const [baselineBp, setBaselineBp] = useState<StoreBlueprint>(initialBlueprint);
+  const [pendingReanalysis, setPendingReanalysis] = useState<{ blueprint: StoreBlueprint; mode: string } | null>(null);
   const [currentMode, setCurrentMode] = useState(generationMode);
   const [sellerWhatsapp, setSellerWhatsapp] = useState(initialWhatsapp);
   const [activeTab, setActiveTab] = useState<"preview" | "compare" | "export">("preview");
@@ -394,7 +398,10 @@ export default function StudioClient({
   };
 
   const copyText = async (key: string, text: string) => {
-    await navigator.clipboard.writeText(text);
+    if (!(await copyToClipboard(text))) {
+      setActionError("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.");
+      return;
+    }
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
   };
@@ -406,13 +413,14 @@ export default function StudioClient({
       const res = await fetch(`/api/previews/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blueprint: bp, sellerWhatsapp }),
+        body: JSON.stringify({ blueprint: bp, sellerWhatsapp, generationMode: currentMode }),
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error((errData as { error?: string }).error || "Falha ao salvar alterações");
       }
       setBaselineTheme(bp.theme);
+      setBaselineBp(bp);
       setHasUnsavedChanges(false);
       setSavedNotice(true);
       setTimeout(() => setSavedNotice(false), 2000);
@@ -452,10 +460,8 @@ export default function StudioClient({
         );
         return;
       }
-      setBp(data.blueprint);
-      setBaselineTheme(data.blueprint.theme);
-      setCurrentMode(data.mode || "gemini");
-      setHasUnsavedChanges(false);
+      // Não aplica direto: o usuário escolhe entre substituir tudo ou só a paleta
+      setPendingReanalysis({ blueprint: data.blueprint, mode: data.mode || "gemini" });
       if (data.aiError) {
         setActionError(`Gemini 3.5 indisponível: ${data.aiError}`);
       }
@@ -494,18 +500,31 @@ export default function StudioClient({
     }));
   };
 
-  const restoreOriginalPalette = () => {
+  const applyPaletteFrom = (source: StoreBlueprint) => {
     updateBp((prev) => ({
       ...prev,
-      theme: { ...initialBlueprint.theme },
+      theme: { ...source.theme },
       visualOverrides: {
         ...prev.visualOverrides,
-        announcement: { ...initialBlueprint.visualOverrides.announcement },
-        header: { ...initialBlueprint.visualOverrides.header },
-        productCard: { ...initialBlueprint.visualOverrides.productCard },
-        footer: { ...initialBlueprint.visualOverrides.footer },
+        announcement: { ...source.visualOverrides.announcement },
+        header: { ...source.visualOverrides.header },
+        productCard: { ...source.visualOverrides.productCard },
+        footer: { ...source.visualOverrides.footer },
       },
     }));
+  };
+
+  const restoreOriginalPalette = () => applyPaletteFrom(baselineBp);
+
+  const acceptReanalysis = (scope: "all" | "palette") => {
+    if (!pendingReanalysis) return;
+    if (scope === "all") {
+      updateBp(() => pendingReanalysis.blueprint);
+    } else {
+      applyPaletteFrom(pendingReanalysis.blueprint);
+    }
+    setCurrentMode(pendingReanalysis.mode);
+    setPendingReanalysis(null);
   };
 
   const suggestionsCount = bp.designInsights.filter((d) => d.severity === "suggestion").length;
@@ -764,6 +783,46 @@ export default function StudioClient({
                       ? "Analisando identidade com Gemini 3.5..."
                       : "Reanalisar Identidade com Gemini 3.5"}
                   </button>
+
+                  {pendingReanalysis && (
+                    <div
+                      role="alertdialog"
+                      aria-label="Resultado da reanálise"
+                      className="mb-3 rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 text-[11px] text-emerald-900"
+                    >
+                      <p className="font-semibold">Reanálise pronta. Como aplicar?</p>
+                      <p className="mt-0.5 text-emerald-800">
+                        Nada é salvo até você clicar em Salvar. &quot;Substituir tudo&quot; descarta suas edições atuais.
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => acceptReanalysis("palette")}
+                          className="rounded-md bg-emerald-600 px-2 py-1 font-bold text-white hover:bg-emerald-500"
+                        >
+                          Aplicar só a paleta
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm("Substituir todo o layout pela reanálise? Suas edições atuais serão perdidas.")) {
+                              acceptReanalysis("all");
+                            }
+                          }}
+                          className="rounded-md border border-emerald-600 px-2 py-1 font-bold text-emerald-800 hover:bg-emerald-100"
+                        >
+                          Substituir tudo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingReanalysis(null)}
+                          className="rounded-md px-2 py-1 font-semibold text-slate-600 hover:bg-white"
+                        >
+                          Descartar
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {bp.designInsights.length === 0 ? (
                     <p className="text-slate-500">

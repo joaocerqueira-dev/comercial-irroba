@@ -88,13 +88,22 @@ export default function StoreCompareView({
   }, [syncScroll, releaseLockSoon]);
 
   // Bind reverse scroll sync (right iframe -> left full-page screenshot)
+  // Ref evita recriar o listener quando o toggle muda (antes: listeners duplicados)
+  const syncScrollRef = useRef(syncScroll);
+  useEffect(() => {
+    syncScrollRef.current = syncScroll;
+  }, [syncScroll]);
+  const iframeCleanupRef = useRef<(() => void) | null>(null);
+
   const attachIframeScrollListener = useCallback(() => {
+    iframeCleanupRef.current?.();
+    iframeCleanupRef.current = null;
     const win = iframeRef.current?.contentWindow;
     const doc = iframeRef.current?.contentDocument;
     if (!win || !doc) return;
 
     const onRightScroll = () => {
-      if (!syncScroll || scrollLockRef.current === "left") return;
+      if (!syncScrollRef.current || scrollLockRef.current === "left") return;
       const leftEl = leftScrollRef.current;
       if (!leftEl) return;
 
@@ -112,19 +121,20 @@ export default function StoreCompareView({
     };
 
     win.addEventListener("scroll", onRightScroll, { passive: true });
-    return () => {
+    iframeCleanupRef.current = () => {
       try {
         win.removeEventListener("scroll", onRightScroll);
       } catch {
         // ignore detached iframe
       }
     };
-  }, [syncScroll, releaseLockSoon]);
+  }, [releaseLockSoon]);
 
   useEffect(() => {
-    const cleanup = attachIframeScrollListener();
+    attachIframeScrollListener();
     return () => {
-      if (cleanup) cleanup();
+      iframeCleanupRef.current?.();
+      iframeCleanupRef.current = null;
     };
   }, [attachIframeScrollListener, proposalSrc, proposalSrcDoc]);
 
