@@ -57,6 +57,8 @@ interface StudioClientProps {
   initialBlueprint: StoreBlueprint;
   /** Base pública dos assets (PUBLIC_ASSET_BASE_URL). Null = não configurada. */
   publicAssetBaseUrl?: string | null;
+  /** Avisos da extração (ex.: produtos/banners não lidos). */
+  extractionWarnings?: string[];
 }
 
 type EditorSubTab = "insights" | "colors" | "banners" | "structure";
@@ -73,6 +75,7 @@ export default function StudioClient({
   fullScreenshotPath,
   initialBlueprint,
   publicAssetBaseUrl = null,
+  extractionWarnings = [],
 }: StudioClientProps) {
   const router = useRouter();
   const [bp, setBp] = useState<StoreBlueprint>(initialBlueprint);
@@ -459,6 +462,11 @@ export default function StudioClient({
           </Link>
         </div>
       </header>
+      {extractionWarnings.length > 0 && (
+        <div role="status" className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 lg:px-5">
+          {extractionWarnings.join(" ")}
+        </div>
+      )}
 
       {/* Abaixo de 1024px: alterna entre editar e visualizar */}
       {activeTab === "preview" && (

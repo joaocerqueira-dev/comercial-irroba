@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getPreviewWithBlueprint, resolveFullScreenshotPath } from "@/lib/previews/repository";
+import { getPreviewWithBlueprint, resolveExtractionWarnings, resolveFullScreenshotPath } from "@/lib/previews/repository";
 import { normalizeBaseUrl } from "@/lib/public-url";
 import StudioClient from "@/components/StudioClient";
 
@@ -30,6 +30,7 @@ export default async function StudioPage({
       fullScreenshotPath={fullScreenshotPath}
       initialBlueprint={blueprint}
       publicAssetBaseUrl={normalizeBaseUrl(process.env.PUBLIC_ASSET_BASE_URL)}
+      extractionWarnings={resolveExtractionWarnings(preview)}
     />
   );
 }

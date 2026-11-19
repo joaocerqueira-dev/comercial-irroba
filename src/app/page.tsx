@@ -39,6 +39,7 @@ export default function HomePage() {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [extractionWarning, setExtractionWarning] = useState<string | null>(null);
   const [previews, setPreviews] = useState<PreviewSummary[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [touched, setTouched] = useState({ url: false, whatsapp: false });
@@ -90,6 +91,7 @@ export default function HomePage() {
     setProgress(10);
     setStatusMessage("Conectando ao site do cliente...");
     setError(null);
+    setExtractionWarning(null);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -111,6 +113,8 @@ export default function HomePage() {
         if (eventName === "progress") {
           setProgress(Number(payload.progress ?? 50));
           setStatusMessage(String(payload.message ?? "Processando..."));
+        } else if (eventName === "warning") {
+          setExtractionWarning(String(payload.message ?? ""));
         } else if (eventName === "done") {
           setProgress(100);
           setStatusMessage("Preview gerado com sucesso!");
@@ -296,6 +300,11 @@ export default function HomePage() {
                   </button>
                 </span>
               </div>
+              {extractionWarning && (
+                <p role="status" className="mb-2 rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-200">
+                  {extractionWarning}
+                </p>
+              )}
               <div
                 role="progressbar"
                 aria-valuemin={0}

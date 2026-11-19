@@ -9,6 +9,7 @@ import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
+import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
 
 export const runtime = "nodejs";
 /** Orçamento total da geração (extração + IA + imagem). */
@@ -130,6 +131,13 @@ export async function POST(req: NextRequest) {
         });
         budget.throwIfAborted();
 
+        const extractionWarning = buildExtractionWarning(extracted);
+        if (extractionWarning) {
+          extracted.extractionWarnings = [extractionWarning];
+          console.warn(`[generate] Extração incompleta em ${normalizedUrl}: ${extractionWarning}`);
+          safeSend("warning", { message: extractionWarning });
+        }
+
         const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
         safeSend("progress", {
           step: "architect",
@@ -203,6 +211,7 @@ export async function POST(req: NextRequest) {
           storeName: updated.storeName,
           detectedPlatform: updated.detectedPlatform,
           generationMode: updated.generationMode,
+          warnings: extracted.extractionWarnings ?? [],
           progress: 100,
         });
       } catch (err) {

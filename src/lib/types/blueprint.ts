@@ -74,6 +74,8 @@ export const ExtractedStoreDataSchema = z.object({
     email: z.string().max(5000).optional(),
     phone: z.string().max(5000).optional(),
   }),
+  /** Avisos da extração (ex.: nenhum produto/banner lido). */
+  extractionWarnings: z.array(z.string().max(500)).optional(),
 });
 
 export type ExtractedStoreData = z.infer<typeof ExtractedStoreDataSchema>;

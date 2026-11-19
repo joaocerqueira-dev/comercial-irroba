@@ -32,6 +32,14 @@ export function resolveFullScreenshotPath(preview: Pick<PreviewRow, "extractedDa
   );
 }
 
+/** Avisos gravados na extração (ex.: loja sem produtos/banners legíveis). */
+export function resolveExtractionWarnings(preview: Pick<PreviewRow, "extractedData">): string[] {
+  const data = preview.extractedData;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+  const warnings = (data as { extractionWarnings?: unknown }).extractionWarnings;
+  return Array.isArray(warnings) ? warnings.filter((w): w is string => typeof w === "string") : [];
+}
+
 /** Grava blueprint + export compilado. */
 export async function saveBlueprint(
   id: string,
