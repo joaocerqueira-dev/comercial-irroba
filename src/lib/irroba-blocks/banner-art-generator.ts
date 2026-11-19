@@ -47,13 +47,7 @@ export function generateBenefitsBannerSvgString(bp: StoreBlueprint): string {
   const colsSvg = items
     .map((item, idx) => {
       const x = Math.round(idx * colW);
-      const cx = x + 46;
       const cy = height / 2;
-      const divider =
-        idx > 0
-          ? `<line x1="${x}" y1="36" x2="${x}" y2="${height - 36}" stroke="${fg}" stroke-opacity="0.12" stroke-width="1"/>`
-          : "";
-
       const rawTitle = item.title.trim().toUpperCase();
       const rawSubtitle = item.subtitle.trim();
       const title = escapeHtml(rawTitle.length > 22 ? `${rawTitle.slice(0, 21)}…` : rawTitle);
@@ -61,9 +55,8 @@ export function generateBenefitsBannerSvgString(bp: StoreBlueprint): string {
         rawSubtitle.length > 34 ? `${rawSubtitle.slice(0, 33)}…` : rawSubtitle
       );
 
-      return `${divider}
-      <g transform="translate(${x}, 0)">
-        <rect x="16" y="28" width="${colW - 32}" height="${height - 56}" rx="12" fill="#FFFFFF" fill-opacity="0.72" stroke="${fg}" stroke-opacity="0.08"/>
+      return `<g transform="translate(${x}, 0)">
+        <rect x="16" y="24" width="${colW - 32}" height="${height - 48}" rx="12" fill="#FFFFFF" fill-opacity="0.72" stroke="${fg}" stroke-opacity="0.08"/>
         <circle cx="52" cy="${cy}" r="22" fill="${accent}"/>
         <g transform="translate(40, ${cy - 12})">
           ${benefitVectorPath(item.icon, accentFg)}
@@ -76,8 +69,6 @@ export function generateBenefitsBannerSvgString(bp: StoreBlueprint): string {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-label="Benefícios ${escapeHtml(bp.brand.name)}">
   <rect width="${width}" height="${height}" fill="${bg}"/>
-  <rect x="0" y="0" width="${width}" height="3" fill="${accent}" fill-opacity="0.85"/>
-  <rect x="0" y="${height - 3}" width="${width}" height="3" fill="${accent}" fill-opacity="0.15"/>
   ${colsSvg}
 </svg>`;
 }

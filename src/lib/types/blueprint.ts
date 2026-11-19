@@ -270,10 +270,17 @@ export const StoreBlueprintSchema = z.object({
     heroSlides: z.array(HeroSlideSchema).default([]),
     benefitsBanner: z
       .object({
-        mode: z.enum(["site-images", "generated-art", "cards"]).default("generated-art"),
+        mode: z
+          .enum(["site-images", "custom-image", "generated-art", "cards"])
+          .default("generated-art"),
         backgroundColor: z.string().default("#F4F4F5"),
         textColor: z.string().default("#111827"),
         siteImageUrls: z.array(z.string()).default([]),
+        customImageUrl: z.string().optional(),
+        maxHeightPx: z.number().min(36).max(260).optional(),
+        maxWidthPx: z.number().min(600).max(1920).optional(),
+        fullWidth: z.boolean().optional(),
+        paddingY: z.number().min(0).max(48).optional(),
       })
       .optional(),
     slimBanner: z

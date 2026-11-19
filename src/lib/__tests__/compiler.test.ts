@@ -151,20 +151,36 @@ describe("Irroba LIME Compiler & Export", () => {
     expect(exported.customCss).toContain(".product.product-grid");
   });
 
-  it("renders LIME icon-only header with collapsible search drawer and honors custom section layout order/visibility", () => {
+  it("renders LIME icon-only header with pop-up search modal, clean resizable benefits banner, and honors custom section layout order/visibility", () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    bp.sections.benefitsBanner = {
+      mode: "generated-art",
+      backgroundColor: "#F4F4F5",
+      textColor: "#111827",
+      siteImageUrls: [],
+      maxHeightPx: 92,
+      maxWidthPx: 1080,
+      paddingY: 8,
+    };
     bp.sections.layout = [
       { id: "showcase1", label: "Vitrine Principal", irrobaModule: "Listas de Produtos", enabled: true },
       { id: "hero", label: "Banner Principal", irrobaModule: "Banner Versão 2", enabled: true },
+      { id: "tarja", label: "Tarja de Benefícios", irrobaModule: "Tarja Informativa", enabled: true },
       { id: "newsletter", label: "Newsletter", irrobaModule: "Newsletter", enabled: false },
     ];
     const html = compileStorefrontDocument(bp);
 
-    // LIME icon-only header + collapsible search drawer
+    // LIME icon-only header + pop-up search modal
     expect(html).toContain('id="irb-toggle-search"');
-    expect(html).toContain('id="irb-search-drawer"');
+    expect(html).toContain('id="irb-search-modal"');
+    expect(html).toContain('role="dialog"');
     expect(html).not.toContain('<span class="headerActionLabel">Entrar</span>');
     expect(html).not.toContain('<span class="headerActionLabel">Sacola</span>');
+
+    // Resizable benefits banner without top/bottom accent lines
+    expect(html).toContain("max-height:92px");
+    expect(html).toContain("max-width:1080px");
+    expect(html).not.toContain(encodeURIComponent('height="3"'));
 
     // Reordered sections: showcase1 appears before hero, and disabled newsletter is omitted
     const showcasePos = html.indexOf('data-irb-section="showcase1"');

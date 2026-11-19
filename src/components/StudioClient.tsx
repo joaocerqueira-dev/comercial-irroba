@@ -1387,10 +1387,15 @@ export default function StudioClient({
                   ))}
                 </div>
 
-                {/* Banner de Benefícios (Arte Extraída ou Gerada) */}
+                {/* Banner de Benefícios (Tarja Informativa) */}
                 <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">Banner de Benefícios (Régua)</span>
+                    <div>
+                      <span className="font-bold text-slate-800">Tarja de Benefícios</span>
+                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600">
+                        Tarja Informativa
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={handleDownloadBenefitsPng}
@@ -1415,7 +1420,12 @@ export default function StudioClient({
                               prev.sections.benefitsBanner?.textColor ??
                               prev.theme.neutralForeground,
                             siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
-                            mode: e.target.value as "site-images" | "generated-art" | "cards",
+                            ...prev.sections.benefitsBanner,
+                            mode: e.target.value as
+                              | "site-images"
+                              | "custom-image"
+                              | "generated-art"
+                              | "cards",
                           },
                         },
                       }))
@@ -1425,9 +1435,187 @@ export default function StudioClient({
                     {(bp.sections.benefitsBanner?.siteImageUrls?.length ?? 0) > 0 && (
                       <option value="site-images">Artes Extraídas do Site</option>
                     )}
+                    <option value="custom-image">Imagem Única Personalizada / IA</option>
                     <option value="generated-art">Arte Banner Gerada (Irroba)</option>
-                    <option value="cards">Cards Modulares HTML</option>
+                    <option value="cards">Cards Modulares</option>
                   </select>
+
+                  {/* Controles de dimensionamento da Tarja */}
+                  <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                      <span>Dimensionamento da Tarja</span>
+                      <label className="flex items-center gap-1 text-[10px] font-medium text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(bp.sections.benefitsBanner?.fullWidth)}
+                          onChange={(e) =>
+                            updateBp((prev) => ({
+                              ...prev,
+                              sections: {
+                                ...prev.sections,
+                                benefitsBanner: {
+                                  mode: prev.sections.benefitsBanner?.mode ?? "generated-art",
+                                  backgroundColor:
+                                    prev.sections.benefitsBanner?.backgroundColor ??
+                                    prev.theme.neutralBackground,
+                                  textColor:
+                                    prev.sections.benefitsBanner?.textColor ??
+                                    prev.theme.neutralForeground,
+                                  siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                                  ...prev.sections.benefitsBanner,
+                                  fullWidth: e.target.checked,
+                                },
+                              },
+                            }))
+                          }
+                        />
+                        Largura 100%
+                      </label>
+                    </div>
+
+                    <div>
+                      <div className="mb-0.5 flex justify-between text-[10px] text-slate-600">
+                        <span>Altura máxima</span>
+                        <strong className="font-mono text-slate-800">
+                          {bp.sections.benefitsBanner?.maxHeightPx ?? 120}px
+                        </strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={36}
+                        max={260}
+                        step={4}
+                        value={bp.sections.benefitsBanner?.maxHeightPx ?? 120}
+                        onChange={(e) =>
+                          updateBp((prev) => ({
+                            ...prev,
+                            sections: {
+                              ...prev.sections,
+                              benefitsBanner: {
+                                mode: prev.sections.benefitsBanner?.mode ?? "generated-art",
+                                backgroundColor:
+                                  prev.sections.benefitsBanner?.backgroundColor ??
+                                  prev.theme.neutralBackground,
+                                textColor:
+                                  prev.sections.benefitsBanner?.textColor ??
+                                  prev.theme.neutralForeground,
+                                siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                                ...prev.sections.benefitsBanner,
+                                maxHeightPx: Number(e.target.value),
+                              },
+                            },
+                          }))
+                        }
+                        className="w-full accent-emerald-600"
+                      />
+                    </div>
+
+                    {!bp.sections.benefitsBanner?.fullWidth && (
+                      <div>
+                        <div className="mb-0.5 flex justify-between text-[10px] text-slate-600">
+                          <span>Largura máxima</span>
+                          <strong className="font-mono text-slate-800">
+                            {bp.sections.benefitsBanner?.maxWidthPx ?? 1280}px
+                          </strong>
+                        </div>
+                        <input
+                          type="range"
+                          min={640}
+                          max={1600}
+                          step={20}
+                          value={bp.sections.benefitsBanner?.maxWidthPx ?? 1280}
+                          onChange={(e) =>
+                            updateBp((prev) => ({
+                              ...prev,
+                              sections: {
+                                ...prev.sections,
+                                benefitsBanner: {
+                                  mode: prev.sections.benefitsBanner?.mode ?? "generated-art",
+                                  backgroundColor:
+                                    prev.sections.benefitsBanner?.backgroundColor ??
+                                    prev.theme.neutralBackground,
+                                  textColor:
+                                    prev.sections.benefitsBanner?.textColor ??
+                                    prev.theme.neutralForeground,
+                                  siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                                  ...prev.sections.benefitsBanner,
+                                  maxWidthPx: Number(e.target.value),
+                                },
+                              },
+                            }))
+                          }
+                          className="w-full accent-emerald-600"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <div className="mb-0.5 flex justify-between text-[10px] text-slate-600">
+                        <span>Espaçamento vertical</span>
+                        <strong className="font-mono text-slate-800">
+                          {bp.sections.benefitsBanner?.paddingY ?? 14}px
+                        </strong>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={48}
+                        step={2}
+                        value={bp.sections.benefitsBanner?.paddingY ?? 14}
+                        onChange={(e) =>
+                          updateBp((prev) => ({
+                            ...prev,
+                            sections: {
+                              ...prev.sections,
+                              benefitsBanner: {
+                                mode: prev.sections.benefitsBanner?.mode ?? "generated-art",
+                                backgroundColor:
+                                  prev.sections.benefitsBanner?.backgroundColor ??
+                                  prev.theme.neutralBackground,
+                                textColor:
+                                  prev.sections.benefitsBanner?.textColor ??
+                                  prev.theme.neutralForeground,
+                                siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                                ...prev.sections.benefitsBanner,
+                                paddingY: Number(e.target.value),
+                              },
+                            },
+                          }))
+                        }
+                        className="w-full accent-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  {bp.sections.benefitsBanner?.mode === "custom-image" && (
+                    <AiImageSlot
+                      previewId={id}
+                      label="Imagem da Tarja de Benefícios (21:9)"
+                      value={bp.sections.benefitsBanner?.customImageUrl ?? ""}
+                      defaultAspectRatio="21:9"
+                      minRecommendedWidth={900}
+                      onChange={(nextUrl) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            benefitsBanner: {
+                              mode: "custom-image",
+                              backgroundColor:
+                                prev.sections.benefitsBanner?.backgroundColor ??
+                                prev.theme.neutralBackground,
+                              textColor:
+                                prev.sections.benefitsBanner?.textColor ??
+                                prev.theme.neutralForeground,
+                              siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                              ...prev.sections.benefitsBanner,
+                              customImageUrl: nextUrl,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  )}
 
                   <div className="grid grid-cols-2 gap-2">
                     <ColorField
@@ -1446,6 +1634,7 @@ export default function StudioClient({
                                 prev.sections.benefitsBanner?.textColor ??
                                 prev.theme.neutralForeground,
                               siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                              ...prev.sections.benefitsBanner,
                               backgroundColor: v,
                             },
                           },
@@ -1466,6 +1655,7 @@ export default function StudioClient({
                                 prev.sections.benefitsBanner?.backgroundColor ??
                                 prev.theme.neutralBackground,
                               siteImageUrls: prev.sections.benefitsBanner?.siteImageUrls ?? [],
+                              ...prev.sections.benefitsBanner,
                               textColor: v,
                             },
                           },
@@ -1474,46 +1664,47 @@ export default function StudioClient({
                     />
                   </div>
 
-                  {bp.sections.benefitsBanner?.mode !== "site-images" && (
-                    <div className="space-y-1.5 pt-1">
-                      {bp.sections.benefits.slice(0, 4).map((b, bIdx) => (
-                        <div key={bIdx} className="grid grid-cols-2 gap-1.5">
-                          <input
-                            type="text"
-                            value={b.title}
-                            onChange={(e) =>
-                              updateBp((prev) => ({
-                                ...prev,
-                                sections: {
-                                  ...prev.sections,
-                                  benefits: prev.sections.benefits.map((item, idx) =>
-                                    idx === bIdx ? { ...item, title: e.target.value } : item
-                                  ),
-                                },
-                              }))
-                            }
-                            className="rounded border border-slate-200 px-2 py-1 text-[11px]"
-                          />
-                          <input
-                            type="text"
-                            value={b.subtitle}
-                            onChange={(e) =>
-                              updateBp((prev) => ({
-                                ...prev,
-                                sections: {
-                                  ...prev.sections,
-                                  benefits: prev.sections.benefits.map((item, idx) =>
-                                    idx === bIdx ? { ...item, subtitle: e.target.value } : item
-                                  ),
-                                },
-                              }))
-                            }
-                            className="rounded border border-slate-200 px-2 py-1 text-[11px]"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {bp.sections.benefitsBanner?.mode !== "site-images" &&
+                    bp.sections.benefitsBanner?.mode !== "custom-image" && (
+                      <div className="space-y-1.5 pt-1">
+                        {bp.sections.benefits.slice(0, 4).map((b, bIdx) => (
+                          <div key={bIdx} className="grid grid-cols-2 gap-1.5">
+                            <input
+                              type="text"
+                              value={b.title}
+                              onChange={(e) =>
+                                updateBp((prev) => ({
+                                  ...prev,
+                                  sections: {
+                                    ...prev.sections,
+                                    benefits: prev.sections.benefits.map((item, idx) =>
+                                      idx === bIdx ? { ...item, title: e.target.value } : item
+                                    ),
+                                  },
+                                }))
+                              }
+                              className="rounded border border-slate-200 px-2 py-1 text-[11px]"
+                            />
+                            <input
+                              type="text"
+                              value={b.subtitle}
+                              onChange={(e) =>
+                                updateBp((prev) => ({
+                                  ...prev,
+                                  sections: {
+                                    ...prev.sections,
+                                    benefits: prev.sections.benefits.map((item, idx) =>
+                                      idx === bIdx ? { ...item, subtitle: e.target.value } : item
+                                    ),
+                                  },
+                                }))
+                              }
+                              className="rounded border border-slate-200 px-2 py-1 text-[11px]"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                 </div>
 
                 {/* Banner Slim */}
