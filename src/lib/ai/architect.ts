@@ -1,3 +1,5 @@
+import { mimeFromFilename } from "@/lib/files/mime";
+import { isApparelText, isFootwearText } from "@/lib/catalog/niche";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { GoogleGenAI } from "@google/genai";
@@ -63,14 +65,8 @@ function inferNicheAndTone(extracted: ExtractedStoreData): {
     .join(" ")
     .toLowerCase();
 
-  const hasFootwear =
-    /\b(bota|botas|coturno|coturnos|creeper|creepers|tenis|tênis|sapato|sapatos|sandalia|sandália|sandalias|sandálias|calcado|calçado|calcados|calçados|mocassim|salto|chuteira|chinelo|sneaker)\b/i.test(
-      haystack
-    );
-  const hasApparel =
-    /\b(vestido|vestidos|camiseta|camisetas|blusa|blusas|blazer|blazers|calca|calça|calcas|calças|saia|saias|body|roupa|roupas|camisa|camisas|jaqueta|short|shorts|moda)\b/i.test(
-      haystack
-    );
+  const hasFootwear = isFootwearText(haystack);
+  const hasApparel = isApparelText(haystack);
   const isVeganOrEco = /vegano|vegan|sustent|eco|organic|natural|vegetal/.test(haystack);
 
   if (isVeganOrEco) {
@@ -730,7 +726,7 @@ export async function buildStoreBlueprint(
       const imgBuffer = await fs.readFile(diskPath);
       parts.push({
         inlineData: {
-          mimeType: /\.jpe?g$/i.test(filename) ? "image/jpeg" : "image/png",
+          mimeType: mimeFromFilename(filename),
           data: imgBuffer.toString("base64"),
         },
       });

@@ -1,3 +1,5 @@
+import { mimeFromFilename } from "@/lib/files/mime";
+import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
 import { getSharedBrowser } from "@/lib/scraper/browser";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
@@ -26,6 +28,38 @@ export interface AiImageRequest {
     secondary: string;
     secondaryFg: string;
     neutral: string;
+  };
+}
+
+/** Monta o pedido de imagem a partir da identidade do blueprint (antes duplicado em generate e ai-image). */
+export function buildImageRequestFromBlueprint(
+  bp: {
+    brand: { name: string; niche: string };
+    theme: {
+      headingFont?: string;
+      bodyFont?: string;
+      primaryBackground: string;
+      primaryForeground: string;
+      secondaryBackground: string;
+      secondaryForeground: string;
+      neutralBackground: string;
+    };
+  },
+  req: Omit<AiImageRequest, "brandName" | "niche" | "headingFont" | "bodyFont" | "palette">
+): AiImageRequest {
+  return {
+    ...req,
+    brandName: bp.brand.name,
+    niche: bp.brand.niche,
+    headingFont: bp.theme.headingFont,
+    bodyFont: bp.theme.bodyFont,
+    palette: {
+      primary: bp.theme.primaryBackground,
+      primaryFg: bp.theme.primaryForeground,
+      secondary: bp.theme.secondaryBackground,
+      secondaryFg: bp.theme.secondaryForeground,
+      neutral: bp.theme.neutralBackground,
+    },
   };
 }
 
@@ -79,15 +113,7 @@ async function loadImageAsBuffer(
     const diskPath = path.join(process.cwd(), "public", "captures", safeName);
     try {
       const buffer = await fs.readFile(diskPath);
-      const ext = path.extname(safeName).toLowerCase();
-      const mimeType =
-        ext === ".webp"
-          ? "image/webp"
-          : ext === ".jpg" || ext === ".jpeg"
-            ? "image/jpeg"
-            : ext === ".svg"
-              ? "image/svg+xml"
-              : "image/png";
+      const mimeType = mimeFromFilename(safeName);
       return { buffer, mimeType };
     } catch {
       return null;
@@ -101,7 +127,7 @@ async function loadImageAsBuffer(
       const res = await fetch(trimmed, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            BROWSER_USER_AGENT,
           ...(refererUrl ? { Referer: refererUrl } : {}),
           Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         },

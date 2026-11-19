@@ -1,3 +1,5 @@
+import { normalizeStoreUrl } from "@/lib/format/inputs";
+import { PREVIEW_STATUS } from "@/lib/previews/status";
 import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
@@ -5,7 +7,7 @@ import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { prisma } from "@/lib/db";
 import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
-import { processAiImageRequest } from "@/lib/ai/image-studio";
+import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 
 export const runtime = "nodejs";
@@ -58,9 +60,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const normalizedUrl = parsed.data.url.startsWith("http")
-    ? parsed.data.url.trim()
-    : `https://${parsed.data.url.trim()}`;
+  const normalizedUrl = normalizeStoreUrl(parsed.data.url);
+  if (!normalizedUrl) {
+    return new Response(JSON.stringify({ error: "URL inválida. Ex: loja.com.br" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   try {
     await assertPublicHttpUrl(normalizedUrl);
@@ -102,7 +108,7 @@ export async function POST(req: NextRequest) {
             sourceUrl: normalizedUrl,
             storeName: new URL(normalizedUrl).hostname.replace(/^www\./, ""),
             sellerWhatsapp,
-            status: "processing",
+            status: PREVIEW_STATUS.processing,
           },
         });
         recordId = initialRecord.id;
@@ -145,25 +151,16 @@ export async function POST(req: NextRequest) {
             progress: 82,
           });
           try {
-            const generatedHero = await processAiImageRequest({
-              previewId: initialRecord.id,
-              prompt: `Banner principal sofisticado de lançamento para ${blueprint.brand.name} (${blueprint.brand.niche})`,
-              mode: "generate",
-              aspectRatio: "16:9",
-              sourceStoreUrl: normalizedUrl,
-              slotLabel: blueprint.sections.hero.headline,
-              brandName: blueprint.brand.name,
-              niche: blueprint.brand.niche,
-              headingFont: blueprint.theme.headingFont,
-              bodyFont: blueprint.theme.bodyFont,
-              palette: {
-                primary: blueprint.theme.primaryBackground,
-                primaryFg: blueprint.theme.primaryForeground,
-                secondary: blueprint.theme.secondaryBackground,
-                secondaryFg: blueprint.theme.secondaryForeground,
-                neutral: blueprint.theme.neutralBackground,
-              },
-            });
+            const generatedHero = await processAiImageRequest(
+              buildImageRequestFromBlueprint(blueprint, {
+                previewId: initialRecord.id,
+                prompt: `Banner principal sofisticado de lançamento para ${blueprint.brand.name} (${blueprint.brand.niche})`,
+                mode: "generate",
+                aspectRatio: "16:9",
+                sourceStoreUrl: normalizedUrl,
+                slotLabel: blueprint.sections.hero.headline,
+              })
+            );
             blueprint.sections.hero.imageUrl = generatedHero.imageUrl;
             if (firstHero) {
               firstHero.imageUrl = generatedHero.imageUrl;
@@ -192,7 +189,7 @@ export async function POST(req: NextRequest) {
             storeName: blueprint.brand.name,
             detectedPlatform: extracted.detectedPlatform,
             generationMode: mode,
-            status: "ready",
+            status: PREVIEW_STATUS.ready,
             screenshotPath: extracted.screenshotPath ?? null,
             extractedData: extracted as object,
             blueprint: blueprint as object,

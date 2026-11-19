@@ -1,17 +1,9 @@
+import { IMAGE_MIME_BY_EXT } from "@/lib/files/mime";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { NextRequest } from "next/server";
 import { getThumbnail, THUMB_WIDTHS } from "@/lib/files/captures";
 
-const MIME_BY_EXT: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-  ".avif": "image/avif",
-  ".svg": "image/svg+xml",
-};
 
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -25,7 +17,7 @@ export async function GET(
   const { filename } = await context.params;
   const safeName = path.basename(filename);
   const ext = path.extname(safeName).toLowerCase();
-  const contentType = MIME_BY_EXT[ext];
+  const contentType = IMAGE_MIME_BY_EXT[ext];
 
   if (!contentType) {
     return new Response("Invalid file", { status: 400 });

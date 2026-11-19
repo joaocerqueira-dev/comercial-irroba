@@ -1,3 +1,4 @@
+import { PREVIEW_STATUS } from "@/lib/previews/status";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
@@ -7,12 +8,12 @@ export async function GET() {
   // Limpa gerações que ficaram presas em "processing" (servidor reiniciado, etc.)
   await prisma.storePreview
     .deleteMany({
-      where: { status: "processing", updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_MS) } },
+      where: { status: PREVIEW_STATUS.processing, updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_MS) } },
     })
     .catch(() => undefined);
 
   const previews = await prisma.storePreview.findMany({
-    where: { status: "ready" },
+    where: { status: PREVIEW_STATUS.ready },
     orderBy: { createdAt: "desc" },
     take: 30,
     select: {

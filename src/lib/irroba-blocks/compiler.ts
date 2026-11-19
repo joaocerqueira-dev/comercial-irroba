@@ -1,3 +1,4 @@
+import { isApparelText, isFootwearText } from "@/lib/catalog/niche";
 import { inferShowcaseSource } from "@/lib/catalog-source";
 import { generateBenefitsBannerDataUri } from "./banner-art-generator";
 import { getBenefitSvgIcon, IRROBA_ICONS } from "./icons";
@@ -856,14 +857,8 @@ export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?
       .join(" ")
       .toLowerCase();
   const fullVariationContext = `${nicheLower} ${productContext}`;
-  const isFootwear =
-    /\b(calçado|calcado|calçados|calcados|sapato|sapatos|bota|botas|coturno|coturnos|creeper|creepers|sandália|sandalia|sandálias|sandalias|tênis|tenis|sneaker|mocassim|salto)\b/i.test(
-      fullVariationContext
-    );
-  const isApparel =
-    /\b(moda|vestuário|vestuario|roupa|roupas|vestido|vestidos|camisa|camisas|camiseta|camisetas|blusa|blusas|blazer|blazers|calça|calças|calca|calcas|body|saia|saias)\b/i.test(
-      fullVariationContext
-    );
+  const isFootwear = isFootwearText(fullVariationContext);
+  const isApparel = isApparelText(fullVariationContext);
   const variationSizes =
     isFootwear && !/vestido|blusa|blazer|camiseta/.test(productContext)
       ? ["34", "35", "36", "37", "38", "39", "40"]

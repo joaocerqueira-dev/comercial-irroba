@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
-import { processAiImageRequest } from "@/lib/ai/image-studio";
+import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 
 export const runtime = "nodejs";
@@ -54,26 +54,17 @@ export async function POST(
     if (!bp) {
       return NextResponse.json({ error: "Blueprint ainda não gerado para este preview" }, { status: 400 });
     }
-    const result = await processAiImageRequest({
-      previewId: preview.id,
-      prompt: body.prompt,
-      mode: body.mode,
-      aspectRatio: body.aspectRatio,
-      sourceImageUrl: body.sourceImageUrl,
-      sourceStoreUrl: preview.sourceUrl,
-      slotLabel: body.slotLabel,
-      brandName: bp.brand.name,
-      niche: bp.brand.niche,
-      headingFont: bp.theme.headingFont,
-      bodyFont: bp.theme.bodyFont,
-      palette: {
-        primary: bp.theme.primaryBackground,
-        primaryFg: bp.theme.primaryForeground,
-        secondary: bp.theme.secondaryBackground,
-        secondaryFg: bp.theme.secondaryForeground,
-        neutral: bp.theme.neutralBackground,
-      },
-    });
+    const result = await processAiImageRequest(
+      buildImageRequestFromBlueprint(bp, {
+        previewId: preview.id,
+        prompt: body.prompt,
+        mode: body.mode,
+        aspectRatio: body.aspectRatio,
+        sourceImageUrl: body.sourceImageUrl,
+        sourceStoreUrl: preview.sourceUrl,
+        slotLabel: body.slotLabel,
+      })
+    );
 
     return NextResponse.json(result);
   } catch (err) {

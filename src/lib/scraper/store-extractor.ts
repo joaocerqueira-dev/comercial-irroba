@@ -1,3 +1,4 @@
+import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
 import { getSharedBrowser } from "./browser";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
@@ -657,12 +658,12 @@ export async function extractStoreFromUrl(
 
   // Layer 1: Fast HTTP probe
   let fastHtml = "";
-  let fastHeaders: Record<string, string> = {};
+  const fastHeaders: Record<string, string> = {};
   try {
     const res = await fetch(normalizedUrl, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          BROWSER_USER_AGENT,
         Accept: "text/html,application/xhtml+xml",
       },
       signal: AbortSignal.timeout(8000),
@@ -688,7 +689,7 @@ export async function extractStoreFromUrl(
       viewport: { width: 1440, height: 900 },
       locale: "pt-BR",
       userAgent:
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        BROWSER_USER_AGENT,
     });
 
     const page = await context.newPage();
@@ -1102,7 +1103,7 @@ async function mirrorCriticalImages(
         const res = await fetch(candidateUrl, {
           headers: {
             "User-Agent":
-              "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+              BROWSER_USER_AGENT,
             Referer: refererUrl,
             Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
           },
@@ -1199,7 +1200,7 @@ async function enrichProductsByCategory(
       const res = await fetch(cat.href, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            BROWSER_USER_AGENT,
           Accept: "text/html,application/xhtml+xml",
         },
         signal: AbortSignal.timeout(4500),

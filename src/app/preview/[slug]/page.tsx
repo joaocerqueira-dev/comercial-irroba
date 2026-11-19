@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getPreviewWithBlueprint, resolveFullScreenshotPath } from "@/lib/previews/repository";
 import PreviewViewerClient from "@/components/PreviewViewerClient";
 
 export const dynamic = "force-dynamic";
@@ -36,19 +37,12 @@ export default async function PublicPreviewPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const preview = await prisma.storePreview.findUnique({ where: { slug } });
-
-  if (!preview || !preview.blueprint) {
+  const result = await getPreviewWithBlueprint({ slug });
+  if (result.status !== "ok") {
     notFound();
   }
-
-  const extractedObj =
-    preview.extractedData && typeof preview.extractedData === "object"
-      ? (preview.extractedData as { fullScreenshotPath?: string })
-      : null;
-  const fullScreenshotPath =
-    extractedObj?.fullScreenshotPath ??
-    (preview.screenshotPath ? `/api/captures/${preview.slug}-full.png` : null);
+  const { preview } = result;
+  const fullScreenshotPath = resolveFullScreenshotPath(preview);
 
   return (
     <PreviewViewerClient

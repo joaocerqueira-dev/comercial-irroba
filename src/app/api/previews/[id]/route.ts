@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { deletePreviewCaptures } from "@/lib/files/captures";
 import { StoreBlueprintSchema } from "@/lib/types/blueprint";
-import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
+import { saveBlueprint } from "@/lib/previews/repository";
 
 export async function GET(
   _req: NextRequest,
@@ -36,24 +36,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
 
-  const compiledExport = compileIrrobaExport(parsed.data);
   const generationMode =
     typeof body?.generationMode === "string" && ["gemini", "heuristic"].includes(body.generationMode)
       ? (body.generationMode as string)
       : undefined;
 
-  const updated = await prisma.storePreview.update({
-    where: { id },
-    data: {
-      storeName: parsed.data.brand.name,
-      sellerWhatsapp:
-        typeof body?.sellerWhatsapp === "string"
-          ? body.sellerWhatsapp.replace(/\D/g, "") || null
-          : undefined,
-      ...(generationMode ? { generationMode } : {}),
-      blueprint: parsed.data as object,
-      compiledExport: compiledExport as object,
-    },
+  const updated = await saveBlueprint(id, parsed.data, {
+    sellerWhatsapp:
+      typeof body?.sellerWhatsapp === "string" ? body.sellerWhatsapp.replace(/\D/g, "") || null : undefined,
+    generationMode,
   });
 
   return NextResponse.json({ preview: updated });
