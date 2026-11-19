@@ -29,6 +29,54 @@ const V4_BLOCKS: Array<[string, number]> = [
   ["240.0.0.0", 4],
 ];
 
+/** Converte um IPv6 (com ou sem IPv4 embutido, zona opcional) para 16 bytes. */
+export function ipv6ToBytes(raw: string): number[] | null {
+  let ip = raw.toLowerCase().replace(/^\[|\]$/g, "");
+  const zone = ip.indexOf("%");
+  if (zone >= 0) ip = ip.slice(0, zone);
+  if (net.isIP(ip) !== 6) return null;
+
+  let tailV4: number[] = [];
+  const lastColon = ip.lastIndexOf(":");
+  const tail = ip.slice(lastColon + 1);
+  if (tail.includes(".")) {
+    tailV4 = tail.split(".").map(Number);
+    ip = `${ip.slice(0, lastColon + 1)}0:0`;
+  }
+
+  const [headRaw, tailRaw] = ip.split("::");
+  const parse = (part: string | undefined) => (part ? part.split(":").filter((p) => p !== "") : []);
+  const head = parse(headRaw);
+  const rest = ip.includes("::") ? parse(tailRaw) : [];
+  const groups = ip.includes("::")
+    ? [...head, ...Array(8 - head.length - rest.length).fill("0"), ...rest]
+    : head;
+  if (groups.length !== 8) return null;
+
+  const bytes: number[] = [];
+  for (const g of groups) {
+    const n = parseInt(g, 16);
+    if (!Number.isFinite(n) || n < 0 || n > 0xffff) return null;
+    bytes.push(n >> 8, n & 0xff);
+  }
+  if (tailV4.length === 4) bytes.splice(12, 4, ...tailV4);
+  return bytes;
+}
+
+/**
+ * IPv4 embutido em formatos de transição que o kernel/proxy pode rotear para v4:
+ * ::ffff:0:0/96 (mapeado), ::a.b.c.d (compatível), 64:ff9b::/96 (NAT64) e 2002::/16 (6to4).
+ */
+function embeddedIpv4(b: number[]): string | null {
+  const v4 = (o: number) => `${b[o]}.${b[o + 1]}.${b[o + 2]}.${b[o + 3]}`;
+  const zeros = (from: number, to: number) => b.slice(from, to).every((x) => x === 0);
+  if (zeros(0, 10) && b[10] === 0xff && b[11] === 0xff) return v4(12); // ::ffff:a.b.c.d
+  if (zeros(0, 12) && !(zeros(12, 15) && (b[15] === 0 || b[15] === 1))) return v4(12); // ::a.b.c.d
+  if (b[0] === 0x00 && b[1] === 0x64 && b[2] === 0xff && b[3] === 0x9b && zeros(4, 12)) return v4(12); // 64:ff9b::/96
+  if (b[0] === 0x20 && b[1] === 0x02) return v4(2); // 2002::/16
+  return null;
+}
+
 /** true se o IP é privado, loopback, link-local, reservado ou multicast. */
 export function isPrivateIp(ip: string): boolean {
   const kind = net.isIP(ip);
@@ -40,14 +88,18 @@ export function isPrivateIp(ip: string): boolean {
     });
   }
   if (kind === 6) {
-    const lower = ip.toLowerCase();
-    const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isPrivateIp(mapped[1]);
-    if (lower === "::" || lower === "::1") return true;
-    if (/^f[cd]/.test(lower)) return true; // fc00::/7
-    if (/^fe[89ab]/.test(lower)) return true; // fe80::/10
-    if (lower.startsWith("ff")) return true; // multicast
-    if (lower.startsWith("2001:db8")) return true;
+    const bytes = ipv6ToBytes(ip);
+    if (!bytes) return true;
+    const embedded = embeddedIpv4(bytes);
+    if (embedded) return isPrivateIp(embedded);
+    if (bytes.every((b) => b === 0)) return true; // ::
+    if (bytes.slice(0, 15).every((b) => b === 0) && bytes[15] === 1) return true; // ::1
+    if ((bytes[0] & 0xfe) === 0xfc) return true; // fc00::/7
+    if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0x80) return true; // fe80::/10
+    if (bytes[0] === 0xfe && (bytes[1] & 0xc0) === 0xc0) return true; // fec0::/10 (site-local)
+    if (bytes[0] === 0xff) return true; // multicast
+    if (bytes[0] === 0x20 && bytes[1] === 0x01 && bytes[2] === 0x0d && bytes[3] === 0xb8) return true; // 2001:db8::/32
+    if (bytes[0] === 0x01 && bytes[1] === 0x00 && bytes.slice(2, 8).every((b) => b === 0)) return true; // 100::/64
     return false;
   }
   return true;
