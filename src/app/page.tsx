@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { formatWhatsapp, hostnameOf, isValidWhatsapp, normalizeStoreUrl, pluralize } from "@/lib/format/inputs";
 import { readEventStream } from "@/lib/sse/readEventStream";
 import { copyToClipboard } from "@/lib/client/clipboard";
 import Link from "next/link";
@@ -38,8 +40,24 @@ export default function HomePage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [previews, setPreviews] = useState<PreviewSummary[]>([]);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [touched, setTouched] = useState({ url: false, whatsapp: false });
+  const normalizedUrl = normalizeStoreUrl(url);
+  const urlError = url.trim() && !normalizedUrl ? "Informe um domínio válido, ex: loja.com.br" : null;
+  const whatsappError = !isValidWhatsapp(sellerWhatsapp) ? "Use 55 + DDD + número, ex: +55 (11) 99999-9999" : null;
+  const canSubmit = Boolean(normalizedUrl) && !whatsappError && !isGenerating;
+  const groups = useMemo(() => {
+    const map = new Map<string, PreviewSummary[]>();
+    for (const p of previews) {
+      const key = hostnameOf(p.sourceUrl);
+      map.set(key, [...(map.get(key) ?? []), p]);
+    }
+    return [...map.values()];
+  }, [previews]);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const urlId = useId();
+  const waId = useId();
 
   const handleCancel = () => {
     abortRef.current?.abort();
@@ -54,6 +72,8 @@ export default function HomePage() {
       }
     } catch {
       // ignore
+    } finally {
+      setIsLoadingList(false);
     }
   };
 
@@ -63,7 +83,8 @@ export default function HomePage() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim() || isGenerating) return;
+    setTouched({ url: true, whatsapp: true });
+    if (!canSubmit || !normalizedUrl) return;
 
     setIsGenerating(true);
     setProgress(10);
@@ -78,7 +99,7 @@ export default function HomePage() {
         method: "POST",
         signal: controller.signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), sellerWhatsapp: sellerWhatsapp.trim() }),
+        body: JSON.stringify({ url: normalizedUrl, sellerWhatsapp: sellerWhatsapp.replace(/\D/g, "") }),
       });
 
       if (!response.ok || !response.body) {
@@ -92,7 +113,7 @@ export default function HomePage() {
           setStatusMessage(String(payload.message ?? "Processando..."));
         } else if (eventName === "done") {
           setProgress(100);
-          setStatusMessage("Preview Beta gerado com sucesso!");
+          setStatusMessage("Preview gerado com sucesso!");
           await loadPreviews();
           router.push(`/studio/${String(payload.id)}`);
           return true;
@@ -162,7 +183,7 @@ export default function HomePage() {
       <section className="mx-auto max-w-4xl px-6 pb-14 pt-12 text-center">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3.5 py-1 text-xs font-medium text-emerald-300">
           <Sparkles className="h-3.5 w-3.5" />
-          Transforme qualquer concorrente em uma loja Beta na Irroba em segundos
+          Transforme qualquer concorrente em uma prévia na Irroba em segundos
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
           Mostre ao cliente como a loja dele ficaria na Irroba antes mesmo de fechar
@@ -179,41 +200,63 @@ export default function HomePage() {
         >
           <div className="grid items-end gap-3 sm:grid-cols-12">
             <div className="sm:col-span-6">
-              <label className="mb-1.5 block truncate text-xs font-medium text-slate-300">
+              <label htmlFor={urlId} className="mb-1.5 block truncate text-xs font-medium text-slate-300">
                 URL do e-commerce atual do cliente
               </label>
               <div className="relative">
                 <Globe className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 <input
+                  id={urlId}
                   type="text"
+                  inputMode="url"
+                  autoComplete="url"
                   required
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="Ex: https://estiloveggieshoes.com.br/"
+                  onBlur={() => setTouched((t) => ({ ...t, url: true }))}
+                  aria-invalid={Boolean(touched.url && urlError)}
+                  aria-describedby={touched.url && urlError ? `${urlId}-err` : undefined}
+                  placeholder="Ex: estiloveggieshoes.com.br"
                   disabled={isGenerating}
                   className="w-full rounded-xl border border-white/15 bg-slate-900/90 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
                 />
               </div>
+              {touched.url && urlError && (
+                <p id={`${urlId}-err`} className="mt-1 text-xs text-rose-300">
+                  {urlError}
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-3">
-              <label className="mb-1.5 block truncate text-xs font-medium text-slate-300">
-                WhatsApp (opcional)
+              <label htmlFor={waId} className="mb-1.5 block truncate text-xs font-medium text-slate-300">
+                WhatsApp do consultor (opcional)
               </label>
               <input
-                type="text"
+                id={waId}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={sellerWhatsapp}
-                onChange={(e) => setSellerWhatsapp(e.target.value)}
-                placeholder="5511999999999"
+                onChange={(e) => setSellerWhatsapp(formatWhatsapp(e.target.value))}
+                onBlur={() => setTouched((t) => ({ ...t, whatsapp: true }))}
+                aria-invalid={Boolean(touched.whatsapp && whatsappError)}
+                aria-describedby={touched.whatsapp && whatsappError ? `${waId}-err` : undefined}
+                placeholder="+55 (11) 99999-9999"
                 disabled={isGenerating}
                 className="w-full rounded-xl border border-white/15 bg-slate-900/90 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
               />
+              {touched.whatsapp && whatsappError && (
+                <p id={`${waId}-err`} className="mt-1 text-xs text-rose-300">
+                  {whatsappError}
+                </p>
+              )}
             </div>
 
             <div className="flex items-end sm:col-span-3">
               <button
                 type="submit"
-                disabled={isGenerating}
+                disabled={!canSubmit}
                 className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isGenerating ? (
@@ -221,7 +264,7 @@ export default function HomePage() {
                 ) : (
                   <Wand2 className="h-4 w-4 shrink-0" />
                 )}
-                {isGenerating ? "Gerando..." : "Gerar Beta"}
+                {isGenerating ? "Gerando..." : "Gerar preview"}
               </button>
             </div>
           </div>
@@ -239,7 +282,7 @@ export default function HomePage() {
           </div>
 
           {isGenerating && (
-            <div className="mt-5 rounded-xl border border-emerald-500/20 bg-slate-900/80 p-4">
+            <div className="mt-5 rounded-xl border border-emerald-500/20 bg-slate-900/80 p-4" aria-live="polite">
               <div className="mb-2 flex items-center justify-between text-xs">
                 <span className="font-medium text-emerald-300">{statusMessage}</span>
                 <span className="flex items-center gap-3">
@@ -253,7 +296,14 @@ export default function HomePage() {
                   </button>
                 </span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress}
+                aria-label="Progresso da geração"
+                className="h-2 w-full overflow-hidden rounded-full bg-slate-800"
+              >
                 <div
                   className="h-full rounded-full bg-emerald-500 transition-all duration-500"
                   style={{ width: `${progress}%` }}
@@ -263,7 +313,7 @@ export default function HomePage() {
           )}
 
           {error && (
-            <div className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+            <div role="alert" className="mt-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
               {error}
             </div>
           )}
@@ -275,23 +325,36 @@ export default function HomePage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Previews Comerciais Recentes</h2>
+              <h2 className="text-lg font-bold text-slate-900">Previews recentes</h2>
               <p className="text-xs text-slate-500">
-                Abra no Studio para ajustar cores/textos ou envie o Link Beta direto para o lead.
+                Abra no Studio para ajustar cores/textos ou envie a prévia direto para o cliente.
               </p>
             </div>
             <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-              {previews.length} loja(s)
+              {pluralize(groups.length, "loja", "lojas")}
             </span>
           </div>
 
-          {previews.length === 0 ? (
+          {isLoadingList ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="Carregando previews">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="overflow-hidden rounded-xl border border-slate-200">
+                  <Skeleton className="h-36 rounded-none" />
+                  <div className="space-y-2 p-4">
+                    <Skeleton className="h-4 w-2/3" />
+                    <Skeleton className="h-3 w-1/2" />
+                    <Skeleton className="mt-4 h-8 w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : previews.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">
               Nenhum preview gerado ainda. Cole a URL de um prospect acima para criar o primeiro!
             </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {previews.map((item) => (
+              {groups.map(([item, ...olderVersions]) => (
                 <div
                   key={item.id}
                   className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:shadow-md"
@@ -314,20 +377,58 @@ export default function HomePage() {
                         Sem captura visual
                       </div>
                     )}
-                    <span className="absolute left-2.5 top-2.5 rounded-md bg-slate-900/80 px-2 py-0.5 text-[11px] font-medium text-white backdrop-blur">
+                    <span
+                      title="Plataforma detectada na loja atual"
+                      className="absolute left-2.5 top-2.5 rounded-md bg-slate-900/80 px-2 py-0.5 text-xs font-medium text-white backdrop-blur"
+                    >
                       {item.detectedPlatform || "E-commerce"}
                     </span>
-                    <span className="absolute right-2.5 top-2.5 rounded-md bg-emerald-600/90 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">
-                      {item.generationMode === "gemini" ? "Gemini 3.5" : "Auto"}
+                    <span
+                      title={
+                        item.generationMode === "gemini"
+                          ? "Identidade visual analisada com IA (Gemini)"
+                          : "Layout montado por heurística, sem IA"
+                      }
+                      className="absolute right-2.5 top-2.5 rounded-md bg-emerald-800 px-2 py-0.5 text-xs font-semibold uppercase text-white"
+                    >
+                      {item.generationMode === "gemini" ? "Gemini" : "Auto"}
                     </span>
                   </div>
 
                   <div className="flex flex-1 flex-col p-4">
                     <h3 className="truncate font-bold text-slate-900">{item.storeName}</h3>
-                    <p className="mt-0.5 truncate text-xs text-slate-500">{item.sourceUrl}</p>
+                    <p className="mt-0.5 truncate text-xs text-slate-600">{item.sourceUrl}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Gerado em {new Date(item.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                    </p>
+                    {olderVersions.length > 0 && (
+                      <details className="mt-2 text-xs text-slate-600">
+                        <summary className="cursor-pointer font-semibold">
+                          {pluralize(olderVersions.length, "versão anterior", "versões anteriores")}
+                        </summary>
+                        <ul className="mt-1 space-y-1">
+                          {olderVersions.map((v) => (
+                            <li key={v.id} className="flex items-center justify-between gap-2">
+                              <Link prefetch={false} href={`/studio/${v.id}`} className="underline hover:text-slate-900">
+                                {new Date(v.createdAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                              </Link>
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(v.id)}
+                                aria-label={`Excluir versão de ${new Date(v.createdAt).toLocaleString("pt-BR")}`}
+                                className="rounded p-1 text-slate-400 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
 
                     <div className="mt-4 flex items-center gap-2 pt-2">
                       <Link
+                        prefetch={false}
                         href={`/studio/${item.id}`}
                         className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
                       >
@@ -335,9 +436,11 @@ export default function HomePage() {
                         <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
                       <Link
+                        prefetch={false}
                         href={`/preview/${item.slug}`}
                         target="_blank"
-                        title="Abrir link beta do cliente"
+                        title="Abrir prévia do cliente"
+                        aria-label="Abrir prévia do cliente em nova aba"
                         className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
                       >
                         <ExternalLink className="h-4 w-4" />
@@ -352,7 +455,7 @@ export default function HomePage() {
                         {copiedSlug === item.slug ? (
                           <>
                             <Check className="h-3.5 w-3.5 text-emerald-600" />
-                            <span className="text-[11px] font-semibold text-emerald-700">
+                            <span className="text-xs font-semibold text-emerald-700">
                               Copiado!
                             </span>
                           </>
@@ -364,6 +467,7 @@ export default function HomePage() {
                         type="button"
                         onClick={() => handleDelete(item.id)}
                         title="Excluir"
+                        aria-label={`Excluir preview de ${item.storeName}`}
                         className="rounded-lg border border-slate-200 p-2 text-slate-400 hover:border-rose-200 hover:text-rose-600"
                       >
                         <Trash2 className="h-4 w-4" />

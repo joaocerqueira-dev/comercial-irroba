@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import StoreCompareView from "./StoreCompareView";
+import { Modal } from "./ui/Modal";
 
 interface PreviewViewerClientProps {
   slug: string;
@@ -57,19 +58,24 @@ export default function PreviewViewerClient({
           <div>
             <div className="flex items-center gap-2 text-xs font-bold sm:text-sm">
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Prévia Beta na Irroba · {storeName}</span>
+              <span>Prévia da sua loja na Irroba · {storeName}</span>
             </div>
-            <div className="text-[11px] text-slate-400">
-              Layout adaptado ao Tema LIME (Origem: {detectedPlatform})
+            <div className="text-xs text-slate-400">
+              Sua loja reimaginada na plataforma Irroba
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="hidden items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5 sm:flex">
+          <div
+            role="group"
+            aria-label="Dispositivo da prévia"
+            className={`hidden items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-0.5 ${showCompare ? "" : "sm:flex"}`}
+          >
             <button
               type="button"
               onClick={() => setDevice("desktop")}
+              aria-pressed={device === "desktop"}
               className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold ${
                 device === "desktop" ? "bg-white text-slate-950" : "text-slate-300 hover:text-white"
               }`}
@@ -80,6 +86,7 @@ export default function PreviewViewerClient({
             <button
               type="button"
               onClick={() => setDevice("mobile")}
+              aria-pressed={device === "mobile"}
               className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold ${
                 device === "mobile" ? "bg-white text-slate-950" : "text-slate-300 hover:text-white"
               }`}
@@ -89,7 +96,7 @@ export default function PreviewViewerClient({
             </button>
           </div>
 
-          {(fullScreenshotPath || screenshotPath) && (
+          {!showCompare && (fullScreenshotPath || screenshotPath) && (
             <button
               type="button"
               onClick={() => setShowCompare((prev) => !prev)}
@@ -100,7 +107,7 @@ export default function PreviewViewerClient({
               }`}
             >
               <Columns2 className="h-3.5 w-3.5 text-emerald-400" />
-              {showCompare ? "Voltar ao Preview Único" : "Comparar Atual vs. Irroba"}
+              Comparar Atual vs. Irroba
             </button>
           )}
 
@@ -110,7 +117,7 @@ export default function PreviewViewerClient({
             className="flex items-center gap-1.5 rounded-lg bg-emerald-500 px-3.5 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400"
           >
             <MessageCircle className="h-3.5 w-3.5" />
-            Aprovar Layout &amp; Migrar
+            Gostei, quero migrar
           </button>
         </div>
       </header>
@@ -132,7 +139,7 @@ export default function PreviewViewerClient({
         <main className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-800 p-0 sm:p-2">
           <iframe
             src={`/render/${slug}`}
-            title={`Preview Beta Irroba - ${storeName}`}
+            title={`Prévia Irroba - ${storeName}`}
             className={`h-full bg-white shadow-2xl transition-all duration-300 ${
               device === "mobile"
                 ? "w-[390px] rounded-2xl border-8 border-slate-950"
@@ -142,41 +149,41 @@ export default function PreviewViewerClient({
         </main>
       )}
 
-      {/* Fallback Approve Modal when no WhatsApp is set */}
-      {showContactModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-slate-900 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-600">
-                <CheckCircle2 className="h-5 w-5" />
-                <span className="text-sm font-bold">Layout Beta Aprovado!</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowContactModal(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="text-sm text-slate-600">
-              A estrutura visual de <strong>{storeName}</strong> já está mapeada para o Tema LIME da
-              Irroba, com blocos modulares e catálogo pronto para migração assistida.
-            </p>
-            <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
-              Responda ao consultor da Irroba que lhe enviou este link informando a aprovação do
-              layout para iniciar sua migração.
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowContactModal(false)}
-              className="mt-5 w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-bold text-white hover:bg-emerald-500"
-            >
-              Continuar explorando o Preview
-            </button>
+      {/* Fallback quando não há WhatsApp do consultor */}
+      <Modal
+        open={showContactModal}
+        onClose={() => setShowContactModal(false)}
+        title="Gostou? Fale com seu consultor"
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-emerald-700">
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+            <span className="text-sm font-bold">Gostou? Fale com seu consultor</span>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowContactModal(false)}
+            aria-label="Fechar"
+            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      )}
+        <p className="text-sm text-slate-600">
+          A estrutura visual de <strong>{storeName}</strong> já está pronta para a Irroba, com catálogo
+          preparado para a migração assistida.
+        </p>
+        <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+          Responda ao consultor da Irroba que enviou este link para iniciar sua migração.
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowContactModal(false)}
+          className="mt-5 min-h-[44px] w-full rounded-xl bg-emerald-600 py-2.5 text-sm font-bold text-white hover:bg-emerald-500"
+        >
+          Continuar explorando a prévia
+        </button>
+      </Modal>
     </div>
   );
 }

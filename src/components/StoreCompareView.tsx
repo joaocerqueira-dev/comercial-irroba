@@ -167,7 +167,7 @@ export default function StoreCompareView({
           <button
             type="button"
             onClick={() => setSyncScroll((s) => !s)}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
               syncScroll
                 ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
                 : "border-white/15 bg-white/5 text-slate-300 hover:bg-white/10"
@@ -180,7 +180,7 @@ export default function StoreCompareView({
           <button
             type="button"
             onClick={() => setFitDesktop((f) => !f)}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition ${
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
               fitDesktop
                 ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
                 : "border-white/15 bg-white/5 text-slate-300 hover:bg-white/10"
@@ -190,11 +190,11 @@ export default function StoreCompareView({
             {fitDesktop ? "Desktop Ajustado" : "Largura Natural"}
           </button>
 
-          <button
+          <button aria-label="Voltar ao topo"
             type="button"
             onClick={scrollBothToTop}
             title="Voltar ao topo"
-            className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:bg-white/10"
+            className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-white/10"
           >
             <ArrowUpToLine className="h-3.5 w-3.5" />
             Topo
@@ -204,7 +204,7 @@ export default function StoreCompareView({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-white/20"
+              className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/20"
             >
               <X className="h-3.5 w-3.5" />
               Fechar Comparativo
@@ -228,7 +228,7 @@ export default function StoreCompareView({
               href={sourceUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-slate-400 hover:text-white"
+              className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-slate-400 hover:text-white"
             >
               Abrir original
               <ExternalLink className="h-3 w-3" />
@@ -276,7 +276,7 @@ export default function StoreCompareView({
                 Proposta Irroba · Tema LIME (Interativo)
               </span>
             </div>
-            <span className="shrink-0 rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+            <span className="shrink-0 rounded bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300">
               {scale < 1 ? `Desktop ${Math.round(scale * 100)}%` : "100%"}
             </span>
           </div>

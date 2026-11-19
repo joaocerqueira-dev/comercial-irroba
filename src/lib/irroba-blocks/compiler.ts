@@ -193,7 +193,7 @@ function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
       const indexStr = String(idx + 1).padStart(2, "0");
 
       const mediaMarkup = imgUrl
-        ? `<img src="${escapeAttr(imgUrl)}" alt="${title}" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.55s ease;" />`
+        ? `<img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(cleanAltText(item.title))}" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.55s ease;" />`
         : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${primaryBg},#18181b);"></div>`;
 
       return `<a href="${href}" data-irb-cat="${escapeAttr(item.title)}" style="position:relative;flex:1 0 min(260px,74vw);scroll-snap-align:start;aspect-ratio:3/4;min-height:340px;border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#141416;color:#ffffff;box-sizing:border-box;">
@@ -204,7 +204,7 @@ function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
       <span style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.92);background:rgba(0,0,0,0.3);padding:4px 9px;border-radius:999px;">${subtitle}</span>
     </div>
     <div style="position:absolute;left:22px;right:22px;bottom:22px;color:#ffffff;">
-      <div style="font-family:'${headingFont}',sans-serif;font-size:clamp(21px,2.1vw,27px);font-weight:400;line-height:1.1;letter-spacing:-0.01em;margin:0 0 12px 0;">${title}</div>
+      <div style="font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(21px,2.1vw,27px);font-weight:400;line-height:1.1;letter-spacing:-0.01em;margin:0 0 12px 0;">${title}</div>
       <span style="display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#ffffff;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.7);">Explorar &#8594;</span>
     </div>
   </a>`;
@@ -219,7 +219,7 @@ function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
           <span style="display:inline-block;width:28px;height:1px;background:${primaryBg};"></span>
           <span>Curadoria · ${escapeHtml(bp.brand.niche)}</span>
         </div>
-        <h2 style="margin:0;font-family:'${headingFont}',sans-serif;font-size:clamp(30px,4vw,50px);font-weight:300;line-height:1.02;letter-spacing:-0.02em;color:${bodyColor};">${escapeHtml(lead)} <em style="font-style:italic;font-weight:400;color:${primaryBg};">${escapeHtml(accent)}</em></h2>
+        <h2 style="margin:0;font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(30px,4vw,50px);font-weight:300;line-height:1.02;letter-spacing:-0.02em;color:${bodyColor};">${escapeHtml(lead)} <em style="font-style:italic;font-weight:400;color:${primaryBg};">${escapeHtml(accent)}</em></h2>
       </div>
       <div style="flex:0 1 340px;">
         <p style="margin:0 0 14px 0;font-size:14px;line-height:1.65;opacity:0.78;">Seleção editorial pensada para destacar as principais linhas da ${escapeHtml(bp.brand.name)} com navegação fluida em qualquer tela.</p>
@@ -313,7 +313,7 @@ function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
         <span>${escapeHtml(lookbookEyebrow)}</span>
         <span>${escapeHtml(bp.brand.niche)}</span>
       </div>
-      <h2 style="margin:22px 0 16px 0;font-family:'${headingFont}',sans-serif;font-size:clamp(28px,3.6vw,46px);font-weight:300;line-height:1.05;letter-spacing:-0.02em;color:${neutralFg};">${escapeHtml(lead)} <em style="font-style:italic;font-weight:400;color:${primaryBg};">${escapeHtml(accent)}</em></h2>
+      <h2 style="margin:22px 0 16px 0;font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(28px,3.6vw,46px);font-weight:300;line-height:1.05;letter-spacing:-0.02em;color:${neutralFg};">${escapeHtml(lead)} <em style="font-style:italic;font-weight:400;color:${primaryBg};">${escapeHtml(accent)}</em></h2>
       ${
         pillars
           ? `<div style="font-size:11px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;opacity:0.65;margin-bottom:18px;">${escapeHtml(pillars)}</div>`
@@ -327,7 +327,7 @@ function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
     <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:22px;">
       <div style="flex:1 1 440px;">
         <div style="font-size:11px;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;opacity:0.72;margin-bottom:8px;">Experiência ${escapeHtml(bp.brand.name)}</div>
-        <div style="font-family:'${headingFont}',sans-serif;font-size:clamp(20px,2.4vw,28px);font-weight:400;line-height:1.25;color:${secondaryFg};">${escapeHtml(bp.sections.announcementText || bp.sections.promoStripText)}</div>
+        <div style="font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(20px,2.4vw,28px);font-weight:400;line-height:1.25;color:${secondaryFg};">${escapeHtml(bp.sections.announcementText || bp.sections.promoStripText)}</div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:12px;">
         <a href="#vitrines" style="display:inline-block;padding:13px 26px;background:${btnBg};color:${btnFg};border:1px solid ${btnBorder};text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;border-radius:${radius};">Comprar Agora</a>
@@ -630,6 +630,23 @@ function buildProductCardMarkup(p: StoreBlueprint["products"][number], buyButton
 </article>`;
 }
 
+const SERIF_FONTS = /garamond|playfair|lora|merriweather|serif|baskerville|bodoni|didot|libre caslon|crimson|prata|cinzel|dm serif|fraunces/i;
+
+/** Fallback genérico coerente com a família (serifada ou não). */
+export function fontFallback(fontName: string): string {
+  return SERIF_FONTS.test(fontName) && !/sans/i.test(fontName) ? "serif" : "sans-serif";
+}
+
+/** Remove setas decorativas (↗ → etc.) usadas em títulos de vitrine/categoria. */
+export function cleanAltText(text: string): string {
+  return text.replace(/[\u2190-\u21FF\u2794\u279C\u27A4]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/** Remove atributos data-irb-* (usados só na prévia interativa) do HTML exportado. */
+export function stripPreviewAttributes(html: string): string {
+  return html.replace(/\s+data-irb-[a-z-]+="[^"]*"/g, "");
+}
+
 export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?: CompiledExport): string {
   const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, "#111827");
   const primaryFg = sanitizeCssColor(bp.theme.primaryForeground, "#FFFFFF");
@@ -741,7 +758,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?
     <div class="bannerHero__overlay"></div>
     <div class="bannerHero__content">
       <span class="bannerHero__tag">${escapeHtml(bp.brand.niche)}</span>
-      <h1 class="bannerHero__title">${escapeHtml(slide.headline)}</h1>
+      <${idx === 0 ? "h1" : "h2"} class="bannerHero__title">${escapeHtml(slide.headline)}</${idx === 0 ? "h1" : "h2"}>
       <p class="bannerHero__subtitle">${escapeHtml(slide.subheadline)}</p>
       <a href="${escapeAttr(sanitizeUrl(slide.ctaHref, "#vitrines"))}" class="bannerHero__cta">${escapeHtml(slide.ctaText)}</a>
     </div>
@@ -897,8 +914,8 @@ export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?
       --announcement-foreground: ${announcementFg};
       --header-background: ${headerBg};
       --header-foreground: ${headerFg};
-      --title-font-family: '${headingFont}', sans-serif;
-      --text-font-family: '${bodyFont}', sans-serif;
+      --title-font-family: '${headingFont}', ${fontFallback(headingFont)};
+      --text-font-family: '${bodyFont}', ${fontFallback(bodyFont)};
       --irb-radius: ${radiusCss};
       --productGrid-background: ${cardBg};
       --productGrid-information-padding-x: ${cardPaddingX}px;
@@ -1787,7 +1804,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?
         <div class="categoryHeroHeader">
           <div>
             <span style="font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;opacity:0.7;">Departamento</span>
-            <h1 id="irb-cat-title" style="margin:4px 0 6px;font-size:32px;line-height:1.15;">Categoria</h1>
+            <h2 id="irb-cat-title" style="margin:4px 0 6px;font-size:32px;line-height:1.15;">Categoria</h2>
             <p id="irb-cat-count" style="margin:0;font-size:14px;opacity:0.8;">0 produtos encontrados</p>
           </div>
           <button type="button" data-go-home="1" class="product-btn" style="width:auto;padding:10px 18px;">Voltar à Página Inicial</button>
@@ -1831,7 +1848,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?
 
           <div class="productInfo">
             <span id="irb-pdp-cat" style="font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:0.08em;font-weight:700;"></span>
-            <h1 id="irb-pdp-title" class="productInfo__title"></h1>
+            <h2 id="irb-pdp-title" class="productInfo__title"></h2>
             <div class="pdpRating">
               <span style="color:#f59e0b;letter-spacing:2px;">★★★★★</span>
               <span>5.0 · 18 avaliações verificadas</span>

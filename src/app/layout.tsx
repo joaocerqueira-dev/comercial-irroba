@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Irroba Preview AI — Gerador Comercial de Layouts Beta",
+  title: "Irroba Preview AI",
   description:
     "Analise lojas concorrentes e gere previews interativos no Tema LIME da Irroba com exportação low-code para implantação.",
 };
