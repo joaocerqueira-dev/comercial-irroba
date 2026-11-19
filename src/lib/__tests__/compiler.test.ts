@@ -359,3 +359,12 @@ describe("Irroba LIME Compiler & Export", () => {
     expect(html).toContain("cepInput.value = ''");
   });
 });
+
+describe("XSS no documento compilado", () => {
+  it("escapa texto do botão de compra dentro do <script>", () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    bp.visualOverrides.pageProduct.buyButtonText = "</script><img src=x onerror=alert(1)>";
+    const html = compileStorefrontDocument(bp);
+    expect(html).not.toContain("</script><img src=x");
+  });
+});

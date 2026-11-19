@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { processAiImageRequest } from "@/lib/ai/image-studio";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 
@@ -11,7 +12,11 @@ const BodySchema = z.object({
   prompt: z.string().max(600).default(""),
   mode: z.enum(["enhance", "resize", "generate"]).default("enhance"),
   aspectRatio: z.enum(["16:9", "21:9", "3:4", "1:1"]).default("16:9"),
-  sourceImageUrl: z.string().optional(),
+  sourceImageUrl: z
+    .string()
+    .max(2048)
+    .refine((v) => v.startsWith("/api/captures/") || /^https?:\/\//i.test(v), "URL de imagem inválida")
+    .optional(),
   slotLabel: z.string().optional(),
 });
 
@@ -31,6 +36,17 @@ export async function POST(
     body = BodySchema.parse(raw);
   } catch {
     return NextResponse.json({ error: "Parâmetros inválidos para geração de imagem." }, { status: 400 });
+  }
+
+  if (body.sourceImageUrl && /^https?:\/\//i.test(body.sourceImageUrl)) {
+    try {
+      await assertPublicHttpUrl(body.sourceImageUrl);
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof UnsafeUrlError ? err.message : "URL de imagem inválida" },
+        { status: 400 }
+      );
+    }
   }
 
   try {

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { prisma } from "@/lib/db";
 import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
@@ -55,6 +56,15 @@ export async function POST(req: NextRequest) {
   const normalizedUrl = parsed.data.url.startsWith("http")
     ? parsed.data.url.trim()
     : `https://${parsed.data.url.trim()}`;
+
+  try {
+    await assertPublicHttpUrl(normalizedUrl);
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: err instanceof UnsafeUrlError ? err.message : "URL inválida" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
   const slug = slugifyHostname(normalizedUrl);
   const sellerWhatsapp = parsed.data.sellerWhatsapp?.replace(/\D/g, "") || null;

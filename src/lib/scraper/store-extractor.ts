@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
@@ -669,10 +670,15 @@ export async function extractStoreFromUrl(
     });
 
     const page = await context.newPage();
-    await page.route("**/*", (route) => {
-      const reqUrl = route.request().url().toLowerCase();
+    await page.route("**/*", async (route) => {
+      const rawReqUrl = route.request().url();
+      const reqUrl = rawReqUrl.toLowerCase();
       if (BLOCKED_TRACKER_PATTERNS.some((p) => reqUrl.includes(p))) {
         return route.abort();
+      }
+      // SSRF: bloqueia qualquer requisição http(s) do navegador para rede interna
+      if (/^https?:/i.test(rawReqUrl) && !(await isPublicHttpUrl(rawReqUrl))) {
+        return route.abort("blockedbyclient");
       }
       return route.continue();
     });
@@ -991,16 +997,18 @@ export async function extractStoreFromUrl(
   }
 }
 
-function extFromContentType(ct: string, url: string): string {
+/** Retorna null para SVG: SVG pode carregar script e não é espelhado. */
+function extFromContentType(ct: string, url: string): string | null {
   const lower = ct.toLowerCase();
+  if (lower.includes("svg")) return null;
+  if (/\.svg$/i.test(url.split("?")[0] ?? "")) return null;
   if (lower.includes("webp")) return ".webp";
   if (lower.includes("png")) return ".png";
   if (lower.includes("jpeg") || lower.includes("jpg")) return ".jpg";
-  if (lower.includes("svg")) return ".svg";
   if (lower.includes("gif")) return ".gif";
   if (lower.includes("avif")) return ".avif";
   const pathExt = path.extname(url.split("?")[0] ?? "").toLowerCase();
-  if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".avif"].includes(pathExt)) {
+  if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"].includes(pathExt)) {
     return pathExt === ".jpeg" ? ".jpg" : pathExt;
   }
   return ".jpg";
@@ -1055,6 +1063,7 @@ async function mirrorCriticalImages(
       } catch {
         // fallback to native fetch below
       }
+      if (!(await isPublicHttpUrl(candidateUrl))) return null;
       try {
         const res = await fetch(candidateUrl, {
           headers: {
@@ -1088,6 +1097,7 @@ async function mirrorCriticalImages(
 
     if (!downloaded) return;
     const ext = extFromContentType(downloaded.ct, rawUrl);
+    if (!ext) return;
     const filename = `m-${slug.slice(0, 18)}-${hash}${ext}`;
     const diskPath = path.join(capturesDir, filename);
     await fs.writeFile(diskPath, downloaded.buf);
@@ -1150,6 +1160,7 @@ async function enrichProductsByCategory(
 
   const results = await Promise.allSettled(
     candidateCategories.map(async (cat) => {
+      if (!(await isPublicHttpUrl(cat.href))) throw new Error("URL interna bloqueada");
       const res = await fetch(cat.href, {
         headers: {
           "User-Agent":

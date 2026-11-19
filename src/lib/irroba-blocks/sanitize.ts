@@ -20,6 +20,7 @@ export function sanitizeUrl(url: string | undefined | null, fallback = "#"): str
   if (!url) return fallback;
   const trimmed = url.trim();
   if (!trimmed) return fallback;
+  if (trimmed.startsWith("//") || trimmed.startsWith("/\\")) return fallback;
   if (trimmed.startsWith("/") || trimmed.startsWith("#")) {
     return trimmed;
   }
@@ -32,6 +33,22 @@ export function sanitizeUrl(url: string | undefined | null, fallback = "#"): str
   } catch {
     return fallback;
   }
+}
+
+/** JSON seguro para interpolar dentro de <script>: escapa <, >, &, U+2028 e U+2029. */
+export function safeJsonForScript(value: unknown): string {
+  return (JSON.stringify(value) ?? "null")
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
+/** Texto seguro dentro de comentário CSS (impede fechar o comentário ou abrir tags). */
+export function escapeCssComment(input: string | undefined | null): string {
+  if (!input) return "";
+  return input.replace(/\*\//g, "* /").replace(/\/\*/g, "/ *").replace(/[<>]/g, "");
 }
 
 export function sanitizeCssColor(color: string | undefined | null, fallback = "#111827"): string {

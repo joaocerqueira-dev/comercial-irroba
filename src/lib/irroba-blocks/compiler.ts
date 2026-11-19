@@ -2,6 +2,8 @@ import { inferShowcaseSource } from "@/lib/catalog-source";
 import { generateBenefitsBannerDataUri } from "./banner-art-generator";
 import { getBenefitSvgIcon, IRROBA_ICONS } from "./icons";
 import {
+  escapeCssComment,
+  safeJsonForScript,
   escapeAttr,
   escapeCsvCell,
   escapeHtml,
@@ -553,7 +555,7 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
     })
   );
 
-  const customCss = `/* CSS Personalizado — Tema LIME (${bp.brand.name}) */
+  const customCss = `/* CSS Personalizado — Tema LIME (${escapeCssComment(bp.brand.name)}) */
 /* Cole em: Editar tema > Código > CSS Personalizado */
 .product.product-grid {
   transition: transform 0.22s ease, box-shadow 0.22s ease;
@@ -862,8 +864,8 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       .filter(Boolean),
     categories: p.categories && p.categories.length > 0 ? p.categories : [p.category],
   }));
-  const safeProductsJson = JSON.stringify(sanitizedProducts).replaceAll("</", "<\\/");
-  const safeCategoriesJson = JSON.stringify(bp.sections.categories.map((c) => c.label)).replaceAll("</", "<\\/");
+  const safeProductsJson = safeJsonForScript(sanitizedProducts);
+  const safeCategoriesJson = safeJsonForScript(bp.sections.categories.map((c) => c.label));
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1994,12 +1996,12 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     (function () {
       const PRODUCTS = ${safeProductsJson};
       const CATEGORIES = ${safeCategoriesJson};
-      const BUY_BTN_TEXT = ${JSON.stringify(bp.visualOverrides.pageProduct.buyButtonText)};
+      const BUY_BTN_TEXT = ${safeJsonForScript(bp.visualOverrides.pageProduct.buyButtonText)};
       const cart = [];
       let activeCategory = 'all';
       let searchQuery = '';
       let activePdpProduct = null;
-      let activeSize = ${JSON.stringify(variationSizes[0] ?? "Padrão")};
+      let activeSize = ${safeJsonForScript(variationSizes[0] ?? "Padrão")};
       let pdpQty = 1;
 
       const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);

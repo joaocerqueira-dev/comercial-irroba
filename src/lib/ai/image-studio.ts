@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -95,6 +96,7 @@ async function loadImageAsBuffer(
 
   // 2) External HTTP(S) image with anti-hotlink Referer
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    if (!(await isPublicHttpUrl(trimmed))) return null;
     try {
       const res = await fetch(trimmed, {
         headers: {
