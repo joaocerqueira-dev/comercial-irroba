@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { absolutizeCaptureUrls, listCaptureUrls, toAbsolutePublicUrl } from "@/lib/public-url";
 import { copyToClipboard } from "@/lib/client/clipboard";
@@ -205,6 +205,8 @@ function AiImageSlot({
           <img
             src={value}
             alt={label}
+            loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
             onLoad={(e) => {
               const img = e.currentTarget;
@@ -358,8 +360,14 @@ export default function StudioClient({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const liveHtml = useMemo(() => compileStorefrontDocument(bp), [bp]);
-  const compiled = useMemo(() => compileIrrobaExport(bp), [bp]);
+  // Prévia ao vivo usa valor adiado: digitação não recompila o iframe a cada tecla
+  const deferredBp = useDeferredValue(bp);
+  const liveHtml = useMemo(() => compileStorefrontDocument(deferredBp), [deferredBp]);
+  // Pacote de export só é calculado na aba Exportar
+  const compiled = useMemo(
+    () => (activeTab === "export" ? compileIrrobaExport(bp) : null),
+    [activeTab, bp]
+  );
   const sectionLayout = useMemo(() => getNormalizedSectionLayout(bp.sections.layout), [bp.sections.layout]);
 
   const updateBp = (updater: (prev: StoreBlueprint) => StoreBlueprint) => {
@@ -2718,7 +2726,7 @@ export default function StudioClient({
               proposalSrcDoc={liveHtml}
             />
           </main>
-        ) : (
+        ) : compiled ? (
           <main className="flex-1 overflow-y-auto p-6">
             <div className="mx-auto max-w-4xl space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
@@ -3049,7 +3057,7 @@ export default function StudioClient({
               </section>
             </div>
           </main>
-        )}
+        ) : null}
       </div>
     </div>
   );

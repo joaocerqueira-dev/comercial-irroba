@@ -1,9 +1,10 @@
 import crypto from "node:crypto";
+import { getSharedBrowser } from "./browser";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
-import { chromium, type APIRequestContext } from "playwright";
+import type { APIRequestContext } from "playwright";
 import { detectPlatform } from "./platform-detector";
 import type {
   ExtractedBanner,
@@ -618,15 +619,37 @@ async function tryShopifyProductsProbe(sourceUrl: string): Promise<ExtractedProd
   }
 }
 
+export interface ExtractProgress {
+  step: "fetch" | "render" | "screenshot" | "parse" | "images" | "fallback";
+  message: string;
+  /** 0..1 dentro da fase de extração */
+  fraction: number;
+}
+
+export interface ExtractOptions {
+  onProgress?: (p: ExtractProgress) => void;
+  signal?: AbortSignal;
+}
+
 export async function extractStoreFromUrl(
   rawUrl: string,
-  slug: string
+  slug: string,
+  options: ExtractOptions = {}
 ): Promise<ExtractedStoreData> {
+  const { onProgress, signal } = options;
+  const report = (p: ExtractProgress) => {
+    try {
+      onProgress?.(p);
+    } catch {
+      // progresso nunca deve quebrar a extração
+    }
+  };
   const normalizedUrl = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
   const capturesDir = path.join(process.cwd(), "public", "captures");
   await fs.mkdir(capturesDir, { recursive: true });
   const screenshotFile = `${slug}.png`;
-  const fullScreenshotFile = `${slug}-full.png`;
+  // Screenshot completo em JPEG: bem menor que PNG para páginas longas
+  const fullScreenshotFile = `${slug}-full.jpg`;
   const screenshotDiskPath = path.join(capturesDir, screenshotFile);
   const fullScreenshotDiskPath = path.join(capturesDir, fullScreenshotFile);
   const screenshotPublicPath = `/api/captures/${screenshotFile}`;
@@ -655,14 +678,13 @@ export async function extractStoreFromUrl(
   const fastPlatform = fastHtml ? detectPlatform(fastHtml, fastHeaders) : "Desconhecida";
 
   // Layer 2: Deep Playwright render + full scroll + computed palette & banners
-  let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+  let context: Awaited<ReturnType<Awaited<ReturnType<typeof getSharedBrowser>>["newContext"]>> | null = null;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    });
+    signal?.throwIfAborted();
+    report({ step: "render", message: "Abrindo a loja no navegador...", fraction: 0.1 });
+    const browser = await getSharedBrowser();
 
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: "pt-BR",
       userAgent:
@@ -698,7 +720,11 @@ export async function extractStoreFromUrl(
     await page.waitForTimeout(900);
 
     await page.screenshot({ path: screenshotDiskPath, fullPage: false });
-    await page.screenshot({ path: fullScreenshotDiskPath, fullPage: true }).catch(() => undefined);
+    await page
+      .screenshot({ path: fullScreenshotDiskPath, fullPage: true, type: "jpeg", quality: 80 })
+      .catch(() => undefined);
+    signal?.throwIfAborted();
+    report({ step: "parse", message: "Screenshots capturados. Lendo produtos, banners e paleta...", fraction: 0.45 });
 
     const renderedHtml = await page.content();
 
@@ -974,7 +1000,13 @@ export async function extractStoreFromUrl(
     };
 
     await enrichProductsByCategory(parsed, normalizedUrl);
-    await mirrorCriticalImages(parsed, normalizedUrl, capturesDir, slug, page.request);
+    await mirrorCriticalImages(parsed, normalizedUrl, capturesDir, slug, page.request, (done, total) =>
+      report({
+        step: "images",
+        message: `Copiando imagens da loja (${done}/${total})...`,
+        fraction: 0.6 + 0.4 * (total ? done / total : 1),
+      })
+    );
 
     return parsed;
   } catch (error) {
@@ -986,13 +1018,14 @@ export async function extractStoreFromUrl(
         if (shopifyProducts.length > 0) fallback.products = shopifyProducts;
       }
       await enrichProductsByCategory(fallback, normalizedUrl);
+      report({ step: "fallback", message: "Navegador falhou; usando leitura rápida do HTML...", fraction: 0.5 });
       await mirrorCriticalImages(fallback, normalizedUrl, capturesDir, slug);
       return fallback;
     }
     throw error;
   } finally {
-    if (browser) {
-      await browser.close().catch(() => undefined);
+    if (context) {
+      await context.close().catch(() => undefined);
     }
   }
 }
@@ -1019,7 +1052,8 @@ async function mirrorCriticalImages(
   refererUrl: string,
   capturesDir: string,
   slug: string,
-  pwRequest?: APIRequestContext
+  pwRequest?: APIRequestContext,
+  onImageProgress?: (done: number, total: number) => void
 ): Promise<void> {
   const urlsToMirror = new Set<string>();
   const addUrl = (u?: string) => {
@@ -1108,6 +1142,7 @@ async function mirrorCriticalImages(
   const BATCH = 8;
   for (let i = 0; i < urlList.length; i += BATCH) {
     await Promise.allSettled(urlList.slice(i, i + BATCH).map((u) => downloadOne(u)));
+    onImageProgress?.(Math.min(i + BATCH, urlList.length), urlList.length);
   }
 
   const remap = (u?: string): string | undefined => (u ? localMap.get(u) ?? u : u);

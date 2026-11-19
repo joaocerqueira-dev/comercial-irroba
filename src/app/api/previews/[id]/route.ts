@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { deletePreviewCaptures } from "@/lib/files/captures";
 import { StoreBlueprintSchema } from "@/lib/types/blueprint";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 
@@ -64,7 +65,8 @@ export async function DELETE(
 ) {
   const { id } = await context.params;
   try {
-    await prisma.storePreview.delete({ where: { id } });
+    const deleted = await prisma.storePreview.delete({ where: { id } });
+    await deletePreviewCaptures(deleted.slug, deleted.id).catch(() => 0);
   } catch (err) {
     const code = (err as { code?: string })?.code;
     if (code === "P2025") {

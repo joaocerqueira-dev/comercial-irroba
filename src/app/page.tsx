@@ -299,8 +299,14 @@ export default function HomePage() {
                   <div className="relative h-36 bg-slate-100">
                     {item.screenshotPath ? (
                       <img
-                        src={item.screenshotPath}
+                        src={
+                          item.screenshotPath.startsWith("/api/captures/")
+                            ? `${item.screenshotPath}?w=480`
+                            : item.screenshotPath
+                        }
                         alt={item.storeName}
+                        loading="lazy"
+                        decoding="async"
                         className="h-full w-full object-cover object-top"
                       />
                     ) : (

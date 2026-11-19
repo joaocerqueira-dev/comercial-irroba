@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
+import { getSharedBrowser } from "@/lib/scraper/browser";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { chromium } from "playwright";
 import { escapeHtml, sanitizeCssColor, sanitizeFontName } from "@/lib/irroba-blocks/sanitize";
 
 export type AiImageAspectRatio = "16:9" | "21:9" | "3:4" | "1:1";
@@ -396,17 +396,15 @@ async function renderArtStudioPng(
     <style>html,body{margin:0;padding:0;width:${width}px;height:${height}px;overflow:hidden;background:#111;}</style>
   </head><body>${bodyHtml}</body></html>`;
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  });
+  const browser = await getSharedBrowser();
+  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
   try {
-    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+    const page = await context.newPage();
     await page.setContent(html, { waitUntil: "load" });
     await page.waitForTimeout(150);
     return await page.screenshot({ type: "png" });
   } finally {
-    await browser.close().catch(() => undefined);
+    await context.close().catch(() => undefined);
   }
 }
 

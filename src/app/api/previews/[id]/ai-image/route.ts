@@ -6,7 +6,7 @@ import { processAiImageRequest } from "@/lib/ai/image-studio";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const BodySchema = z.object({
   prompt: z.string().max(600).default(""),

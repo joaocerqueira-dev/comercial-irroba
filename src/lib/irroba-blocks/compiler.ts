@@ -630,7 +630,7 @@ function buildProductCardMarkup(p: StoreBlueprint["products"][number], buyButton
 </article>`;
 }
 
-export function compileStorefrontDocument(bp: StoreBlueprint): string {
+export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?: CompiledExport): string {
   const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, "#111827");
   const primaryFg = sanitizeCssColor(bp.theme.primaryForeground, "#FFFFFF");
   const secondaryBg = sanitizeCssColor(bp.theme.secondaryBackground, "#18181B");
@@ -669,7 +669,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
   const legalBg = sanitizeCssColor(bp.visualOverrides.footer.legalBackground, "#090D16");
   const legalFg = sanitizeCssColor(bp.visualOverrides.footer.legalForeground, "#FFFFFF");
 
-  const exportPkg = compileIrrobaExport(bp);
+  const exportPkg = precompiledExport ?? compileIrrobaExport(bp);
   const editorialGalleryBlock = exportPkg.htmlBlocks[0];
   const editorialLookbookBlock = exportPkg.htmlBlocks[1];
   const tarjaBenefitsHtml = renderTarjaBenefitsHtml(bp);
