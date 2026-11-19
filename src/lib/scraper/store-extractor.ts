@@ -295,7 +295,19 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     "header a[href]",
     ".header a[href]",
   ];
-  for (const sel of navSelectors) {
+  // Tema Irroba: menu principal fica em nav#menu, fora do <header>
+  $("nav#menu ul.navbar-nav > li.li-category > a").each((_, el) => {
+    if (categories.length >= 9) return;
+    const a = $(el);
+    if (a.closest(".mobile-store-informations, .visible-xs").length > 0) return;
+    const label = (a.text().replace(/\s+/g, " ").trim() || a.attr("title")?.trim() || "").trim();
+    const href = a.attr("href") ?? "#";
+    if (isUsefulNavLink(label, href) && !seenCats.has(label.toLowerCase())) {
+      seenCats.add(label.toLowerCase());
+      categories.push({ label, href: resolveAssetUrl(href, sourceUrl) ?? "#" });
+    }
+  });
+  for (const sel of categories.length >= 4 ? [] : navSelectors) {
     $(sel).each((_, el) => {
       if (categories.length >= 9) return;
       // Skip links inside dropdown megamenu sublists when primary links exist
@@ -341,9 +353,45 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     }
   });
 
+  // Tema Irroba: títulos de vitrine (.heading_title ao lado de .product_module)
+  $(".heading_title").each((_, el) => {
+    if (sectionHeadings.length >= 10) return;
+    const text = $(el).text().replace(/\s+/g, " ").trim();
+    if (text.length >= 3 && text.length <= 80 && !seenHeadings.has(text.toLowerCase())) {
+      seenHeadings.add(text.toLowerCase());
+      sectionHeadings.push(text);
+    }
+  });
+
   // Banners by slot
   const seenBanners = new Set<string>();
+  // Tema Irroba: carrossel principal (.banner-v2.banner-carousel .item)
+  const irrobaHero: ExtractedBanner[] = [];
+  $(".banner-v2.banner-carousel .item").each((_, el) => {
+    if (irrobaHero.length >= 3) return;
+    const item = $(el);
+    const link = item.find("a").first();
+    const img = item.find("picture img, img").first();
+    const raw =
+      item.find("source.src-desktop").attr("srcset") ||
+      img.attr("data-src") ||
+      img.attr("src") ||
+      img.attr("srcset");
+    const imageUrl = resolveAssetUrl(raw, sourceUrl);
+    if (!imageUrl || seenBanners.has(imageUrl) || imageUrl === logoUrl) return;
+    seenBanners.add(imageUrl);
+    const alt = link.attr("aria-label")?.trim() || img.attr("alt")?.trim() || undefined;
+    const rawHref = link.attr("href");
+    irrobaHero.push({
+      imageUrl,
+      alt,
+      href: rawHref && rawHref !== "#" ? resolveAssetUrl(rawHref, sourceUrl) : undefined,
+      slot: "hero",
+      label: alt && alt.length <= 48 ? alt : undefined,
+    });
+  });
   const heroBanners = [
+    ...irrobaHero,
     ...collectBannersFromSelector(
       $,
       "[data-store='home-hero'] img, .js-home-slider img, .hero-slider img, [class*='hero'] img",
@@ -351,7 +399,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
       sourceUrl,
       logoUrl,
       seenBanners,
-      3
+      Math.max(0, 3 - irrobaHero.length)
     ),
   ];
   if (heroBanners.length === 0) {
@@ -380,7 +428,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
   const moodBanners = collectBannersFromSelector(
     $,
-    "[data-store*='mood'] a, [class*='mood'] a, [class*='mosaic'] a, [class*='banner-categories'] a",
+    ".banner-v2.banner-grid .image a, [data-store*='mood'] a, [class*='mood'] a, [class*='mosaic'] a, [class*='banner-categories'] a",
     "mood",
     sourceUrl,
     logoUrl,
@@ -465,6 +513,56 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     } catch {
       // ignore non-product JSON scripts
     }
+  });
+
+  // Tema Irroba: cards .product-thumb (dentro de .product-itens-list)
+  $(".product-thumb").each((_, el) => {
+    if (products.length >= 16) return;
+    const card = $(el);
+    const nameLink = card.find("h3.list_product_name a").first();
+    const title = (
+      nameLink.find("span").first().text().replace(/\s+/g, " ").trim() ||
+      nameLink.attr("title")?.trim() ||
+      ""
+    ).trim();
+    const price = parseBrlPrice(card.find(".caption p.price, .caption .price-new, .caption .price").first().text());
+    const compareAtPrice = parseBrlPrice(card.find(".caption .price-old, .caption del, .caption s").first().text());
+    const imgEl = card.find(".image img").first();
+    const imageUrl = resolveAssetUrl(imgEl.attr("data-src") || imgEl.attr("src"), sourceUrl);
+    const auxUrl = resolveAssetUrl(imgEl.attr("data-aux-src"), sourceUrl);
+    const productUrl = resolveAssetUrl(
+      card.find(".image a[href]").first().attr("href") || nameLink.attr("href"),
+      sourceUrl
+    );
+    const badge = card.find(".label-product").first().text().replace(/\s+/g, " ").trim() || undefined;
+    const sizes = Array.from(
+      new Set(
+        card
+          .find(".product-sizes .size-name")
+          .map((_, s) => $(s).text().replace(/\s+/g, " ").trim())
+          .get()
+          .filter(Boolean)
+      )
+    );
+    if (!title || title.length <= 2 || !imageUrl || !price || seenProducts.has(title.toLowerCase())) return;
+    seenProducts.add(title.toLowerCase());
+    const matchedCats = categories
+      .filter((c) => title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, "")))
+      .map((c) => c.label);
+    const primaryCat = matchedCats[0] ?? categories[0]?.label ?? "Destaques";
+    products.push({
+      id: `prod-dom-${products.length + 1}`,
+      title: title.slice(0, 120),
+      price,
+      compareAtPrice: compareAtPrice && compareAtPrice > price ? compareAtPrice : undefined,
+      imageUrl,
+      images: auxUrl && auxUrl !== imageUrl ? [imageUrl, auxUrl] : [imageUrl],
+      productUrl,
+      category: primaryCat,
+      categories: matchedCats.length > 0 ? matchedCats : [primaryCat],
+      badge: badge && badge.length <= 40 ? badge : undefined,
+      sizes: sizes.length > 0 ? sizes.slice(0, 12) : undefined,
+    });
   });
 
   const cardSelectors = [
@@ -832,7 +930,7 @@ export async function extractStoreFromUrl(
         if (/icon|logo|badge|selo|whatsapp|pix|visa|master|elo/i.test(src)) continue;
         if (
           img.closest(
-            ".product_card, .js-item-product, .product-item, .product-card, footer, [data-store*='benefit'], .home_benefits, .benefits"
+            ".product_card, .js-item-product, .product-item, .product-card, .product-thumb, footer, [data-store*='benefit'], .home_benefits, .benefits"
           )
         ) {
           continue;
@@ -881,8 +979,19 @@ export async function extractStoreFromUrl(
         })
         .find((i) => i.src && i.width >= 40 && i.height >= 16 && i.width <= 420);
 
+      // Tema Irroba: menu principal em nav#menu (fora do <header>)
+      const irrobaNavLinks = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>("nav#menu ul.navbar-nav > li.li-category > a")
+      )
+        .filter((a) => !a.closest(".mobile-store-informations, .visible-xs"))
+        .map((a) => ({
+          label: (a.textContent || a.title || "").replace(/\s+/g, " ").trim(),
+          href: a.href,
+        }))
+        .filter((item) => item.label.length >= 2 && item.label.length <= 34);
+
       // Visible header nav links directly from live DOM
-      const liveNavLinks = Array.from(
+      const headerNavLinks = Array.from(
         document.querySelectorAll<HTMLAnchorElement>(
           ".header_nav_link, .header [class*='nav_link'], header [class*='nav_link'], header nav a, .header nav a, .js-nav-list-link, header a[href], .header a[href]"
         )
@@ -893,6 +1002,7 @@ export async function extractStoreFromUrl(
           href: a.href,
         }))
         .filter((item) => item.label.length >= 2 && item.label.length <= 34);
+      const liveNavLinks = irrobaNavLinks.length >= 3 ? irrobaNavLinks : headerNavLinks;
 
       return {
         bodyBackground,

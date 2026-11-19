@@ -11,6 +11,8 @@ export const ExtractedProductSchema = z.object({
   category: z.string().max(5000).default("Destaques"),
   categories: z.array(z.string().max(5000)).default([]),
   description: z.string().max(5000).optional(),
+  badge: z.string().max(200).optional(),
+  sizes: z.array(z.string().max(200)).optional(),
 });
 
 export type ExtractedProduct = z.infer<typeof ExtractedProductSchema>;
