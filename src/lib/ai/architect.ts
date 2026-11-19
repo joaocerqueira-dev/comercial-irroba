@@ -658,7 +658,7 @@ const DEFAULT_GEMINI_MODELS = [
   "gemini-flash-latest",
 ];
 
-function extractJsonObject(raw: string): Record<string, unknown> {
+export function extractJsonObject(raw: string): Record<string, unknown> {
   const cleaned = raw
     .trim()
     .replace(/^```json\s*/i, "")
