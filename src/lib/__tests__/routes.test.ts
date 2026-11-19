@@ -8,11 +8,15 @@ const db = vi.hoisted(() => ({
     findUnique: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
-    findMany: vi.fn(async () => []),
+    findMany: vi.fn(async () => [] as unknown[]),
+    deleteMany: vi.fn(async () => ({ count: 0 })),
   },
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
-vi.mock("@/lib/files/captures", () => ({ deletePreviewCaptures: vi.fn(async () => 0) }));
+vi.mock("@/lib/files/captures", async (orig) => ({
+  ...(await orig<typeof import("@/lib/files/captures")>()),
+  deletePreviewCaptures: vi.fn(async () => 0),
+}));
 const ai = vi.hoisted(() => ({ buildStoreBlueprint: vi.fn() }));
 vi.mock("@/lib/ai/architect", async (orig) => ({
   ...(await orig<typeof import("@/lib/ai/architect")>()),
@@ -71,5 +75,20 @@ describe("POST reanalyze", () => {
     db.storePreview.findUnique.mockResolvedValue({ id: "abc", extractedData: extracted });
     ai.buildStoreBlueprint.mockResolvedValue({ blueprint: {}, mode: "heuristic", aiError: "sem chave" });
     expect((await REANALYZE(req(), ctx())).status).toBe(503);
+  });
+});
+
+describe("GET /api/previews", () => {
+  it("remove arquivos dos previews presos em processing", async () => {
+    const files = await import("@/lib/files/captures");
+    db.storePreview.findMany
+      .mockResolvedValueOnce([{ id: "old1", slug: "loja-x-aaaaaa" }]) // stale
+      .mockResolvedValueOnce([]) // referências de outros previews
+      .mockResolvedValueOnce([]); // listagem
+    const { GET } = await import("@/app/api/previews/route");
+    const res = await GET();
+    expect(res.status).toBe(200);
+    expect(db.storePreview.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["old1"] } } });
+    expect(files.deletePreviewCaptures).toHaveBeenCalledWith("loja-x-aaaaaa", "old1", expect.anything());
   });
 });

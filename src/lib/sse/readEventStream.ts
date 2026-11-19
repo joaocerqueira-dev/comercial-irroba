@@ -35,10 +35,15 @@ export async function readEventStream(
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let streamDone = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (value) buffer += decoder.decode(value, { stream: !done });
+      if (value) buffer += decoder.decode(value, { stream: true });
+      if (done) {
+        streamDone = true;
+        buffer += decoder.decode(); // descarrega bytes UTF-8 pendentes
+      }
       const chunks = buffer.split(/\r?\n\r?\n/);
       buffer = done ? "" : (chunks.pop() ?? "");
       for (const chunk of chunks) {
@@ -50,6 +55,8 @@ export async function readEventStream(
       if (done) break;
     }
   } finally {
+    // retorno antecipado (evento terminal ou erro em onEvent): cancela o stream
+    if (!streamDone) await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
   throw new StreamEndedError();

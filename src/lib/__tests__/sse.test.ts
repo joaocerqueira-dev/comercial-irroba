@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readEventStream, StreamEndedError, type SseEvent } from "@/lib/sse/readEventStream";
 
 function streamOf(...parts: string[]) {
@@ -28,5 +28,35 @@ describe("readEventStream", () => {
     await expect(
       readEventStream(streamOf("event: progress\ndata: {quebrado\n\n"), () => false)
     ).rejects.toBeInstanceOf(StreamEndedError);
+  });
+  it("cancela o stream ao parar no evento terminal", async () => {
+    const cancel = vi.fn();
+    const enc = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('event: done\ndata: {"id":"x"}\n\n'));
+        // stream fica aberto (sem close)
+      },
+      cancel,
+    });
+    await readEventStream(body, (e) => e.event === "done");
+    expect(cancel).toHaveBeenCalled();
+  });
+  it("finaliza o decoder com multibyte cortado no fim do stream", async () => {
+    const bytes = new TextEncoder().encode('event: done\ndata: {"msg":"ação"}\n\n');
+    const cut = bytes.length - 6; // corta no meio de "ç"/"ã"
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(bytes.slice(0, cut));
+        c.enqueue(bytes.slice(cut));
+        c.close();
+      },
+    });
+    const seen: SseEvent[] = [];
+    await readEventStream(body, (e) => {
+      seen.push(e);
+      return true;
+    });
+    expect(seen[0].data.msg).toBe("ação");
   });
 });
