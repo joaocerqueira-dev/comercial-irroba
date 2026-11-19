@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { absolutizeCaptureUrls, listCaptureUrls, toAbsolutePublicUrl } from "@/lib/public-url";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -52,6 +53,8 @@ interface StudioClientProps {
   screenshotPath: string | null;
   fullScreenshotPath: string | null;
   initialBlueprint: StoreBlueprint;
+  /** Base pública dos assets (PUBLIC_ASSET_BASE_URL). Null = não configurada. */
+  publicAssetBaseUrl?: string | null;
 }
 
 type EditorSubTab = "insights" | "colors" | "banners" | "structure";
@@ -320,6 +323,7 @@ export default function StudioClient({
   screenshotPath,
   fullScreenshotPath,
   initialBlueprint,
+  publicAssetBaseUrl = null,
 }: StudioClientProps) {
   const router = useRouter();
   const [bp, setBp] = useState<StoreBlueprint>(initialBlueprint);
@@ -2782,9 +2786,7 @@ export default function StudioClient({
                               onClick={() =>
                                 copyText(
                                   `banner-${idx}`,
-                                  b.imageUrl.startsWith("/")
-                                    ? `${window.location.origin}${b.imageUrl}`
-                                    : b.imageUrl
+                                  toAbsolutePublicUrl(b.imageUrl, publicAssetBaseUrl, window.location.origin)
                                 )
                               }
                               className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 font-semibold text-slate-700 hover:bg-slate-100"
@@ -2918,7 +2920,12 @@ export default function StudioClient({
                       </div>
                       <button
                         type="button"
-                        onClick={() => copyText(blk.id, blk.html)}
+                        onClick={() =>
+                          copyText(
+                            blk.id,
+                            absolutizeCaptureUrls(blk.html, publicAssetBaseUrl, window.location.origin)
+                          )
+                        }
                         className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
                       >
                         {copiedKey === blk.id ? (
@@ -2929,6 +2936,23 @@ export default function StudioClient({
                         {copiedKey === blk.id ? "HTML Copiado!" : "Copiar HTML (SunEditor)"}
                       </button>
                     </div>
+                    {!publicAssetBaseUrl && listCaptureUrls(blk.html).length > 0 && (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        <p className="font-semibold">
+                          PUBLIC_ASSET_BASE_URL não configurada: suba as imagens abaixo no gerenciador de arquivos da Irroba e troque as URLs no HTML antes de publicar.
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {listCaptureUrls(blk.html).map((u) => (
+                            <li key={u} className="flex items-center gap-2">
+                              <a href={u} download className="inline-flex items-center gap-1 font-semibold text-amber-800 underline">
+                                <Download className="h-3.5 w-3.5" /> Baixar
+                              </a>
+                              <span className="truncate font-mono text-[11px]">{u}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     <pre className="mt-3 max-h-48 overflow-auto rounded-xl bg-slate-950 p-3.5 text-[11px] leading-relaxed text-emerald-300">
                       <code>{blk.html}</code>
                     </pre>

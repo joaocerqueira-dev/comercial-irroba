@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { StoreBlueprintSchema } from "@/lib/types/blueprint";
+import { normalizeBaseUrl } from "@/lib/public-url";
 import StudioClient from "@/components/StudioClient";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,7 @@ export default async function StudioPage({
       screenshotPath={preview.screenshotPath}
       fullScreenshotPath={fullScreenshotPath}
       initialBlueprint={parsedBlueprint.data}
+      publicAssetBaseUrl={normalizeBaseUrl(process.env.PUBLIC_ASSET_BASE_URL)}
     />
   );
 }

@@ -1,3 +1,4 @@
+import { inferShowcaseSource } from "@/lib/catalog-source";
 import { generateBenefitsBannerDataUri } from "./banner-art-generator";
 import { getBenefitSvgIcon, IRROBA_ICONS } from "./icons";
 import {
@@ -541,14 +542,9 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
   };
 
   const productListsChecklist: CompiledExport["productListsChecklist"] = bp.sections.showcases.map(
-    (sc, idx) => ({
+    (sc) => ({
       title: sc.title,
-      sourceType:
-        idx === 0
-          ? "Mais Vendidos ou Lista de Produtos"
-          : idx === 1
-            ? "Lançamentos ou Por Categoria"
-            : "Por Categoria / Promoção",
+      sourceType: inferShowcaseSource(sc.title, sc.subtitle),
       displayMode: "Carrossel" as const,
       desktopItems: 4,
       mobileItems: 1.2,
