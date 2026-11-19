@@ -169,9 +169,9 @@ export default function HomePage() {
           onSubmit={handleGenerate}
           className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-4 text-left shadow-2xl backdrop-blur sm:p-6"
         >
-          <div className="grid gap-3 sm:grid-cols-12">
-            <div className="sm:col-span-7">
-              <label className="mb-1.5 block text-xs font-medium text-slate-300">
+          <div className="grid items-end gap-3 sm:grid-cols-12">
+            <div className="sm:col-span-6">
+              <label className="mb-1.5 block truncate text-xs font-medium text-slate-300">
                 URL do e-commerce atual do cliente
               </label>
               <div className="relative">
@@ -189,8 +189,8 @@ export default function HomePage() {
             </div>
 
             <div className="sm:col-span-3">
-              <label className="mb-1.5 block text-xs font-medium text-slate-300">
-                WhatsApp do consultor (opcional)
+              <label className="mb-1.5 block truncate text-xs font-medium text-slate-300">
+                WhatsApp (opcional)
               </label>
               <input
                 type="text"
@@ -202,16 +202,16 @@ export default function HomePage() {
               />
             </div>
 
-            <div className="flex items-end sm:col-span-2">
+            <div className="flex items-end sm:col-span-3">
               <button
                 type="submit"
                 disabled={isGenerating}
                 className="flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isGenerating ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
                 ) : (
-                  <Wand2 className="h-4 w-4" />
+                  <Wand2 className="h-4 w-4 shrink-0" />
                 )}
                 {isGenerating ? "Gerando..." : "Gerar Beta"}
               </button>
@@ -322,11 +322,17 @@ export default function HomePage() {
                       <button
                         type="button"
                         onClick={() => handleCopyClientLink(item.slug)}
-                        title="Copiar link do cliente"
-                        className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+                        title={copiedSlug === item.slug ? "Link copiado!" : "Copiar link do cliente"}
+                        aria-label={copiedSlug === item.slug ? "Link copiado!" : "Copiar link do cliente"}
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
                       >
                         {copiedSlug === item.slug ? (
-                          <Check className="h-4 w-4 text-emerald-600" />
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                            <span className="text-[11px] font-semibold text-emerald-700">
+                              Copiado!
+                            </span>
+                          </>
                         ) : (
                           <Copy className="h-4 w-4" />
                         )}

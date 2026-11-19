@@ -26,6 +26,30 @@ const IRROBA_FONT_PAIRINGS = [
   { heading: "Poppins", body: "Poppins", niches: ["geral"] },
 ];
 
+export function ensureReadableForeground(bg: string, candidate?: string): string {
+  const norm = normalizeHex(candidate, "");
+  if (norm && contrastRatio(bg, norm) >= 4.5) {
+    return norm;
+  }
+  return getContrastingForeground(bg);
+}
+
+export function formatFriendlyAiError(raw: string): string {
+  if (/503|UNAVAILABLE|high demand|overloaded/i.test(raw)) {
+    return "Servidores do Gemini 3.5 temporariamente sobrecarregados (503).";
+  }
+  if (/429|quota|RESOURCE_EXHAUSTED/i.test(raw)) {
+    return "Limite temporário de requisições da API Gemini atingido.";
+  }
+  if (/Timeout/i.test(raw)) {
+    return "A análise visual excedeu o tempo limite de resposta.";
+  }
+  if (/401|403|API_KEY_INVALID/i.test(raw)) {
+    return "Chave API do Gemini inválida ou sem permissão.";
+  }
+  return "Serviço Gemini temporariamente indisponível.";
+}
+
 function inferNicheAndTone(extracted: ExtractedStoreData): {
   niche: string;
   tone: StoreBlueprint["brand"]["tone"];
@@ -39,11 +63,29 @@ function inferNicheAndTone(extracted: ExtractedStoreData): {
     .join(" ")
     .toLowerCase();
 
-  if (/vegano|vegan|sustent|eco|organic|natural|vegetal/.test(haystack)) {
-    return { niche: "Moda & Calçados Veganos", tone: "minimal" };
+  const hasFootwear =
+    /\b(bota|botas|coturno|coturnos|creeper|creepers|tenis|tênis|sapato|sapatos|sandalia|sandália|sandalias|sandálias|calcado|calçado|calcados|calçados|mocassim|salto|chuteira|chinelo|sneaker)\b/i.test(
+      haystack
+    );
+  const hasApparel =
+    /\b(vestido|vestidos|camiseta|camisetas|blusa|blusas|blazer|blazers|calca|calça|calcas|calças|saia|saias|body|roupa|roupas|camisa|camisas|jaqueta|short|shorts|moda)\b/i.test(
+      haystack
+    );
+  const isVeganOrEco = /vegano|vegan|sustent|eco|organic|natural|vegetal/.test(haystack);
+
+  if (isVeganOrEco) {
+    return hasFootwear
+      ? { niche: "Calçados Veganos", tone: "minimal" }
+      : { niche: "Moda Sustentável", tone: "minimal" };
   }
-  if (/bota|tenis|sapato|sandalia|calcado|bolsa|moda|vestido|roupa|camisa|coturno/.test(haystack)) {
-    return { niche: "Moda & Calçados", tone: "modern" };
+  if (hasFootwear && !/vestido|blusa|blazer|camiseta/.test(haystack)) {
+    return { niche: "Calçados", tone: "modern" };
+  }
+  if (hasApparel) {
+    return { niche: "Moda & Vestuário", tone: "modern" };
+  }
+  if (hasFootwear) {
+    return { niche: "Calçados", tone: "modern" };
   }
   if (/joia|semi|relogio|perfume|cosmetic|skincare|beleza/.test(haystack)) {
     return { niche: "Beleza & Acessórios", tone: "luxury" };
@@ -175,24 +217,24 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
 
   // Faithful palette extraction from original site
   const bodyBackground = normalizeHex(extracted.tokens.bodyBackground, "#FFFFFF");
-  const bodyForeground = normalizeHex(
-    extracted.tokens.bodyForeground,
-    getContrastingForeground(bodyBackground)
+  const bodyForeground = ensureReadableForeground(
+    bodyBackground,
+    extracted.tokens.bodyForeground
   );
 
   const headerBackground = normalizeHex(extracted.tokens.headerBackground, bodyBackground);
-  const headerForeground = normalizeHex(
-    extracted.tokens.headerForeground,
-    getContrastingForeground(headerBackground)
+  const headerForeground = ensureReadableForeground(
+    headerBackground,
+    extracted.tokens.headerForeground
   );
 
   const primaryBackground = normalizeHex(
     extracted.tokens.primaryButtonBg ?? extracted.tokens.accentColor ?? extracted.tokens.announcementBackground,
     "#111827"
   );
-  const primaryForeground = normalizeHex(
-    extracted.tokens.primaryButtonColor,
-    getContrastingForeground(primaryBackground)
+  const primaryForeground = ensureReadableForeground(
+    primaryBackground,
+    extracted.tokens.primaryButtonColor
   );
 
   // Secondary / Footer background: strictly follow extracted footer/secondary, NO green fallback!
@@ -201,9 +243,9 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     isLightColor(primaryBackground) ? "#18181B" : darkenHex(primaryBackground, 0.2)
   );
   const secondaryBackground = rawFooterBg === bodyBackground ? "#18181B" : rawFooterBg;
-  const secondaryForeground = normalizeHex(
-    extracted.tokens.footerForeground,
-    getContrastingForeground(secondaryBackground)
+  const secondaryForeground = ensureReadableForeground(
+    secondaryBackground,
+    extracted.tokens.footerForeground
   );
 
   // Neutral surface: use real extracted surface section color (e.g. beige/cream/light gray), NEVER tinted green
@@ -220,16 +262,19 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     extracted.tokens.announcementBackground,
     isLightColor(primaryBackground) ? "#111827" : primaryBackground
   );
-  const announcementForeground = normalizeHex(
-    extracted.tokens.announcementForeground,
-    getContrastingForeground(announcementBackground)
+  const announcementForeground = ensureReadableForeground(
+    announcementBackground,
+    extracted.tokens.announcementForeground
   );
 
   const btnSecondaryBg = normalizeHex(extracted.tokens.secondaryButtonBg, "#111827");
-  const btnSecondaryFg = normalizeHex(
-    extracted.tokens.secondaryButtonColor,
-    getContrastingForeground(btnSecondaryBg)
+  const btnSecondaryFg = ensureReadableForeground(
+    btnSecondaryBg,
+    extracted.tokens.secondaryButtonColor
   );
+
+  const legalBackground = darkenHex(secondaryBackground, 0.25);
+  const legalForeground = ensureReadableForeground(legalBackground, secondaryForeground);
 
   const radius = mapBorderRadius(extracted.tokens.borderRadiusPx);
 
@@ -531,8 +576,8 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         width: "container",
         background: secondaryBackground,
         foreground: secondaryForeground,
-        legalBackground: darkenHex(secondaryBackground, 0.25),
-        legalForeground: secondaryForeground,
+        legalBackground,
+        legalForeground,
       },
     },
     sections: {
@@ -556,7 +601,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
       ),
       moodBanners,
       secondaryBanner,
-      promoStripText: `Conheça a nova loja ${extracted.storeName} preparada para escalar vendas`,
+      promoStripText: `Descubra a essência e os detalhes de ${extracted.storeName}`,
       benefits: [
         { icon: "truck", title: "Envio Rápido", subtitle: "Para todo o Brasil com rastreio" },
         { icon: "credit-card", title: "Até 6x Sem Juros", subtitle: "Ou desconto especial no PIX" },
@@ -591,7 +636,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     footer: {
       aboutText:
         extracted.description?.slice(0, 200) ||
-        `${extracted.storeName} — Loja virtual estruturada com foco em identidade de marca, agilidade e alta conversão.`,
+        `${extracted.storeName} — Curadoria especial com qualidade, estilo e entrega para todo o Brasil.`,
       whatsapp: extracted.contacts.whatsapp,
       instagram: extracted.contacts.instagram,
       email: extracted.contacts.email,
@@ -809,6 +854,8 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         baseBlueprint.theme.secondaryBackground
       );
       const secondaryFg = getContrastingForeground(secondaryBg);
+      const legalBg = darkenHex(secondaryBg, 0.25);
+      const legalFg = ensureReadableForeground(legalBg, secondaryFg);
 
       const neutralBg = normalizeHex(
         typeof aiData.neutralBackground === "string" ? aiData.neutralBackground : undefined,
@@ -999,8 +1046,8 @@ Retorne APENAS um JSON válido com esta estrutura exata:
             ...baseBlueprint.visualOverrides.footer,
             background: secondaryBg,
             foreground: secondaryFg,
-            legalBackground: darkenHex(secondaryBg, 0.25),
-            legalForeground: secondaryFg,
+            legalBackground: legalBg,
+            legalForeground: legalFg,
           },
         },
         sections: {
@@ -1092,6 +1139,8 @@ Retorne APENAS um JSON válido com esta estrutura exata:
     }
   }
 
+  const friendlyAiError = formatFriendlyAiError(lastErrorMsg);
+
   // Fallback with transparent diagnostic insight (never fail silently)
   const fallbackWithNotice: StoreBlueprint = {
     ...baseBlueprint,
@@ -1101,7 +1150,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         category: "palette",
         severity: "suggestion",
         title: "Fallback heurístico ativado (Gemini indisponível)",
-        description: `Não foi possível concluir a análise visual com Gemini 3.5 Flash nesta tentativa (${lastErrorMsg.slice(0, 140)}). Clique em "Reanalisar com Gemini 3.5" para tentar novamente sem raspar o site do zero.`,
+        description: `Não foi possível concluir a análise visual com Gemini 3.5 Flash nesta tentativa: ${friendlyAiError} Clique em "Reanalisar Identidade com Gemini 3.5" para tentar novamente sem raspar o site do zero.`,
       },
       ...baseBlueprint.designInsights,
     ],
@@ -1110,6 +1159,6 @@ Retorne APENAS um JSON válido com esta estrutura exata:
   return {
     blueprint: fallbackWithNotice,
     mode: "heuristic",
-    aiError: lastErrorMsg,
+    aiError: friendlyAiError,
   };
 }

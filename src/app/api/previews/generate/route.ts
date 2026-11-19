@@ -12,6 +12,20 @@ const GenerateRequestSchema = z.object({
   sellerWhatsapp: z.string().optional(),
 });
 
+function formatFriendlyScrapeError(raw: string): string {
+  const cleaned = raw.split(/\nCall log:/i)[0]?.split(/\n\s*at\s+/)[0]?.trim() || raw;
+  if (/ERR_NAME_NOT_RESOLVED|ENOTFOUND/i.test(cleaned)) {
+    return "Não foi possível encontrar este domínio. Verifique se o endereço do site foi digitado corretamente.";
+  }
+  if (/ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_CONNECTION_TIMED_OUT|Timeout/i.test(cleaned)) {
+    return "O site demorou demais para responder ou recusou a conexão. Tente novamente em instantes.";
+  }
+  if (/ERR_CERT_|SSL|TLS/i.test(cleaned)) {
+    return "O site apresentou um erro de certificado de segurança (HTTPS/SSL).";
+  }
+  return "Não foi possível acessar a loja informada. Verifique a URL e tente novamente.";
+}
+
 function slugifyHostname(rawUrl: string): string {
   try {
     const u = new URL(rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`);
@@ -158,16 +172,15 @@ export async function POST(req: NextRequest) {
           progress: 100,
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Falha inesperada ao analisar a loja";
+        const rawMessage = err instanceof Error ? err.message : "Falha inesperada ao analisar a loja";
+        const friendlyMessage = formatFriendlyScrapeError(rawMessage);
+        console.error("[generate] Erro ao analisar loja:", rawMessage);
         if (recordId) {
           await prisma.storePreview
-            .update({
-              where: { id: recordId },
-              data: { status: "error", errorMessage: message },
-            })
+            .delete({ where: { id: recordId } })
             .catch(() => undefined);
         }
-        sendEvent("error", { message });
+        sendEvent("error", { message: friendlyMessage });
       } finally {
         controller.close();
       }

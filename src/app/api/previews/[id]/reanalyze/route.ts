@@ -27,6 +27,17 @@ export async function POST(
   }
 
   const { blueprint, mode, modelUsed, aiError } = await buildStoreBlueprint(parsedExtracted.data);
+
+  if (mode !== "gemini") {
+    return NextResponse.json(
+      {
+        error: `${aiError || "Gemini 3.5 temporariamente indisponível."} O layout atual foi preservado sem alterações.`,
+        preserved: true,
+      },
+      { status: 503 }
+    );
+  }
+
   const compiledExport = compileIrrobaExport(blueprint);
 
   const updated = await prisma.storePreview.update({

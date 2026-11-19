@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowDown,
@@ -9,6 +10,7 @@ import {
   ArrowUp,
   Check,
   Code2,
+  Columns2,
   Copy,
   Download,
   ExternalLink,
@@ -38,6 +40,7 @@ import {
   type SectionKey,
   type StoreBlueprint,
 } from "@/lib/types/blueprint";
+import StoreCompareView from "./StoreCompareView";
 
 interface StudioClientProps {
   id: string;
@@ -46,6 +49,8 @@ interface StudioClientProps {
   detectedPlatform: string;
   generationMode: string;
   initialWhatsapp: string;
+  screenshotPath: string | null;
+  fullScreenshotPath: string | null;
   initialBlueprint: StoreBlueprint;
 }
 
@@ -312,13 +317,16 @@ export default function StudioClient({
   detectedPlatform,
   generationMode,
   initialWhatsapp,
+  screenshotPath,
+  fullScreenshotPath,
   initialBlueprint,
 }: StudioClientProps) {
+  const router = useRouter();
   const [bp, setBp] = useState<StoreBlueprint>(initialBlueprint);
   const [baselineTheme, setBaselineTheme] = useState(initialBlueprint.theme);
   const [currentMode, setCurrentMode] = useState(generationMode);
   const [sellerWhatsapp, setSellerWhatsapp] = useState(initialWhatsapp);
-  const [activeTab, setActiveTab] = useState<"preview" | "export">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "compare" | "export">("preview");
   const [editorTab, setEditorTab] = useState<EditorSubTab>("insights");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [isSaving, setIsSaving] = useState(false);
@@ -329,6 +337,18 @@ export default function StudioClient({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const dragSectionIdxRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const liveHtml = useMemo(() => compileStorefrontDocument(bp), [bp]);
   const compiled = useMemo(() => compileIrrobaExport(bp), [bp]);
@@ -409,13 +429,28 @@ export default function StudioClient({
         mode?: string;
         aiError?: string | null;
         error?: string;
+        preserved?: boolean;
       };
-      if (!res.ok || !data.blueprint) {
-        throw new Error(data.error || "Falha ao reanalisar com Gemini");
+      if (!res.ok || data.preserved || !data.blueprint) {
+        setActionError(
+          data.error ||
+            (data.aiError
+              ? `Gemini 3.5 indisponível: ${data.aiError}`
+              : "Falha ao reanalisar com Gemini. O layout atual foi preservado.")
+        );
+        return;
+      }
+      if (data.mode && data.mode !== "gemini") {
+        setActionError(
+          data.aiError
+            ? `Gemini 3.5 indisponível: ${data.aiError} O layout atual foi preservado.`
+            : "Gemini 3.5 indisponível. O layout atual foi preservado."
+        );
+        return;
       }
       setBp(data.blueprint);
       setBaselineTheme(data.blueprint.theme);
-      setCurrentMode(data.mode || "heuristic");
+      setCurrentMode(data.mode || "gemini");
       setHasUnsavedChanges(false);
       if (data.aiError) {
         setActionError(`Gemini 3.5 indisponível: ${data.aiError}`);
@@ -503,13 +538,22 @@ export default function StudioClient({
       {/* Top Bar */}
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3">
         <div className="flex items-center gap-3">
-          <Link
-            href="/"
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                hasUnsavedChanges &&
+                !window.confirm("Você tem alterações não salvas. Deseja sair e descartá-las?")
+              ) {
+                return;
+              }
+              router.push("/");
+            }}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Voltar
-          </Link>
+          </button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-slate-900">{bp.brand.name}</h1>
@@ -549,6 +593,18 @@ export default function StudioClient({
             >
               <Eye className="h-3.5 w-3.5" />
               Preview ao Vivo
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("compare")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold ${
+                activeTab === "compare"
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Columns2 className="h-3.5 w-3.5" />
+              Comparar
             </button>
             <button
               type="button"
@@ -660,14 +716,18 @@ export default function StudioClient({
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 text-xs">
+            {actionError && (
+              <div
+                role="alert"
+                className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-[11px] text-rose-700"
+              >
+                {actionError}
+              </div>
+            )}
+
             {/* TAB 1: DIAGNÓSTICO, PALETA FIEL & MARCA */}
             {editorTab === "insights" && (
               <div className="space-y-4">
-                {actionError && (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-2.5 text-[11px] text-rose-700">
-                    {actionError}
-                  </div>
-                )}
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -2029,19 +2089,58 @@ export default function StudioClient({
                       <div
                         key={sec.id}
                         draggable
-                        onDragStart={() => setDragSectionIdx(idx)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => {
-                          if (dragSectionIdx !== null) {
-                            moveSection(dragSectionIdx, idx);
-                            setDragSectionIdx(null);
-                          }
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", String(idx));
+                          dragSectionIdxRef.current = idx;
+                          setDragSectionIdx(idx);
                         }}
-                        onDragEnd={() => setDragSectionIdx(null)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          setDragOverIdx((prev) => (prev === idx ? prev : idx));
+                        }}
+                        onDragLeave={(e) => {
+                          if (
+                            e.relatedTarget instanceof Node &&
+                            e.currentTarget.contains(e.relatedTarget)
+                          ) {
+                            return;
+                          }
+                          setDragOverIdx((prev) => (prev === idx ? null : prev));
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const raw = e.dataTransfer.getData("text/plain");
+                          const from =
+                            raw !== "" && !Number.isNaN(Number(raw))
+                              ? Number(raw)
+                              : dragSectionIdxRef.current;
+                          if (
+                            from !== null &&
+                            from >= 0 &&
+                            from < sectionLayout.length &&
+                            from !== idx
+                          ) {
+                            moveSection(from, idx);
+                          }
+                          dragSectionIdxRef.current = null;
+                          setDragSectionIdx(null);
+                          setDragOverIdx(null);
+                        }}
+                        onDragEnd={() => {
+                          dragSectionIdxRef.current = null;
+                          setDragSectionIdx(null);
+                          setDragOverIdx(null);
+                        }}
                         className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 transition ${
-                          sec.enabled
-                            ? "border-slate-200 bg-white text-slate-800"
-                            : "border-dashed border-slate-200 bg-slate-100/80 text-slate-400"
+                          sec.enabled ? "text-slate-800" : "text-slate-400"
+                        } ${
+                          dragOverIdx === idx && dragSectionIdx !== idx
+                            ? "border-emerald-500 bg-emerald-50"
+                            : sec.enabled
+                              ? "border-slate-200 bg-white"
+                              : "border-dashed border-slate-200 bg-slate-100/80"
                         } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-emerald-400" : ""}`}
                       >
                         <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-slate-400" />
@@ -2054,6 +2153,7 @@ export default function StudioClient({
                         <div className="flex shrink-0 items-center gap-0.5">
                           <button
                             type="button"
+                            draggable={false}
                             disabled={idx === 0}
                             onClick={() => moveSection(idx, idx - 1)}
                             title="Mover para cima"
@@ -2063,6 +2163,7 @@ export default function StudioClient({
                           </button>
                           <button
                             type="button"
+                            draggable={false}
                             disabled={idx === sectionLayout.length - 1}
                             onClick={() => moveSection(idx, idx + 1)}
                             title="Mover para baixo"
@@ -2072,6 +2173,7 @@ export default function StudioClient({
                           </button>
                           <button
                             type="button"
+                            draggable={false}
                             onClick={() => toggleSection(sec.id)}
                             title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
                             className={`rounded p-1 ${
@@ -2541,6 +2643,17 @@ export default function StudioClient({
                 }`}
               />
             </div>
+          </main>
+        ) : activeTab === "compare" ? (
+          <main className="flex min-h-0 flex-1 overflow-hidden">
+            <StoreCompareView
+              storeName={bp.brand.name}
+              sourceUrl={sourceUrl}
+              detectedPlatform={detectedPlatform}
+              fullScreenshotPath={fullScreenshotPath}
+              screenshotPath={screenshotPath}
+              proposalSrcDoc={liveHtml}
+            />
           </main>
         ) : (
           <main className="flex-1 overflow-y-auto p-6">

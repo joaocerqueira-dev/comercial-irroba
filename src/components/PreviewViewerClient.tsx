@@ -10,6 +10,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import StoreCompareView from "./StoreCompareView";
 
 interface PreviewViewerClientProps {
   slug: string;
@@ -17,6 +18,7 @@ interface PreviewViewerClientProps {
   sourceUrl: string;
   detectedPlatform: string;
   screenshotPath: string | null;
+  fullScreenshotPath: string | null;
   sellerWhatsapp: string | null;
 }
 
@@ -26,6 +28,7 @@ export default function PreviewViewerClient({
   sourceUrl,
   detectedPlatform,
   screenshotPath,
+  fullScreenshotPath,
   sellerWhatsapp,
 }: PreviewViewerClientProps) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
@@ -86,14 +89,18 @@ export default function PreviewViewerClient({
             </button>
           </div>
 
-          {screenshotPath && (
+          {(fullScreenshotPath || screenshotPath) && (
             <button
               type="button"
-              onClick={() => setShowCompare(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10"
+              onClick={() => setShowCompare((prev) => !prev)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                showCompare
+                  ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-200"
+                  : "border-white/15 bg-white/5 text-white hover:bg-white/10"
+              }`}
             >
               <Columns2 className="h-3.5 w-3.5 text-emerald-400" />
-              Comparar Atual vs. Irroba
+              {showCompare ? "Voltar ao Preview Único" : "Comparar Atual vs. Irroba"}
             </button>
           )}
 
@@ -108,58 +115,31 @@ export default function PreviewViewerClient({
         </div>
       </header>
 
-      {/* Isolated Storefront Iframe */}
-      <main className="flex flex-1 items-center justify-center overflow-hidden bg-slate-800 p-0 sm:p-2">
-        <iframe
-          src={`/render/${slug}`}
-          title={`Preview Beta Irroba - ${storeName}`}
-          className={`h-full bg-white shadow-2xl transition-all duration-300 ${
-            device === "mobile"
-              ? "w-[390px] rounded-2xl border-8 border-slate-950"
-              : "w-full sm:rounded-lg"
-          }`}
-        />
-      </main>
-
-      {/* Compare Modal */}
-      {showCompare && screenshotPath && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-slate-900 text-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
-              <div>
-                <h2 className="text-sm font-bold">Comparativo Visual: Site Atual vs. Irroba (LIME)</h2>
-                <p className="text-xs text-slate-400">{sourceUrl}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCompare(false)}
-                className="rounded-lg bg-white/10 p-1.5 hover:bg-white/20"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="grid flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-2">
-              <div className="flex flex-col overflow-hidden rounded-xl border border-white/10 bg-slate-950">
-                <div className="border-b border-white/10 px-3 py-2 text-xs font-semibold text-slate-300">
-                  Site Atual ({detectedPlatform})
-                </div>
-                <div className="flex-1 overflow-auto bg-white">
-                  <img src={screenshotPath} alt="Site atual" className="w-full object-contain" />
-                </div>
-              </div>
-              <div className="flex flex-col overflow-hidden rounded-xl border border-emerald-500/40 bg-slate-950">
-                <div className="border-b border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300">
-                  Nova Experiência na Irroba (Interativo)
-                </div>
-                <iframe
-                  src={`/render/${slug}`}
-                  title="Comparativo Irroba"
-                  className="min-h-[420px] flex-1 bg-white"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Main Viewport: Full-Height Scrollable Split Compare OR Single Storefront */}
+      {showCompare ? (
+        <main className="flex min-h-0 flex-1 overflow-hidden">
+          <StoreCompareView
+            storeName={storeName}
+            sourceUrl={sourceUrl}
+            detectedPlatform={detectedPlatform}
+            fullScreenshotPath={fullScreenshotPath}
+            screenshotPath={screenshotPath}
+            proposalSrc={`/render/${slug}`}
+            onClose={() => setShowCompare(false)}
+          />
+        </main>
+      ) : (
+        <main className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-800 p-0 sm:p-2">
+          <iframe
+            src={`/render/${slug}`}
+            title={`Preview Beta Irroba - ${storeName}`}
+            className={`h-full bg-white shadow-2xl transition-all duration-300 ${
+              device === "mobile"
+                ? "w-[390px] rounded-2xl border-8 border-slate-950"
+                : "w-full sm:rounded-lg"
+            }`}
+          />
+        </main>
       )}
 
       {/* Fallback Approve Modal when no WhatsApp is set */}

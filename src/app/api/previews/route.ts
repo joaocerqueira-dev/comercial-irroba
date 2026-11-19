@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 
 export async function GET() {
   const previews = await prisma.storePreview.findMany({
+    where: { status: "ready" },
     orderBy: { createdAt: "desc" },
     take: 30,
     select: {

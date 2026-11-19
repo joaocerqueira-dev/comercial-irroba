@@ -58,14 +58,14 @@ function renderTarjaBenefitsHtml(bp: StoreBlueprint): string {
       .slice(0, 6)
       .map(
         (rawUrl, idx) =>
-          `<div style="flex:1 1 150px;max-width:240px;display:flex;align-items:center;justify-content:center;">
+          `<div style="flex:1 1 120px;max-width:195px;display:flex;align-items:center;justify-content:center;">
   <img src="${escapeAttr(sanitizeUrl(rawUrl, ""))}" alt="Benefício ${idx + 1}" referrerpolicy="no-referrer" style="max-height:${maxHeightPx}px;width:auto;max-width:100%;height:auto;object-fit:contain;display:block;" />
 </div>`
       )
       .join("\n      ");
 
     return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:${paddingY}px 16px;box-sizing:border-box;">
-  <div style="max-width:${maxWidthCss};margin:0 auto;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:center;">
+  <div style="max-width:${maxWidthCss};margin:0 auto;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:center;">
       ${imgsHtml}
   </div>
 </div>`;
@@ -131,8 +131,14 @@ function renderSlimBannerHtml(bp: StoreBlueprint): string {
 
 function splitHeadlineForItalicAccent(raw: string): { lead: string; accent: string } {
   const words = raw.trim().split(/\s+/).filter(Boolean);
-  if (words.length <= 2) {
-    return { lead: words[0] ?? "Coleção", accent: words.slice(1).join(" ") || "Exclusiva" };
+  if (words.length === 0) {
+    return { lead: "Explore", accent: "Coleções" };
+  }
+  if (words.length === 1) {
+    return { lead: "Explore", accent: words[0] };
+  }
+  if (words.length === 2) {
+    return { lead: words[0], accent: words[1] };
   }
   return {
     lead: words.slice(0, -1).join(" "),
@@ -189,10 +195,10 @@ function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
 
       return `<a href="${href}" data-irb-cat="${escapeAttr(item.title)}" style="position:relative;flex:1 0 min(260px,74vw);scroll-snap-align:start;aspect-ratio:3/4;min-height:340px;border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#141416;color:#ffffff;box-sizing:border-box;">
     ${mediaMarkup}
-    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.18) 0%,rgba(0,0,0,0.03) 40%,rgba(0,0,0,0.82) 100%);"></div>
-    <div style="position:absolute;top:18px;left:18px;right:18px;display:flex;align-items:center;justify-content:space-between;">
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.52) 0%,rgba(0,0,0,0.16) 24%,rgba(0,0,0,0.03) 48%,rgba(0,0,0,0.82) 100%);"></div>
+    <div style="position:absolute;top:18px;left:18px;right:18px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span style="font-size:10px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:rgba(255,255,255,0.92);padding:5px 10px;border:1px solid rgba(255,255,255,0.3);border-radius:999px;background:rgba(0,0,0,0.22);">${indexStr} / ${totalStr}</span>
-      <span style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.78);">${subtitle}</span>
+      <span style="font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.92);background:rgba(0,0,0,0.3);padding:4px 9px;border-radius:999px;">${subtitle}</span>
     </div>
     <div style="position:absolute;left:22px;right:22px;bottom:22px;color:#ffffff;">
       <div style="font-family:'${headingFont}',sans-serif;font-size:clamp(21px,2.1vw,27px);font-weight:400;line-height:1.1;letter-spacing:-0.01em;margin:0 0 12px 0;">${title}</div>
@@ -821,13 +827,36 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     )
     .join("");
 
-  // Detect appropriate variations for PDP by niche
+  // Detect appropriate variations for PDP by niche and product/category context
   const nicheLower = bp.brand.niche.toLowerCase();
-  const variationSizes = /calçado|calcado|sapato|bota|tenis|vegano/.test(nicheLower)
-    ? ["34", "35", "36", "37", "38", "39", "40"]
-    : /moda|roupa|vestid|camisa/.test(nicheLower)
-      ? ["PP", "P", "M", "G", "GG"]
-      : ["Padrão"];
+  const productContext =
+    visibleProducts
+      .slice(0, 12)
+      .map((p) => `${p.category || ""} ${p.title || ""}`)
+      .join(" ")
+      .toLowerCase() +
+    " " +
+    bp.sections.categories
+      .map((c) => c.label)
+      .join(" ")
+      .toLowerCase();
+  const fullVariationContext = `${nicheLower} ${productContext}`;
+  const isFootwear =
+    /\b(calçado|calcado|calçados|calcados|sapato|sapatos|bota|botas|coturno|coturnos|creeper|creepers|sandália|sandalia|sandálias|sandalias|tênis|tenis|sneaker|mocassim|salto)\b/i.test(
+      fullVariationContext
+    );
+  const isApparel =
+    /\b(moda|vestuário|vestuario|roupa|roupas|vestido|vestidos|camisa|camisas|camiseta|camisetas|blusa|blusas|blazer|blazers|calça|calças|calca|calcas|body|saia|saias)\b/i.test(
+      fullVariationContext
+    );
+  const variationSizes =
+    isFootwear && !/vestido|blusa|blazer|camiseta/.test(productContext)
+      ? ["34", "35", "36", "37", "38", "39", "40"]
+      : isApparel
+        ? ["PP", "P", "M", "G", "GG"]
+        : isFootwear
+          ? ["34", "35", "36", "37", "38", "39", "40"]
+          : ["Padrão"];
 
   const sanitizedProducts = visibleProducts.map((p) => ({
     ...p,
@@ -927,7 +956,7 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 20px;
+      gap: 14px;
       padding: 14px 0;
     }
     .headerContent--layout-2 { flex-direction: column; gap: 10px; }
@@ -950,13 +979,17 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     }
     .headerContent_navInline {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       align-items: center;
       justify-content: center;
-      gap: 22px;
+      gap: 14px;
       flex: 1 1 auto;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
       padding: 0 12px;
     }
+    .headerContent_navInline::-webkit-scrollbar { display: none; }
     .headerContent_actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .headerIconBtn {
       position: relative;
@@ -1103,18 +1136,33 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
     .categoryLink {
       text-decoration: none;
       color: var(--header-foreground);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       text-transform: ${bp.visualOverrides.header.categoryCase};
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: color .15s, opacity .15s;
       cursor: pointer;
     }
     .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
 
     @media (max-width: 900px) {
-      .headerMenuBtn { display: inline-flex; }
+      .headerMenuBtn { display: inline-flex; flex-shrink: 0; }
       .headerContent_navInline, .headerContent_categories { display: none; }
+      .headerLeftGroup { min-width: 0; flex: 1 1 auto; }
+      .headerContent_logo { min-width: 0; max-width: 100%; }
+      .headerContent_logo_text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    }
+    @media (max-width: 640px) {
+      .container { padding: 0 12px; }
+      .headerContent { gap: 8px; padding: 10px 0; }
+      .headerLeftGroup { gap: 6px; min-width: 0; flex: 1 1 auto; }
+      .headerContent_logo { min-width: 0; max-width: 100%; }
+      .headerContent_logo_img { max-height: 34px; max-width: 128px; }
+      .headerContent_logo_text { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .headerContent_actions { gap: 2px; flex-shrink: 0; }
+      .headerIconBtn { width: 34px; height: 34px; }
     }
 
     /* Views Control */
@@ -2127,6 +2175,9 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
         activePdpProduct = product;
         pdpQty = 1;
         document.getElementById('irb-pdp-qty').textContent = '1';
+        const sizeBtns = Array.from(document.querySelectorAll('.pdpSizeBtn'));
+        sizeBtns.forEach((b, idx) => b.classList.toggle('active', idx === 0));
+        activeSize = sizeBtns[0] ? (sizeBtns[0].getAttribute('data-size-opt') || 'Padrão') : 'Padrão';
 
         const images = (product.images && product.images.length > 0 ? product.images : [product.imageUrl]).filter(Boolean);
         const mainImg = document.getElementById('irb-pdp-img');
@@ -2164,6 +2215,8 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
             : '';
         document.getElementById('irb-pdp-installments').textContent = product.installmentsText || '';
         document.getElementById('irb-pdp-desc').textContent = product.description || '';
+        const cepInput = document.getElementById('irb-cep-input');
+        if (cepInput) cepInput.value = '';
         document.getElementById('irb-cep-result').style.display = 'none';
 
         const relatedGrid = document.getElementById('irb-pdp-related');
@@ -2304,7 +2357,15 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
         searchInput.addEventListener('input', () => renderLiveSearchSuggestions(searchInput.value));
       }
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') setSearchOpen(false);
+        if (e.key === 'Escape') {
+          setSearchOpen(false);
+          const accountModal = document.getElementById('irb-account-modal');
+          const cartDrawer = document.getElementById('irb-cart-drawer');
+          const mobileDrawer = document.getElementById('irb-mobile-drawer');
+          if (accountModal) accountModal.classList.remove('open');
+          if (cartDrawer) cartDrawer.classList.remove('open');
+          if (mobileDrawer) mobileDrawer.classList.remove('open');
+        }
       });
 
       document.getElementById('irb-search-form').addEventListener('submit', (e) => {
@@ -2434,12 +2495,18 @@ export function compileStorefrontDocument(bp: StoreBlueprint): string {
       document.getElementById('irb-mobile-close').addEventListener('click', () => {
         document.getElementById('irb-mobile-drawer').classList.remove('open');
       });
+      const accountModalEl = document.getElementById('irb-account-modal');
       document.getElementById('irb-open-account').addEventListener('click', () => {
-        document.getElementById('irb-account-modal').classList.add('open');
+        if (accountModalEl) accountModalEl.classList.add('open');
       });
       document.getElementById('irb-account-close').addEventListener('click', () => {
-        document.getElementById('irb-account-modal').classList.remove('open');
+        if (accountModalEl) accountModalEl.classList.remove('open');
       });
+      if (accountModalEl) {
+        accountModalEl.addEventListener('click', (e) => {
+          if (e.target === accountModalEl) accountModalEl.classList.remove('open');
+        });
+      }
     })();
   </script>
 </body>

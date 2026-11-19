@@ -16,6 +16,14 @@ export default async function PublicPreviewPage({
     notFound();
   }
 
+  const extractedObj =
+    preview.extractedData && typeof preview.extractedData === "object"
+      ? (preview.extractedData as { fullScreenshotPath?: string })
+      : null;
+  const fullScreenshotPath =
+    extractedObj?.fullScreenshotPath ??
+    (preview.screenshotPath ? `/api/captures/${preview.slug}-full.png` : null);
+
   return (
     <PreviewViewerClient
       slug={preview.slug}
@@ -23,6 +31,7 @@ export default async function PublicPreviewPage({
       sourceUrl={preview.sourceUrl}
       detectedPlatform={preview.detectedPlatform ?? "E-commerce"}
       screenshotPath={preview.screenshotPath}
+      fullScreenshotPath={fullScreenshotPath}
       sellerWhatsapp={preview.sellerWhatsapp}
     />
   );

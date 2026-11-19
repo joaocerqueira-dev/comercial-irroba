@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
+import { contrastRatio } from "@/lib/ai/color-utils";
 import {
   compileIrrobaExport,
   compileProductsCsv,
@@ -221,5 +222,140 @@ describe("Irroba LIME Compiler & Export", () => {
     expect(csv).toContain("Bota Vegana Classic");
     expect(csv).toContain("299,90");
     expect(csv).toContain("349,90");
+  });
+
+  it('renders single-word moodSectionTitle "Coleções" as "Explore Coleções" without "Coleções Exclusiva"', () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    bp.sections.moodSectionTitle = "Coleções";
+    const html = compileStorefrontDocument(bp);
+
+    expect(html).not.toContain("Coleções Exclusiva");
+    expect(html).toMatch(/Explore\s*<em[^>]*>Coleções<\/em>/);
+  });
+
+  it("renders apparel size grid (PP–GG) instead of shoe sizes (34–40) for clothing stores", () => {
+    const bp = buildHeuristicBlueprint(
+      makeSampleExtracted({
+        storeName: "Ateliê Moda Vegana",
+        description: "Roupas autorais e sustentáveis sem crueldade animal.",
+        categories: [
+          { label: "Blazers", href: "https://example.com/blazers" },
+          { label: "Camisetas", href: "https://example.com/camisetas" },
+          { label: "Vestidos", href: "https://example.com/vestidos" },
+        ],
+        products: [
+          {
+            id: "a1",
+            title: "Blazer Alfaiataria Linho",
+            price: 389.9,
+            imageUrl: "https://cdn.example.com/blazer.jpg",
+            images: ["https://cdn.example.com/blazer.jpg"],
+            category: "Blazers",
+            categories: ["Blazers"],
+          },
+          {
+            id: "a2",
+            title: "Camiseta Algodão Orgânico",
+            price: 129.9,
+            imageUrl: "https://cdn.example.com/camiseta.jpg",
+            images: ["https://cdn.example.com/camiseta.jpg"],
+            category: "Camisetas",
+            categories: ["Camisetas"],
+          },
+          {
+            id: "a3",
+            title: "Vestido Midi Fluido",
+            price: 279.9,
+            imageUrl: "https://cdn.example.com/vestido.jpg",
+            images: ["https://cdn.example.com/vestido.jpg"],
+            category: "Vestidos",
+            categories: ["Vestidos"],
+          },
+        ],
+      })
+    );
+
+    const html = compileStorefrontDocument(bp);
+    expect(html).toContain('data-size-opt="PP"');
+    expect(html).toContain('data-size-opt="M"');
+    expect(html).toContain('data-size-opt="G"');
+    expect(html).not.toContain('data-size-opt="34"');
+    expect(html).not.toContain('data-size-opt="40"');
+  });
+
+  it("includes mobile header CSS constraints in @media (max-width: 640px) so cart icon stays visible", () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    const html = compileStorefrontDocument(bp);
+
+    const mediaIdx = html.indexOf("@media (max-width: 640px)");
+    expect(mediaIdx).toBeGreaterThan(-1);
+    const mobileCssSlice = html.slice(mediaIdx, mediaIdx + 700);
+    expect(mobileCssSlice).toContain("max-width: 128px");
+    expect(mobileCssSlice).toContain("width: 34px");
+  });
+
+  it("auto-fixes dark foregrounds (#333333) on dark announcement and footer backgrounds for WCAG legibility", () => {
+    const bp = buildHeuristicBlueprint(
+      makeSampleExtracted({
+        tokens: {
+          bodyBackground: "#FFFFFF",
+          bodyForeground: "#111827",
+          primaryButtonBg: "#026526",
+          announcementBackground: "#111827",
+          announcementForeground: "#333333",
+          footerBackground: "#141414",
+          footerForeground: "#333333",
+          headerIsOverlay: false,
+        },
+      })
+    );
+
+    expect(bp.visualOverrides.announcement.foreground).not.toBe("#333333");
+    expect(
+      contrastRatio(
+        bp.visualOverrides.announcement.background,
+        bp.visualOverrides.announcement.foreground
+      )
+    ).toBeGreaterThanOrEqual(4.5);
+
+    expect(bp.theme.secondaryForeground).not.toBe("#333333");
+    expect(bp.visualOverrides.footer.foreground).not.toBe("#333333");
+    expect(
+      contrastRatio(bp.visualOverrides.footer.background, bp.visualOverrides.footer.foreground)
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(
+      contrastRatio(
+        bp.visualOverrides.footer.legalBackground,
+        bp.visualOverrides.footer.legalForeground
+      )
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("applies desktop single-line nav, editorial top contrast, compact 6-item tarja, Escape/backdrop modal close, and PDP reset", () => {
+    const bp = buildHeuristicBlueprint(
+      makeSampleExtracted({
+        banners: [
+          { imageUrl: "https://cdn.example.com/hero.jpg", slot: "hero" },
+          ...Array.from({ length: 6 }, (_, i) => ({
+            imageUrl: `https://cdn.example.com/benefit-${i + 1}.webp`,
+            slot: "benefits" as const,
+          })),
+        ],
+      })
+    );
+
+    const html = compileStorefrontDocument(bp);
+    expect(html).toContain("flex-wrap: nowrap");
+    expect(html).toContain(".headerContent_navInline::-webkit-scrollbar { display: none; }");
+    expect(html).toContain("rgba(0,0,0,0.52) 0%,rgba(0,0,0,0.16) 24%");
+    expect(html).toContain("background:rgba(0,0,0,0.3);padding:4px 9px;border-radius:999px;");
+    expect(html).toContain("flex:1 1 120px;max-width:195px;");
+    expect(html).toContain("gap:12px;");
+    expect(html).toContain("accountModal.classList.remove('open')");
+    expect(html).toContain("cartDrawer.classList.remove('open')");
+    expect(html).toContain("mobileDrawer.classList.remove('open')");
+    expect(html).toContain("if (e.target === accountModalEl) accountModalEl.classList.remove('open');");
+    expect(html).toContain("document.querySelectorAll('.pdpSizeBtn')");
+    expect(html).toContain("cepInput.value = ''");
   });
 });

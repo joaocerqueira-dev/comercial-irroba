@@ -22,6 +22,14 @@ export default async function StudioPage({
     notFound();
   }
 
+  const extractedObj =
+    preview.extractedData && typeof preview.extractedData === "object"
+      ? (preview.extractedData as { fullScreenshotPath?: string })
+      : null;
+  const fullScreenshotPath =
+    extractedObj?.fullScreenshotPath ??
+    (preview.screenshotPath ? `/api/captures/${preview.slug}-full.png` : null);
+
   return (
     <StudioClient
       id={preview.id}
@@ -30,6 +38,8 @@ export default async function StudioPage({
       detectedPlatform={preview.detectedPlatform ?? "E-commerce"}
       generationMode={preview.generationMode}
       initialWhatsapp={preview.sellerWhatsapp ?? ""}
+      screenshotPath={preview.screenshotPath}
+      fullScreenshotPath={fullScreenshotPath}
       initialBlueprint={parsedBlueprint.data}
     />
   );
