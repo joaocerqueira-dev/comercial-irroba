@@ -454,7 +454,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         enabled: true,
         mode: "image",
         imageUrl: slimExtracted.imageUrl,
-        badgeText: DEFAULT_COPY.slimBadgeImage,
+        badgeText: DEFAULT_COPY.slimBadge,
         headline: slimExtracted.alt || `Condições especiais na ${extracted.storeName}`,
         ctaText: DEFAULT_COPY.slimCtaImage,
         backgroundColor: secondaryBackground,
@@ -464,7 +464,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         enabled: true,
         mode: "designed",
         imageUrl: "",
-        badgeText: DEFAULT_COPY.slimBadgeDesigned,
+        badgeText: DEFAULT_COPY.slimBadge,
         headline:
           extracted.announcementText ||
           `5% OFF no PIX + Parcele em até 6x sem juros na ${extracted.storeName}`,

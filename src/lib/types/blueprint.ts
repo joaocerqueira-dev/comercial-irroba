@@ -1,3 +1,4 @@
+import { DEFAULT_COPY } from "@/lib/layout-patterns/copy";
 import { z } from "zod";
 
 export const ExtractedProductSchema = z.object({
@@ -292,7 +293,7 @@ export const StoreBlueprintSchema = z.object({
         enabled: z.boolean().default(true),
         mode: z.enum(["image", "designed"]).default("designed"),
         imageUrl: z.string().max(4000000).default(""),
-        badgeText: z.string().max(5000).default("OFERTA ESPECIAL"),
+        badgeText: z.string().max(5000).default(DEFAULT_COPY.slimBadge),
         headline: z.string().max(5000).default("Ganhe 5% OFF no PIX e parcelamento sem juros"),
         ctaText: z.string().max(5000).default("Aproveitar"),
         backgroundColor: z.string().max(5000).default("#111827"),

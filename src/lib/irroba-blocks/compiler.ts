@@ -129,7 +129,7 @@ function renderSlimBannerHtml(bp: StoreBlueprint): string {
   return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:18px 20px;box-sizing:border-box;">
   <div style="max-width:${CONTAINER_WIDTH_PX}px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
-      <span style="background:${btnBg};color:${btnFg};font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:${radius};">${escapeHtml(slim?.badgeText || DEFAULT_COPY.slimBadgeCompilerFallback)}</span>
+      <span style="background:${btnBg};color:${btnFg};font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:${radius};">${escapeHtml(slim?.badgeText || DEFAULT_COPY.slimBadge)}</span>
       <span style="font-size:16px;font-weight:600;">${escapeHtml(slim?.headline || bp.sections.announcementText)}</span>
     </div>
     <a href="#vitrines" style="display:inline-block;padding:10px 20px;border:1px solid ${fg};color:${fg};text-decoration:none;font-size:13px;font-weight:700;border-radius:${radius};">${escapeHtml(slim?.ctaText || "Aproveitar")}</a>

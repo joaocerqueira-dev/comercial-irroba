@@ -5,12 +5,10 @@ export const DEFAULT_COPY = {
     `em até ${n}x de R$ ${(price / n).toFixed(2).replace(".", ",")} sem juros`,
   announcement: "Frete Grátis em compras selecionadas • 5% OFF no PIX • Parcele em até 6x sem juros",
   heroCta: "Ver Coleção",
-  slimBadgeImage: "CAMPANHA",
-  slimBadgeDesigned: "VANTAGEM EXCLUSIVA",
+  /** Selo único da faixa promocional (schema, heurística e compiler). */
+  slimBadge: "OFERTA ESPECIAL",
   slimCtaImage: "Conferir",
   slimCtaDesigned: "Aproveitar Agora",
-  /** Badge usado pelo compiler quando o blueprint não traz um. */
-  slimBadgeCompilerFallback: "OFERTA",
   moodSectionTitle: "Explore por Estilo & Categoria",
   showcase1Title: "Destaques da Coleção",
   showcase1Subtitle: "Os favoritos dos nossos clientes com entrega para todo o Brasil",
