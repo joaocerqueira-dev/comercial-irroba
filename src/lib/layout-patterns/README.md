@@ -15,13 +15,12 @@ Ordem das seções e defaults do schema continuam em `src/lib/types/blueprint.ts
 
 ## Ainda não centralizado
 - Regras de slot de banner e tamanho mínimo de CTA (`scraper/store-extractor.ts`): rodam dentro de `page.evaluate` e só aceitam valores serializados. Para centralizar, passar as constantes como argumento do evaluate.
-- Prompt do Gemini (`architect.ts`, enums de fontes e paddings) e `components/studio/fontOptions.ts`: as listas de fontes divergem de `typography.ts`.
+- Enum de paddings no prompt do Gemini.
 - Regex "não vestuário" duplicada em `architect.ts` e `compiler.ts`.
 - Cores literais dentro do CSS grande do compiler (`color: #111827` etc.).
 
-## Comportamentos suspeitos (preservados de propósito)
-1. Tom `minimal` usa o par esportivo e o par `editorial` (Playfair/Lora) nunca é escolhido. Ver `TONE_FONT_PAIRING`.
-2. O merge do Gemini aceita qualquer fonte, sem validar contra uma lista.
-3. Heurística preserva o foreground da loja; o merge do Gemini sempre recalcula.
-4. Selo do slim: "VANTAGEM EXCLUSIVA"/"CAMPANHA" (heurística), "OFERTA ESPECIAL" (schema), "OFERTA" (compiler).
-5. Depoimentos inventados (Mariana S., …) aparecem como avaliações reais.
+## Regras de comportamento
+- Fontes: o par é escolhido pelo nicho do texto da loja (`FONT_PAIRINGS[*].niches`, prioridade em `FONT_PAIRING_PRIORITY`). Sem nicho reconhecido, vale o tom (`TONE_FONT_PAIRING`). A IA só pode sugerir fontes de `ALLOWED_FONTS`, a mesma lista do Studio.
+- Cor do texto: heurística e Gemini usam `ensureReadableForeground`, que mantém a cor da loja se o contraste for de pelo menos 4.5:1.
+- Selo da faixa promocional: único, `DEFAULT_COPY.slimBadge`.
+- Depoimentos gerados ficam com `testimonialsIllustrative: true`, e a vitrine mostra um aviso.
