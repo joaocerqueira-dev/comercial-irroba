@@ -1,30 +1,27 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
-import { StoreBlueprintSchema } from "@/lib/types/blueprint";
 import { compileProductsCsv } from "@/lib/irroba-blocks/compiler";
+import { getPreviewWithBlueprint } from "@/lib/previews/repository";
 
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  const preview = await prisma.storePreview.findUnique({ where: { id } });
+  const result = await getPreviewWithBlueprint({ id });
 
-  if (!preview || !preview.blueprint) {
+  if (result.status === "not_found") {
     return new Response("Not found", { status: 404 });
   }
-
-  const parsed = StoreBlueprintSchema.safeParse(preview.blueprint);
-  if (!parsed.success) {
+  if (result.status === "invalid") {
     return new Response("Invalid blueprint", { status: 500 });
   }
 
-  const csv = compileProductsCsv(parsed.data);
+  const csv = compileProductsCsv(result.blueprint);
 
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="produtos-${preview.slug}.csv"`,
+      "Content-Disposition": `attachment; filename="produtos-${result.preview.slug}.csv"`,
     },
   });
 }

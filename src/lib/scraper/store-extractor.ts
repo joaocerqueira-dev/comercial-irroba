@@ -1,8 +1,13 @@
+import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
+import { getSharedBrowser } from "./browser";
+import { isPublicHttpUrl } from "@/lib/net/safe-url";
+import { mirrorFilePrefix } from "@/lib/files/captures";
+import { fetchPublic, followPublicRedirects } from "@/lib/net/safe-fetch";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
-import { chromium, type APIRequestContext } from "playwright";
+import type { APIRequestContext } from "playwright";
 import { detectPlatform } from "./platform-detector";
 import type {
   ExtractedBanner,
@@ -292,7 +297,19 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     "header a[href]",
     ".header a[href]",
   ];
-  for (const sel of navSelectors) {
+  // Tema Irroba: menu principal fica em nav#menu, fora do <header>
+  $("nav#menu ul.navbar-nav > li.li-category > a").each((_, el) => {
+    if (categories.length >= 9) return;
+    const a = $(el);
+    if (a.closest(".mobile-store-informations, .visible-xs").length > 0) return;
+    const label = (a.text().replace(/\s+/g, " ").trim() || a.attr("title")?.trim() || "").trim();
+    const href = a.attr("href") ?? "#";
+    if (isUsefulNavLink(label, href) && !seenCats.has(label.toLowerCase())) {
+      seenCats.add(label.toLowerCase());
+      categories.push({ label, href: resolveAssetUrl(href, sourceUrl) ?? "#" });
+    }
+  });
+  for (const sel of categories.length >= 4 ? [] : navSelectors) {
     $(sel).each((_, el) => {
       if (categories.length >= 9) return;
       // Skip links inside dropdown megamenu sublists when primary links exist
@@ -338,9 +355,45 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     }
   });
 
+  // Tema Irroba: títulos de vitrine (.heading_title ao lado de .product_module)
+  $(".heading_title").each((_, el) => {
+    if (sectionHeadings.length >= 10) return;
+    const text = $(el).text().replace(/\s+/g, " ").trim();
+    if (text.length >= 3 && text.length <= 80 && !seenHeadings.has(text.toLowerCase())) {
+      seenHeadings.add(text.toLowerCase());
+      sectionHeadings.push(text);
+    }
+  });
+
   // Banners by slot
   const seenBanners = new Set<string>();
+  // Tema Irroba: carrossel principal (.banner-v2.banner-carousel .item)
+  const irrobaHero: ExtractedBanner[] = [];
+  $(".banner-v2.banner-carousel .item").each((_, el) => {
+    if (irrobaHero.length >= 3) return;
+    const item = $(el);
+    const link = item.find("a").first();
+    const img = item.find("picture img, img").first();
+    const raw =
+      item.find("source.src-desktop").attr("srcset") ||
+      img.attr("data-src") ||
+      img.attr("src") ||
+      img.attr("srcset");
+    const imageUrl = resolveAssetUrl(raw, sourceUrl);
+    if (!imageUrl || seenBanners.has(imageUrl) || imageUrl === logoUrl) return;
+    seenBanners.add(imageUrl);
+    const alt = link.attr("aria-label")?.trim() || img.attr("alt")?.trim() || undefined;
+    const rawHref = link.attr("href");
+    irrobaHero.push({
+      imageUrl,
+      alt,
+      href: rawHref && rawHref !== "#" ? resolveAssetUrl(rawHref, sourceUrl) : undefined,
+      slot: "hero",
+      label: alt && alt.length <= 48 ? alt : undefined,
+    });
+  });
   const heroBanners = [
+    ...irrobaHero,
     ...collectBannersFromSelector(
       $,
       "[data-store='home-hero'] img, .js-home-slider img, .hero-slider img, [class*='hero'] img",
@@ -348,7 +401,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
       sourceUrl,
       logoUrl,
       seenBanners,
-      3
+      Math.max(0, 3 - irrobaHero.length)
     ),
   ];
   if (heroBanners.length === 0) {
@@ -377,7 +430,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
   const moodBanners = collectBannersFromSelector(
     $,
-    "[data-store*='mood'] a, [class*='mood'] a, [class*='mosaic'] a, [class*='banner-categories'] a",
+    ".banner-v2.banner-grid .image a, [data-store*='mood'] a, [class*='mood'] a, [class*='mosaic'] a, [class*='banner-categories'] a",
     "mood",
     sourceUrl,
     logoUrl,
@@ -462,6 +515,56 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     } catch {
       // ignore non-product JSON scripts
     }
+  });
+
+  // Tema Irroba: cards .product-thumb (dentro de .product-itens-list)
+  $(".product-thumb").each((_, el) => {
+    if (products.length >= 16) return;
+    const card = $(el);
+    const nameLink = card.find("h3.list_product_name a").first();
+    const title = (
+      nameLink.find("span").first().text().replace(/\s+/g, " ").trim() ||
+      nameLink.attr("title")?.trim() ||
+      ""
+    ).trim();
+    const price = parseBrlPrice(card.find(".caption p.price, .caption .price-new, .caption .price").first().text());
+    const compareAtPrice = parseBrlPrice(card.find(".caption .price-old, .caption del, .caption s").first().text());
+    const imgEl = card.find(".image img").first();
+    const imageUrl = resolveAssetUrl(imgEl.attr("data-src") || imgEl.attr("src"), sourceUrl);
+    const auxUrl = resolveAssetUrl(imgEl.attr("data-aux-src"), sourceUrl);
+    const productUrl = resolveAssetUrl(
+      card.find(".image a[href]").first().attr("href") || nameLink.attr("href"),
+      sourceUrl
+    );
+    const badge = card.find(".label-product").first().text().replace(/\s+/g, " ").trim() || undefined;
+    const sizes = Array.from(
+      new Set(
+        card
+          .find(".product-sizes .size-name")
+          .map((_, s) => $(s).text().replace(/\s+/g, " ").trim())
+          .get()
+          .filter(Boolean)
+      )
+    );
+    if (!title || title.length <= 2 || !imageUrl || !price || seenProducts.has(title.toLowerCase())) return;
+    seenProducts.add(title.toLowerCase());
+    const matchedCats = categories
+      .filter((c) => title.toLowerCase().includes(c.label.toLowerCase().replace(/s$/, "")))
+      .map((c) => c.label);
+    const primaryCat = matchedCats[0] ?? categories[0]?.label ?? "Destaques";
+    products.push({
+      id: `prod-dom-${products.length + 1}`,
+      title: title.slice(0, 120),
+      price,
+      compareAtPrice: compareAtPrice && compareAtPrice > price ? compareAtPrice : undefined,
+      imageUrl,
+      images: auxUrl && auxUrl !== imageUrl ? [imageUrl, auxUrl] : [imageUrl],
+      productUrl,
+      category: primaryCat,
+      categories: matchedCats.length > 0 ? matchedCats : [primaryCat],
+      badge: badge && badge.length <= 40 ? badge : undefined,
+      sizes: sizes.length > 0 ? sizes.slice(0, 12) : undefined,
+    });
   });
 
   const cardSelectors = [
@@ -617,15 +720,37 @@ async function tryShopifyProductsProbe(sourceUrl: string): Promise<ExtractedProd
   }
 }
 
+export interface ExtractProgress {
+  step: "fetch" | "render" | "screenshot" | "parse" | "images" | "fallback";
+  message: string;
+  /** 0..1 dentro da fase de extração */
+  fraction: number;
+}
+
+export interface ExtractOptions {
+  onProgress?: (p: ExtractProgress) => void;
+  signal?: AbortSignal;
+}
+
 export async function extractStoreFromUrl(
   rawUrl: string,
-  slug: string
+  slug: string,
+  options: ExtractOptions = {}
 ): Promise<ExtractedStoreData> {
+  const { onProgress, signal } = options;
+  const report = (p: ExtractProgress) => {
+    try {
+      onProgress?.(p);
+    } catch {
+      // progresso nunca deve quebrar a extração
+    }
+  };
   const normalizedUrl = rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`;
   const capturesDir = path.join(process.cwd(), "public", "captures");
   await fs.mkdir(capturesDir, { recursive: true });
   const screenshotFile = `${slug}.png`;
-  const fullScreenshotFile = `${slug}-full.png`;
+  // Screenshot completo em JPEG: bem menor que PNG para páginas longas
+  const fullScreenshotFile = `${slug}-full.jpg`;
   const screenshotDiskPath = path.join(capturesDir, screenshotFile);
   const fullScreenshotDiskPath = path.join(capturesDir, fullScreenshotFile);
   const screenshotPublicPath = `/api/captures/${screenshotFile}`;
@@ -633,12 +758,12 @@ export async function extractStoreFromUrl(
 
   // Layer 1: Fast HTTP probe
   let fastHtml = "";
-  let fastHeaders: Record<string, string> = {};
+  const fastHeaders: Record<string, string> = {};
   try {
     const res = await fetch(normalizedUrl, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          BROWSER_USER_AGENT,
         Accept: "text/html,application/xhtml+xml",
       },
       signal: AbortSignal.timeout(8000),
@@ -654,25 +779,29 @@ export async function extractStoreFromUrl(
   const fastPlatform = fastHtml ? detectPlatform(fastHtml, fastHeaders) : "Desconhecida";
 
   // Layer 2: Deep Playwright render + full scroll + computed palette & banners
-  let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+  let context: Awaited<ReturnType<Awaited<ReturnType<typeof getSharedBrowser>>["newContext"]>> | null = null;
   try {
-    browser = await chromium.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-    });
+    signal?.throwIfAborted();
+    report({ step: "render", message: "Abrindo a loja no navegador...", fraction: 0.1 });
+    const browser = await getSharedBrowser();
 
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: "pt-BR",
       userAgent:
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        BROWSER_USER_AGENT,
     });
 
     const page = await context.newPage();
-    await page.route("**/*", (route) => {
-      const reqUrl = route.request().url().toLowerCase();
+    await page.route("**/*", async (route) => {
+      const rawReqUrl = route.request().url();
+      const reqUrl = rawReqUrl.toLowerCase();
       if (BLOCKED_TRACKER_PATTERNS.some((p) => reqUrl.includes(p))) {
         return route.abort();
+      }
+      // SSRF: bloqueia qualquer requisição http(s) do navegador para rede interna
+      if (/^https?:/i.test(rawReqUrl) && !(await isPublicHttpUrl(rawReqUrl))) {
+        return route.abort("blockedbyclient");
       }
       return route.continue();
     });
@@ -692,7 +821,11 @@ export async function extractStoreFromUrl(
     await page.waitForTimeout(900);
 
     await page.screenshot({ path: screenshotDiskPath, fullPage: false });
-    await page.screenshot({ path: fullScreenshotDiskPath, fullPage: true }).catch(() => undefined);
+    await page
+      .screenshot({ path: fullScreenshotDiskPath, fullPage: true, type: "jpeg", quality: 80 })
+      .catch(() => undefined);
+    signal?.throwIfAborted();
+    report({ step: "parse", message: "Screenshots capturados. Lendo produtos, banners e paleta...", fraction: 0.45 });
 
     const renderedHtml = await page.content();
 
@@ -799,7 +932,7 @@ export async function extractStoreFromUrl(
         if (/icon|logo|badge|selo|whatsapp|pix|visa|master|elo/i.test(src)) continue;
         if (
           img.closest(
-            ".product_card, .js-item-product, .product-item, .product-card, footer, [data-store*='benefit'], .home_benefits, .benefits"
+            ".product_card, .js-item-product, .product-item, .product-card, .product-thumb, footer, [data-store*='benefit'], .home_benefits, .benefits"
           )
         ) {
           continue;
@@ -848,8 +981,19 @@ export async function extractStoreFromUrl(
         })
         .find((i) => i.src && i.width >= 40 && i.height >= 16 && i.width <= 420);
 
+      // Tema Irroba: menu principal em nav#menu (fora do <header>)
+      const irrobaNavLinks = Array.from(
+        document.querySelectorAll<HTMLAnchorElement>("nav#menu ul.navbar-nav > li.li-category > a")
+      )
+        .filter((a) => !a.closest(".mobile-store-informations, .visible-xs"))
+        .map((a) => ({
+          label: (a.textContent || a.title || "").replace(/\s+/g, " ").trim(),
+          href: a.href,
+        }))
+        .filter((item) => item.label.length >= 2 && item.label.length <= 34);
+
       // Visible header nav links directly from live DOM
-      const liveNavLinks = Array.from(
+      const headerNavLinks = Array.from(
         document.querySelectorAll<HTMLAnchorElement>(
           ".header_nav_link, .header [class*='nav_link'], header [class*='nav_link'], header nav a, .header nav a, .js-nav-list-link, header a[href], .header a[href]"
         )
@@ -860,6 +1004,7 @@ export async function extractStoreFromUrl(
           href: a.href,
         }))
         .filter((item) => item.label.length >= 2 && item.label.length <= 34);
+      const liveNavLinks = irrobaNavLinks.length >= 3 ? irrobaNavLinks : headerNavLinks;
 
       return {
         bodyBackground,
@@ -968,7 +1113,13 @@ export async function extractStoreFromUrl(
     };
 
     await enrichProductsByCategory(parsed, normalizedUrl);
-    await mirrorCriticalImages(parsed, normalizedUrl, capturesDir, slug, page.request);
+    await mirrorCriticalImages(parsed, normalizedUrl, capturesDir, slug, page.request, (done, total) =>
+      report({
+        step: "images",
+        message: `Copiando imagens da loja (${done}/${total})...`,
+        fraction: 0.6 + 0.4 * (total ? done / total : 1),
+      })
+    );
 
     return parsed;
   } catch (error) {
@@ -980,38 +1131,43 @@ export async function extractStoreFromUrl(
         if (shopifyProducts.length > 0) fallback.products = shopifyProducts;
       }
       await enrichProductsByCategory(fallback, normalizedUrl);
+      report({ step: "fallback", message: "Navegador falhou; usando leitura rápida do HTML...", fraction: 0.5 });
       await mirrorCriticalImages(fallback, normalizedUrl, capturesDir, slug);
       return fallback;
     }
     throw error;
   } finally {
-    if (browser) {
-      await browser.close().catch(() => undefined);
+    if (context) {
+      await context.close().catch(() => undefined);
     }
   }
 }
 
-function extFromContentType(ct: string, url: string): string {
+/** Retorna null para SVG: SVG pode carregar script e não é espelhado. */
+function extFromContentType(ct: string, url: string): string | null {
   const lower = ct.toLowerCase();
+  if (lower.includes("svg")) return null;
+  if (/\.svg$/i.test(url.split("?")[0] ?? "")) return null;
   if (lower.includes("webp")) return ".webp";
   if (lower.includes("png")) return ".png";
   if (lower.includes("jpeg") || lower.includes("jpg")) return ".jpg";
-  if (lower.includes("svg")) return ".svg";
   if (lower.includes("gif")) return ".gif";
   if (lower.includes("avif")) return ".avif";
   const pathExt = path.extname(url.split("?")[0] ?? "").toLowerCase();
-  if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".avif"].includes(pathExt)) {
+  if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"].includes(pathExt)) {
     return pathExt === ".jpeg" ? ".jpg" : pathExt;
   }
   return ".jpg";
 }
 
-async function mirrorCriticalImages(
+/** Exportada para testes. */
+export async function mirrorCriticalImages(
   store: ExtractedStoreData,
   refererUrl: string,
   capturesDir: string,
   slug: string,
-  pwRequest?: APIRequestContext
+  pwRequest?: APIRequestContext,
+  onImageProgress?: (done: number, total: number) => void
 ): Promise<void> {
   const urlsToMirror = new Set<string>();
   const addUrl = (u?: string) => {
@@ -1034,15 +1190,24 @@ async function mirrorCriticalImages(
   const downloadOne = async (rawUrl: string): Promise<void> => {
     const hash = crypto.createHash("sha1").update(rawUrl).digest("hex").slice(0, 12);
     const tryDownload = async (candidateUrl: string): Promise<{ buf: Buffer; ct: string } | null> => {
+      // SSRF: valida antes de qualquer requisição (Playwright ou fetch)
+      if (!(await isPublicHttpUrl(candidateUrl))) return null;
       try {
         if (pwRequest) {
-          const res = await pwRequest.get(candidateUrl, {
-            headers: {
-              Referer: refererUrl,
-              Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-            },
-            timeout: 4500,
-          });
+          const res = await followPublicRedirects(
+            candidateUrl,
+            (u) =>
+              pwRequest.get(u, {
+                headers: {
+                  Referer: refererUrl,
+                  Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+                },
+                timeout: 4500,
+                maxRedirects: 0,
+              }),
+            (r) => ({ status: r.status(), location: r.headers()["location"] })
+          );
+          if (!res) return null;
           if (!res.ok()) return null;
           const ct = res.headers()["content-type"] || "";
           if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
@@ -1056,16 +1221,16 @@ async function mirrorCriticalImages(
         // fallback to native fetch below
       }
       try {
-        const res = await fetch(candidateUrl, {
+        const res = await fetchPublic(candidateUrl, {
           headers: {
             "User-Agent":
-              "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+              BROWSER_USER_AGENT,
             Referer: refererUrl,
             Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
           },
           signal: AbortSignal.timeout(4500),
         });
-        if (!res.ok) return null;
+        if (!res || !res.ok) return null;
         const ct = res.headers.get("content-type") || "";
         if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
           return null;
@@ -1088,7 +1253,8 @@ async function mirrorCriticalImages(
 
     if (!downloaded) return;
     const ext = extFromContentType(downloaded.ct, rawUrl);
-    const filename = `m-${slug.slice(0, 18)}-${hash}${ext}`;
+    if (!ext) return;
+    const filename = `${mirrorFilePrefix(slug)}${hash}${ext}`;
     const diskPath = path.join(capturesDir, filename);
     await fs.writeFile(diskPath, downloaded.buf);
     localMap.set(rawUrl, `/api/captures/${filename}`);
@@ -1098,6 +1264,7 @@ async function mirrorCriticalImages(
   const BATCH = 8;
   for (let i = 0; i < urlList.length; i += BATCH) {
     await Promise.allSettled(urlList.slice(i, i + BATCH).map((u) => downloadOne(u)));
+    onImageProgress?.(Math.min(i + BATCH, urlList.length), urlList.length);
   }
 
   const remap = (u?: string): string | undefined => (u ? localMap.get(u) ?? u : u);
@@ -1150,14 +1317,15 @@ async function enrichProductsByCategory(
 
   const results = await Promise.allSettled(
     candidateCategories.map(async (cat) => {
-      const res = await fetch(cat.href, {
+      const res = await fetchPublic(cat.href, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            BROWSER_USER_AGENT,
           Accept: "text/html,application/xhtml+xml",
         },
         signal: AbortSignal.timeout(4500),
       });
+      if (!res) throw new Error("URL interna bloqueada");
       if (!res.ok) return { cat, products: [] as ExtractedProduct[] };
       const html = await res.text();
       const catData = extractStoreFromHtml(html, cat.href);

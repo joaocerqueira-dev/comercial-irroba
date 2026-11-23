@@ -1,31 +1,25 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/db";
-import { StoreBlueprintSchema } from "@/lib/types/blueprint";
 import { compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
+import { getPreviewWithBlueprint } from "@/lib/previews/repository";
 
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await context.params;
-  const preview = await prisma.storePreview.findUnique({ where: { slug } });
+  const result = await getPreviewWithBlueprint({ slug });
 
-  if (!preview || !preview.blueprint) {
-    return new Response("<h1>Preview não encontrado</h1>", {
-      status: 404,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
+  if (result.status !== "ok") {
+    return new Response(
+      result.status === "not_found" ? "<h1>Preview não encontrado</h1>" : "<h1>Blueprint inválido</h1>",
+      {
+        status: result.status === "not_found" ? 404 : 500,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      }
+    );
   }
 
-  const parsed = StoreBlueprintSchema.safeParse(preview.blueprint);
-  if (!parsed.success) {
-    return new Response("<h1>Blueprint inválido</h1>", {
-      status: 500,
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-  }
-
-  const html = compileStorefrontDocument(parsed.data);
+  const html = compileStorefrontDocument(result.blueprint);
 
   return new Response(html, {
     headers: {

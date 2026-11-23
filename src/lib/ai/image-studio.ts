@@ -1,7 +1,10 @@
+import { mimeFromFilename } from "@/lib/files/mime";
+import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
+import { getSharedBrowser } from "@/lib/scraper/browser";
+import { fetchPublic } from "@/lib/net/safe-fetch";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { chromium } from "playwright";
 import { escapeHtml, sanitizeCssColor, sanitizeFontName } from "@/lib/irroba-blocks/sanitize";
 
 export type AiImageAspectRatio = "16:9" | "21:9" | "3:4" | "1:1";
@@ -25,6 +28,38 @@ export interface AiImageRequest {
     secondary: string;
     secondaryFg: string;
     neutral: string;
+  };
+}
+
+/** Monta o pedido de imagem a partir da identidade do blueprint (antes duplicado em generate e ai-image). */
+export function buildImageRequestFromBlueprint(
+  bp: {
+    brand: { name: string; niche: string };
+    theme: {
+      headingFont?: string;
+      bodyFont?: string;
+      primaryBackground: string;
+      primaryForeground: string;
+      secondaryBackground: string;
+      secondaryForeground: string;
+      neutralBackground: string;
+    };
+  },
+  req: Omit<AiImageRequest, "brandName" | "niche" | "headingFont" | "bodyFont" | "palette">
+): AiImageRequest {
+  return {
+    ...req,
+    brandName: bp.brand.name,
+    niche: bp.brand.niche,
+    headingFont: bp.theme.headingFont,
+    bodyFont: bp.theme.bodyFont,
+    palette: {
+      primary: bp.theme.primaryBackground,
+      primaryFg: bp.theme.primaryForeground,
+      secondary: bp.theme.secondaryBackground,
+      secondaryFg: bp.theme.secondaryForeground,
+      neutral: bp.theme.neutralBackground,
+    },
   };
 }
 
@@ -78,15 +113,7 @@ async function loadImageAsBuffer(
     const diskPath = path.join(process.cwd(), "public", "captures", safeName);
     try {
       const buffer = await fs.readFile(diskPath);
-      const ext = path.extname(safeName).toLowerCase();
-      const mimeType =
-        ext === ".webp"
-          ? "image/webp"
-          : ext === ".jpg" || ext === ".jpeg"
-            ? "image/jpeg"
-            : ext === ".svg"
-              ? "image/svg+xml"
-              : "image/png";
+      const mimeType = mimeFromFilename(safeName);
       return { buffer, mimeType };
     } catch {
       return null;
@@ -96,16 +123,16 @@ async function loadImageAsBuffer(
   // 2) External HTTP(S) image with anti-hotlink Referer
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     try {
-      const res = await fetch(trimmed, {
+      const res = await fetchPublic(trimmed, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            BROWSER_USER_AGENT,
           ...(refererUrl ? { Referer: refererUrl } : {}),
           Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         },
         signal: AbortSignal.timeout(8000),
       });
-      if (!res.ok) return null;
+      if (!res || !res.ok) return null;
       const ct = (res.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
       if (!ct.startsWith("image/") && ct !== "application/octet-stream") return null;
       const buffer = Buffer.from(await res.arrayBuffer());
@@ -394,17 +421,15 @@ async function renderArtStudioPng(
     <style>html,body{margin:0;padding:0;width:${width}px;height:${height}px;overflow:hidden;background:#111;}</style>
   </head><body>${bodyHtml}</body></html>`;
 
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-  });
+  const browser = await getSharedBrowser();
+  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
   try {
-    const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: 1 });
+    const page = await context.newPage();
     await page.setContent(html, { waitUntil: "load" });
     await page.waitForTimeout(150);
     return await page.screenshot({ type: "png" });
   } finally {
-    await browser.close().catch(() => undefined);
+    await context.close().catch(() => undefined);
   }
 }
 

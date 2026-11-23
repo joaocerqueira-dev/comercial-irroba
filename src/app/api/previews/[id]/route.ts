@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { StoreBlueprintSchema } from "@/lib/types/blueprint";
-import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
+import { deletePreviewFiles, saveBlueprint } from "@/lib/previews/repository";
 
 export async function GET(
   _req: NextRequest,
@@ -30,19 +30,20 @@ export async function PATCH(
     );
   }
 
-  const compiledExport = compileIrrobaExport(parsed.data);
+  const exists = await prisma.storePreview.findUnique({ where: { id }, select: { id: true } });
+  if (!exists) {
+    return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
+  }
 
-  const updated = await prisma.storePreview.update({
-    where: { id },
-    data: {
-      storeName: parsed.data.brand.name,
-      sellerWhatsapp:
-        typeof body?.sellerWhatsapp === "string"
-          ? body.sellerWhatsapp.replace(/\D/g, "") || null
-          : undefined,
-      blueprint: parsed.data as object,
-      compiledExport: compiledExport as object,
-    },
+  const generationMode =
+    typeof body?.generationMode === "string" && ["gemini", "heuristic"].includes(body.generationMode)
+      ? (body.generationMode as string)
+      : undefined;
+
+  const updated = await saveBlueprint(id, parsed.data, {
+    sellerWhatsapp:
+      typeof body?.sellerWhatsapp === "string" ? body.sellerWhatsapp.replace(/\D/g, "") || null : undefined,
+    generationMode,
   });
 
   return NextResponse.json({ preview: updated });
@@ -53,6 +54,18 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params;
-  await prisma.storePreview.delete({ where: { id } }).catch(() => null);
+  try {
+    const deleted = await prisma.storePreview.delete({ where: { id } });
+    await deletePreviewFiles(deleted).catch(() => 0);
+  } catch (err) {
+    const code = (err as { code?: string })?.code;
+    if (code === "P2025") {
+      return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
+    }
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Falha ao excluir preview" },
+      { status: 500 }
+    );
+  }
   return NextResponse.json({ ok: true });
 }

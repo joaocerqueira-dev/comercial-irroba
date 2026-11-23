@@ -1,11 +1,20 @@
+import { normalizeStoreUrl } from "@/lib/format/inputs";
+import { PREVIEW_STATUS } from "@/lib/previews/status";
 import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { prisma } from "@/lib/db";
 import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
-import { processAiImageRequest } from "@/lib/ai/image-studio";
+import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
+import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
+
+export const runtime = "nodejs";
+/** Orçamento total da geração (extração + IA + imagem). */
+export const maxDuration = 300;
+const GENERATION_BUDGET_MS = 270_000;
 
 const GenerateRequestSchema = z.object({
   url: z.string().min(4, "Informe a URL da loja"),
@@ -52,9 +61,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const normalizedUrl = parsed.data.url.startsWith("http")
-    ? parsed.data.url.trim()
-    : `https://${parsed.data.url.trim()}`;
+  const normalizedUrl = normalizeStoreUrl(parsed.data.url);
+  if (!normalizedUrl) {
+    return new Response(JSON.stringify({ error: "URL inválida. Ex: loja.com.br" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  try {
+    await assertPublicHttpUrl(normalizedUrl);
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: err instanceof UnsafeUrlError ? err.message : "URL inválida" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
   const slug = slugifyHostname(normalizedUrl);
   const sellerWhatsapp = parsed.data.sellerWhatsapp?.replace(/\D/g, "") || null;
@@ -68,6 +90,17 @@ export async function POST(req: NextRequest) {
       };
 
       let recordId: string | null = null;
+      // Aborta se o cliente cancelar (req.signal) ou se estourar o orçamento global
+      const budget = AbortSignal.any([req.signal, AbortSignal.timeout(GENERATION_BUDGET_MS)]);
+      let closed = false;
+      const safeSend = (event: string, data: Record<string, unknown>) => {
+        if (closed) return;
+        try {
+          sendEvent(event, data);
+        } catch {
+          closed = true;
+        }
+      };
 
       try {
         const initialRecord = await prisma.storePreview.create({
@@ -76,21 +109,37 @@ export async function POST(req: NextRequest) {
             sourceUrl: normalizedUrl,
             storeName: new URL(normalizedUrl).hostname.replace(/^www\./, ""),
             sellerWhatsapp,
-            status: "processing",
+            status: PREVIEW_STATUS.processing,
           },
         });
         recordId = initialRecord.id;
 
-        sendEvent("progress", {
+        safeSend("progress", {
           step: "extract",
           message: "Analisando loja original, capturando screenshot e extraindo produtos...",
           progress: 25,
         });
 
-        const extracted = await extractStoreFromUrl(normalizedUrl, slug);
+        const extracted = await extractStoreFromUrl(normalizedUrl, slug, {
+          signal: budget,
+          onProgress: (p) =>
+            safeSend("progress", {
+              step: p.step,
+              message: p.message,
+              progress: Math.round(25 + p.fraction * 35),
+            }),
+        });
+        budget.throwIfAborted();
+
+        const extractionWarning = buildExtractionWarning(extracted);
+        if (extractionWarning) {
+          extracted.extractionWarnings = [extractionWarning];
+          console.warn(`[generate] Extração incompleta em ${normalizedUrl}: ${extractionWarning}`);
+          safeSend("warning", { message: extractionWarning });
+        }
 
         const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
-        sendEvent("progress", {
+        safeSend("progress", {
           step: "architect",
           message: hasGeminiKey
             ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com Gemini 3.5 Flash...`
@@ -98,36 +147,28 @@ export async function POST(req: NextRequest) {
           progress: 65,
         });
 
-        const { blueprint, mode, modelUsed } = await buildStoreBlueprint(extracted);
+        const { blueprint, mode, modelUsed } = await buildStoreBlueprint(extracted, { signal: budget });
+        budget.throwIfAborted();
 
         // Ensure hero banner always has a valid high-resolution image (AI fallback if missing)
         const firstHero = blueprint.sections.heroSlides[0];
         if (!blueprint.sections.hero.imageUrl || (firstHero && !firstHero.imageUrl)) {
-          sendEvent("progress", {
+          safeSend("progress", {
             step: "media",
             message: "Gerando arte de banner em alta definição com IA para completar o preview...",
             progress: 82,
           });
           try {
-            const generatedHero = await processAiImageRequest({
-              previewId: initialRecord.id,
-              prompt: `Banner principal sofisticado de lançamento para ${blueprint.brand.name} (${blueprint.brand.niche})`,
-              mode: "generate",
-              aspectRatio: "16:9",
-              sourceStoreUrl: normalizedUrl,
-              slotLabel: blueprint.sections.hero.headline,
-              brandName: blueprint.brand.name,
-              niche: blueprint.brand.niche,
-              headingFont: blueprint.theme.headingFont,
-              bodyFont: blueprint.theme.bodyFont,
-              palette: {
-                primary: blueprint.theme.primaryBackground,
-                primaryFg: blueprint.theme.primaryForeground,
-                secondary: blueprint.theme.secondaryBackground,
-                secondaryFg: blueprint.theme.secondaryForeground,
-                neutral: blueprint.theme.neutralBackground,
-              },
-            });
+            const generatedHero = await processAiImageRequest(
+              buildImageRequestFromBlueprint(blueprint, {
+                previewId: initialRecord.id,
+                prompt: `Banner principal sofisticado de lançamento para ${blueprint.brand.name} (${blueprint.brand.niche})`,
+                mode: "generate",
+                aspectRatio: "16:9",
+                sourceStoreUrl: normalizedUrl,
+                slotLabel: blueprint.sections.hero.headline,
+              })
+            );
             blueprint.sections.hero.imageUrl = generatedHero.imageUrl;
             if (firstHero) {
               firstHero.imageUrl = generatedHero.imageUrl;
@@ -138,7 +179,7 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        sendEvent("progress", {
+        safeSend("progress", {
           step: "compile",
           message:
             mode === "gemini"
@@ -147,6 +188,7 @@ export async function POST(req: NextRequest) {
           progress: 90,
         });
 
+        budget.throwIfAborted();
         const compiledExport = compileIrrobaExport(blueprint);
 
         const updated = await prisma.storePreview.update({
@@ -155,7 +197,7 @@ export async function POST(req: NextRequest) {
             storeName: blueprint.brand.name,
             detectedPlatform: extracted.detectedPlatform,
             generationMode: mode,
-            status: "ready",
+            status: PREVIEW_STATUS.ready,
             screenshotPath: extracted.screenshotPath ?? null,
             extractedData: extracted as object,
             blueprint: blueprint as object,
@@ -163,26 +205,36 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        sendEvent("done", {
+        safeSend("done", {
           id: updated.id,
           slug: updated.slug,
           storeName: updated.storeName,
           detectedPlatform: updated.detectedPlatform,
           generationMode: updated.generationMode,
+          warnings: extracted.extractionWarnings ?? [],
           progress: 100,
         });
       } catch (err) {
         const rawMessage = err instanceof Error ? err.message : "Falha inesperada ao analisar a loja";
-        const friendlyMessage = formatFriendlyScrapeError(rawMessage);
+        const friendlyMessage = req.signal.aborted
+          ? "Geração cancelada."
+          : budget.aborted
+            ? "A geração passou do tempo máximo. Tente novamente."
+            : formatFriendlyScrapeError(rawMessage);
         console.error("[generate] Erro ao analisar loja:", rawMessage);
         if (recordId) {
           await prisma.storePreview
             .delete({ where: { id: recordId } })
             .catch(() => undefined);
         }
-        sendEvent("error", { message: friendlyMessage });
+        safeSend("error", { message: friendlyMessage });
       } finally {
-        controller.close();
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // stream já fechado pelo cliente
+        }
       }
     },
   });

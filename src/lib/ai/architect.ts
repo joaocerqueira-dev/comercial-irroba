@@ -1,3 +1,5 @@
+import { mimeFromFilename } from "@/lib/files/mime";
+import { isApparelText, isFootwearText } from "@/lib/catalog/niche";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { GoogleGenAI } from "@google/genai";
@@ -63,14 +65,8 @@ function inferNicheAndTone(extracted: ExtractedStoreData): {
     .join(" ")
     .toLowerCase();
 
-  const hasFootwear =
-    /\b(bota|botas|coturno|coturnos|creeper|creepers|tenis|tênis|sapato|sapatos|sandalia|sandália|sandalias|sandálias|calcado|calçado|calcados|calçados|mocassim|salto|chuteira|chinelo|sneaker)\b/i.test(
-      haystack
-    );
-  const hasApparel =
-    /\b(vestido|vestidos|camiseta|camisetas|blusa|blusas|blazer|blazers|calca|calça|calcas|calças|saia|saias|body|roupa|roupas|camisa|camisas|jaqueta|short|shorts|moda)\b/i.test(
-      haystack
-    );
+  const hasFootwear = isFootwearText(haystack);
+  const hasApparel = isApparelText(haystack);
   const isVeganOrEco = /vegano|vegan|sustent|eco|organic|natural|vegetal/.test(haystack);
 
   if (isVeganOrEco) {
@@ -658,7 +654,7 @@ const DEFAULT_GEMINI_MODELS = [
   "gemini-flash-latest",
 ];
 
-function extractJsonObject(raw: string): Record<string, unknown> {
+export function extractJsonObject(raw: string): Record<string, unknown> {
   const cleaned = raw
     .trim()
     .replace(/^```json\s*/i, "")
@@ -672,33 +668,32 @@ async function callGeminiWithTimeout(
   ai: GoogleGenAI,
   model: string,
   parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
-  timeoutMs = 35000
+  timeoutMs = 35000,
+  outerSignal?: AbortSignal
 ) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const abortSignal = outerSignal ? AbortSignal.any([timeoutSignal, outerSignal]) : timeoutSignal;
   try {
-    return await Promise.race([
-      ai.models.generateContent({
-        model,
-        contents: parts,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.25,
-        },
-      }),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`Timeout após ${Math.round(timeoutMs / 1000)}s em ${model}`)),
-          timeoutMs
-        );
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
+    return await ai.models.generateContent({
+      model,
+      contents: parts,
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.25,
+        abortSignal,
+      },
+    });
+  } catch (err) {
+    if (timeoutSignal.aborted) {
+      throw new Error(`Timeout após ${Math.round(timeoutMs / 1000)}s em ${model}`);
+    }
+    throw err;
   }
 }
 
 export async function buildStoreBlueprint(
-  extracted: ExtractedStoreData
+  extracted: ExtractedStoreData,
+  options: { signal?: AbortSignal } = {}
 ): Promise<ArchitectResult> {
   const baseBlueprint = buildHeuristicBlueprint(extracted);
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -731,7 +726,7 @@ export async function buildStoreBlueprint(
       const imgBuffer = await fs.readFile(diskPath);
       parts.push({
         inlineData: {
-          mimeType: "image/png",
+          mimeType: mimeFromFilename(filename),
           data: imgBuffer.toString("base64"),
         },
       });
@@ -816,7 +811,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
 
   for (const model of modelQueue) {
     try {
-      const response = await callGeminiWithTimeout(ai, model, parts, 35000);
+      const response = await callGeminiWithTimeout(ai, model, parts, 35000, options.signal);
       const text = response.text?.trim();
       if (!text) {
         lastErrorMsg = `Resposta vazia do modelo ${model}`;
