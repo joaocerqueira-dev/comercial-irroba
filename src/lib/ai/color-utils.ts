@@ -1,3 +1,4 @@
+import { COLOR_DERIVATION, COLOR_THRESHOLDS, PALETTE } from "@/lib/layout-patterns/palette";
 /**
  * Color normalization, luminance, and WCAG contrast helpers for Irroba LIME theme tokens.
  */
@@ -64,11 +65,11 @@ export function relativeLuminance(rgb: RgbColor): number {
   return 0.2126 * transform(rgb.r) + 0.7152 * transform(rgb.g) + 0.0722 * transform(rgb.b);
 }
 
-export function getContrastingForeground(bgHex: string): "#FFFFFF" | "#111827" {
+export function getContrastingForeground(bgHex: string): typeof PALETTE.white | typeof PALETTE.ink {
   const rgb = parseColorToRgb(bgHex);
-  if (!rgb) return "#FFFFFF";
+  if (!rgb) return PALETTE.white;
   const lum = relativeLuminance(rgb);
-  return lum > 0.42 ? "#111827" : "#FFFFFF";
+  return lum > COLOR_THRESHOLDS.foregroundLuminance ? PALETTE.ink : PALETTE.white;
 }
 
 export function isNearWhiteOrBlack(hex: string): boolean {
@@ -78,12 +79,13 @@ export function isNearWhiteOrBlack(hex: string): boolean {
   const min = Math.min(rgb.r, rgb.g, rgb.b);
   const saturation = max === 0 ? 0 : (max - min) / max;
   const lum = relativeLuminance(rgb);
-  return saturation < 0.12 && (lum > 0.85 || lum < 0.05);
+  return saturation < COLOR_THRESHOLDS.nearNeutralSaturation &&
+    (lum > COLOR_THRESHOLDS.nearWhiteLuminance || lum < COLOR_THRESHOLDS.nearBlackLuminance);
 }
 
-export function darkenHex(hex: string, amount = 0.2): string {
+export function darkenHex(hex: string, amount: number = COLOR_DERIVATION.defaultDarken): string {
   const rgb = parseColorToRgb(hex);
-  if (!rgb) return "#111827";
+  if (!rgb) return PALETTE.ink;
   return rgbToHex({
     r: Math.max(0, rgb.r * (1 - amount)),
     g: Math.max(0, rgb.g * (1 - amount)),
@@ -91,9 +93,9 @@ export function darkenHex(hex: string, amount = 0.2): string {
   });
 }
 
-export function lightenHex(hex: string, amount = 0.88): string {
+export function lightenHex(hex: string, amount: number = COLOR_DERIVATION.defaultLighten): string {
   const rgb = parseColorToRgb(hex);
-  if (!rgb) return "#F8FAFC";
+  if (!rgb) return PALETTE.lightenFallback;
   return rgbToHex({
     r: rgb.r + (255 - rgb.r) * amount,
     g: rgb.g + (255 - rgb.g) * amount,
@@ -115,5 +117,5 @@ export function contrastRatio(hexA: string, hexB: string): number {
 export function isLightColor(hex: string): boolean {
   const rgb = parseColorToRgb(hex);
   if (!rgb) return true;
-  return relativeLuminance(rgb) > 0.5;
+  return relativeLuminance(rgb) > COLOR_THRESHOLDS.lightColorLuminance;
 }

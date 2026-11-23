@@ -1,3 +1,4 @@
+import { FONT_FALLBACKS, PALETTE } from "@/lib/layout-patterns";
 /**
  * Utilities to sanitize scraped store content before compiling HTML/CSS blocks.
  */
@@ -51,7 +52,7 @@ export function escapeCssComment(input: string | undefined | null): string {
   return input.replace(/\*\//g, "* /").replace(/\/\*/g, "/ *").replace(/[<>]/g, "");
 }
 
-export function sanitizeCssColor(color: string | undefined | null, fallback = "#111827"): string {
+export function sanitizeCssColor(color: string | undefined | null, fallback: string = PALETTE.ink): string {
   if (!color) return fallback;
   const trimmed = color.trim();
   if (/^#[0-9a-fA-F]{3,8}$/.test(trimmed)) {
@@ -63,7 +64,7 @@ export function sanitizeCssColor(color: string | undefined | null, fallback = "#
   return fallback;
 }
 
-export function sanitizeFontName(font: string | undefined | null, fallback = "Poppins"): string {
+export function sanitizeFontName(font: string | undefined | null, fallback: string = FONT_FALLBACKS.body): string {
   if (!font) return fallback;
   const cleaned = font.replace(/['";{}<>]/g, "").split(",")[0]?.trim();
   return cleaned || fallback;

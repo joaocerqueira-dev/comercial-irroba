@@ -1,3 +1,4 @@
+import { GEMINI_DEFAULT_MODEL } from "@/lib/layout-patterns/ai";
 import { normalizeStoreUrl } from "@/lib/format/inputs";
 import { PREVIEW_STATUS } from "@/lib/previews/status";
 import crypto from "node:crypto";
@@ -183,7 +184,7 @@ export async function POST(req: NextRequest) {
           step: "compile",
           message:
             mode === "gemini"
-              ? `Identidade visual refinada (${modelUsed || "gemini-3.5-flash"}). Compilando blocos Irroba...`
+              ? `Identidade visual refinada (${modelUsed || GEMINI_DEFAULT_MODEL}). Compilando blocos Irroba...`
               : "Compilando preview interativo e blocos low-code (SunEditor + LIME)...",
           progress: 90,
         });

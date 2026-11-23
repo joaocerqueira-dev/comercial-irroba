@@ -1,3 +1,4 @@
+import { GEMINI_TEXT_MODELS as SHARED_GEMINI_MODELS } from "@/lib/layout-patterns/ai";
 import { mimeFromFilename } from "@/lib/files/mime";
 import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
@@ -94,8 +95,7 @@ const GEMINI_TEXT_MODELS = Array.from(
   new Set(
     [
       process.env.GEMINI_MODEL?.trim(),
-      "gemini-3.5-flash",
-      "gemini-3.5-flash-lite",
+      ...SHARED_GEMINI_MODELS.slice(0, 2),
     ].filter((m): m is string => Boolean(m))
   )
 );

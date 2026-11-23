@@ -14,23 +14,33 @@ import {
 } from "./color-utils";
 import { sanitizeFontName } from "@/lib/irroba-blocks/sanitize";
 import {
+  COLOR_DERIVATION,
+  COLOR_THRESHOLDS,
+  DEFAULT_COPY,
+  DEFAULT_FONT_PAIRING,
+  GEMINI_ARCHITECT,
+  GEMINI_DEFAULT_MODEL,
+  GEMINI_TEXT_MODELS,
+  HEADER_DEFAULTS,
+  PALETTE,
+  PLACEHOLDER_IMAGES,
+  PRODUCT_CARD_DEFAULTS,
+  SECTION_HEADING_PATTERNS,
+  SECTION_LIMITS,
+  SYSTEM_FONTS,
+  TONE_FONT_PAIRING,
+  mapBorderRadius,
+} from "@/lib/layout-patterns";
+import {
   StoreBlueprintSchema,
   type DesignInsight,
   type ExtractedStoreData,
   type StoreBlueprint,
 } from "@/lib/types/blueprint";
 
-const IRROBA_FONT_PAIRINGS = [
-  { heading: "Cormorant Garamond", body: "Jost", niches: ["moda", "boutique", "joia", "decoracao", "luxo"] },
-  { heading: "Playfair Display", body: "Lora", niches: ["beleza", "cosmetico", "perfum", "artesanal"] },
-  { heading: "Montserrat", body: "Poppins", niches: ["calcado", "vegano", "fitness", "suplemento", "esporte"] },
-  { heading: "Oswald", body: "Cabin", niches: ["tech", "eletronico", "gamer", "ferramenta", "auto"] },
-  { heading: "Poppins", body: "Poppins", niches: ["geral"] },
-];
-
 export function ensureReadableForeground(bg: string, candidate?: string): string {
   const norm = normalizeHex(candidate, "");
-  if (norm && contrastRatio(bg, norm) >= 4.5) {
+  if (norm && contrastRatio(bg, norm) >= COLOR_THRESHOLDS.minContrast) {
     return norm;
   }
   return getContrastingForeground(bg);
@@ -99,15 +109,7 @@ function pickFontPairing(extracted: ExtractedStoreData, tone: StoreBlueprint["br
   const rawHeading = sanitizeFontName(extracted.tokens.headingFont, "");
   const rawBody = sanitizeFontName(extracted.tokens.bodyFont, "");
 
-  const knownSystemFonts = [
-    "arial",
-    "helvetica",
-    "sans-serif",
-    "serif",
-    "system-ui",
-    "-apple-system",
-    "times new roman",
-  ];
+  const knownSystemFonts: readonly string[] = SYSTEM_FONTS;
   const hasGoodHeading = rawHeading && !knownSystemFonts.includes(rawHeading.toLowerCase());
   const hasGoodBody = rawBody && !knownSystemFonts.includes(rawBody.toLowerCase());
 
@@ -115,17 +117,7 @@ function pickFontPairing(extracted: ExtractedStoreData, tone: StoreBlueprint["br
     return { heading: rawHeading, body: rawBody };
   }
 
-  if (tone === "luxury") return IRROBA_FONT_PAIRINGS[0];
-  if (tone === "minimal") return IRROBA_FONT_PAIRINGS[2];
-  if (tone === "tech") return IRROBA_FONT_PAIRINGS[3];
-  return IRROBA_FONT_PAIRINGS[2];
-}
-
-function mapBorderRadius(px: number | undefined): StoreBlueprint["theme"]["radius"] {
-  if (px === undefined || px <= 2) return "none";
-  if (px <= 6) return "small";
-  if (px <= 14) return "medium";
-  return "large";
+  return TONE_FONT_PAIRING[tone] ?? DEFAULT_FONT_PAIRING;
 }
 
 function pickSectionHeading(headings: string[], keywords: RegExp, fallback: string): string {
@@ -150,7 +142,7 @@ function buildDesignInsights(
   });
 
   const btnContrast = contrastRatio(theme.btnPrimaryBackground, theme.btnPrimaryColor);
-  if (btnContrast < 4.5) {
+  if (btnContrast < COLOR_THRESHOLDS.minContrast) {
     const fixedColor = getContrastingForeground(theme.btnPrimaryBackground);
     insights.push({
       id: "contrast-cta-fix",
@@ -173,12 +165,12 @@ function buildDesignInsights(
       category: "conversion",
       severity: "suggestion",
       title: "Sugestão: testar cor de destaque nos botões de compra",
-      description: `A loja original usa paleta monocromática (${theme.primaryBackground}) nos botões principais. Isso mantém sobriedade, mas em testes A/B de e-commerce um botão de compra em destaque (ex: Verde Conversão #0F766E ou Terracota #C2410C) costuma elevar o CTR no mobile.`,
+      description: `A loja original usa paleta monocromática (${theme.primaryBackground}) nos botões principais. Isso mantém sobriedade, mas em testes A/B de e-commerce um botão de compra em destaque (ex: Verde Conversão ${PALETTE.conversionGreen} ou Terracota #C2410C) costuma elevar o CTR no mobile.`,
       actionLabel: "Testar botão Verde Conversão",
       suggestedThemePatch: {
-        btnPrimaryBackground: "#0F766E",
+        btnPrimaryBackground: PALETTE.conversionGreen,
         btnPrimaryColor: "#FFFFFF",
-        buyBtnBackground: "#0F766E",
+        buyBtnBackground: PALETTE.conversionGreen,
         buyBtnForeground: "#FFFFFF",
       },
     });
@@ -212,7 +204,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
   const fonts = pickFontPairing(extracted, tone);
 
   // Faithful palette extraction from original site
-  const bodyBackground = normalizeHex(extracted.tokens.bodyBackground, "#FFFFFF");
+  const bodyBackground = normalizeHex(extracted.tokens.bodyBackground, PALETTE.white);
   const bodyForeground = ensureReadableForeground(
     bodyBackground,
     extracted.tokens.bodyForeground
@@ -226,7 +218,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
 
   const primaryBackground = normalizeHex(
     extracted.tokens.primaryButtonBg ?? extracted.tokens.accentColor ?? extracted.tokens.announcementBackground,
-    "#111827"
+    PALETTE.ink
   );
   const primaryForeground = ensureReadableForeground(
     primaryBackground,
@@ -236,9 +228,9 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
   // Secondary / Footer background: strictly follow extracted footer/secondary, NO green fallback!
   const rawFooterBg = normalizeHex(
     extracted.tokens.footerBackground ?? extracted.tokens.secondaryButtonBg,
-    isLightColor(primaryBackground) ? "#18181B" : darkenHex(primaryBackground, 0.2)
+    isLightColor(primaryBackground) ? PALETTE.footerDark : darkenHex(primaryBackground, COLOR_DERIVATION.footerDarken)
   );
-  const secondaryBackground = rawFooterBg === bodyBackground ? "#18181B" : rawFooterBg;
+  const secondaryBackground = rawFooterBg === bodyBackground ? PALETTE.footerDark : rawFooterBg;
   const secondaryForeground = ensureReadableForeground(
     secondaryBackground,
     extracted.tokens.footerForeground
@@ -250,26 +242,26 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     rawSurface && rawSurface !== bodyBackground && isLightColor(rawSurface)
       ? rawSurface
       : isNearWhiteOrBlack(primaryBackground)
-        ? "#F4F4F5"
-        : lightenHex(primaryBackground, 0.92);
+        ? PALETTE.neutralSurface
+        : lightenHex(primaryBackground, COLOR_DERIVATION.neutralLighten);
   const neutralForeground = getContrastingForeground(neutralBackground);
 
   const announcementBackground = normalizeHex(
     extracted.tokens.announcementBackground,
-    isLightColor(primaryBackground) ? "#111827" : primaryBackground
+    isLightColor(primaryBackground) ? PALETTE.ink : primaryBackground
   );
   const announcementForeground = ensureReadableForeground(
     announcementBackground,
     extracted.tokens.announcementForeground
   );
 
-  const btnSecondaryBg = normalizeHex(extracted.tokens.secondaryButtonBg, "#111827");
+  const btnSecondaryBg = normalizeHex(extracted.tokens.secondaryButtonBg, PALETTE.ink);
   const btnSecondaryFg = ensureReadableForeground(
     btnSecondaryBg,
     extracted.tokens.secondaryButtonColor
   );
 
-  const legalBackground = darkenHex(secondaryBackground, 0.25);
+  const legalBackground = darkenHex(secondaryBackground, COLOR_DERIVATION.legalDarken);
   const legalForeground = ensureReadableForeground(legalBackground, secondaryForeground);
 
   const radius = mapBorderRadius(extracted.tokens.borderRadiusPx);
@@ -283,9 +275,9 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
           compareAtPrice: p.compareAtPrice,
           imageUrl: p.imageUrl,
           images: p.images && p.images.length > 0 ? p.images : [p.imageUrl],
-          category: p.category || "Destaques",
-          categories: p.categories && p.categories.length > 0 ? p.categories : [p.category || "Destaques"],
-          installmentsText: `em até 6x de R$ ${(p.price / 6).toFixed(2).replace(".", ",")} sem juros`,
+          category: p.category || DEFAULT_COPY.productCategory,
+          categories: p.categories && p.categories.length > 0 ? p.categories : [p.category || DEFAULT_COPY.productCategory],
+          installmentsText: DEFAULT_COPY.installments(p.price, SECTION_LIMITS.installments),
           description:
             p.description ||
             `${p.title} selecionado especialmente para você na nova loja ${extracted.storeName} na plataforma Irroba.`,
@@ -299,10 +291,10 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
             compareAtPrice: 249.9,
             imageUrl:
               extracted.banners[0]?.imageUrl ||
-              "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+              PLACEHOLDER_IMAGES.product,
             images: [
               extracted.banners[0]?.imageUrl ||
-                "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+                PLACEHOLDER_IMAGES.product,
             ],
             category: "Destaques",
             categories: ["Destaques"],
@@ -313,17 +305,17 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         ];
 
   const half = Math.ceil(fallbackProducts.length / 2);
-  const firstShowcaseIds = fallbackProducts.slice(0, Math.min(8, half)).map((p) => p.id);
-  const secondShowcaseIds = fallbackProducts.slice(half, half + 8).map((p) => p.id);
+  const firstShowcaseIds = fallbackProducts.slice(0, Math.min(SECTION_LIMITS.productsPerShowcase, half)).map((p) => p.id);
+  const secondShowcaseIds = fallbackProducts.slice(half, half + SECTION_LIMITS.productsPerShowcase).map((p) => p.id);
 
   const showcases: StoreBlueprint["sections"]["showcases"] = [
     {
       title: pickSectionHeading(
         extracted.sectionHeadings,
-        /destaqu|preferid|best|mais vendid|cole/i,
-        "Destaques da Coleção"
+        SECTION_HEADING_PATTERNS.showcase1,
+        DEFAULT_COPY.showcase1Title
       ),
-      subtitle: "Os favoritos dos nossos clientes com entrega para todo o Brasil",
+      subtitle: DEFAULT_COPY.showcase1Subtitle,
       productIds: firstShowcaseIds.length > 0 ? firstShowcaseIds : fallbackProducts.map((p) => p.id),
     },
   ];
@@ -331,10 +323,10 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     showcases.push({
       title: pickSectionHeading(
         extracted.sectionHeadings,
-        /lançament|novidad|ofert|promo/i,
-        "Mais Procurados & Novidades"
+        SECTION_HEADING_PATTERNS.showcase2,
+        DEFAULT_COPY.showcase2Title
       ),
-      subtitle: "Seleção especial com pagamento facilitado no PIX e cartão",
+      subtitle: DEFAULT_COPY.showcase2Subtitle,
       productIds: secondShowcaseIds,
     });
   }
@@ -356,7 +348,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
           mode: "site-images",
           backgroundColor: benefitsBg,
           textColor: getContrastingForeground(benefitsBg),
-          siteImageUrls: benefitsExtracted.slice(0, 6).map((b) => b.imageUrl),
+          siteImageUrls: benefitsExtracted.slice(0, SECTION_LIMITS.benefitImages).map((b) => b.imageUrl),
         }
       : {
           mode: "generated-art",
@@ -369,11 +361,11 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     heroExtracted[0]?.imageUrl ||
     extracted.banners[0]?.imageUrl ||
     fallbackProducts[0]?.imageUrl ||
-    "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1400&q=80";
+    PLACEHOLDER_IMAGES.hero;
 
   const heroSlides: StoreBlueprint["sections"]["heroSlides"] =
     heroExtracted.length > 0
-      ? heroExtracted.slice(0, 3).map((b, idx) => ({
+      ? heroExtracted.slice(0, SECTION_LIMITS.heroSlides).map((b, idx) => ({
           id: `slide-${idx + 1}`,
           imageUrl: b.imageUrl,
           headline: b.alt || `${extracted.storeName} — Coleção em Destaque`,
@@ -402,7 +394,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
 
   const categories =
     extracted.categories.length > 0
-      ? extracted.categories.slice(0, 8).map((cat, idx) => {
+      ? extracted.categories.slice(0, SECTION_LIMITS.categories).map((cat, idx) => {
           const matchingProd = fallbackProducts.find(
             (p) =>
               p.categories.some((c) => c.toLowerCase() === cat.label.toLowerCase()) ||
@@ -430,8 +422,8 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         ];
 
   const moodBanners: StoreBlueprint["sections"]["moodBanners"] =
-    moodExtracted.length >= 2
-      ? moodExtracted.slice(0, 4).map((m, idx) => ({
+    moodExtracted.length >= SECTION_LIMITS.moodBannersMinExtracted
+      ? moodExtracted.slice(0, SECTION_LIMITS.moodBanners).map((m, idx) => ({
           id: `mood-${idx + 1}`,
           title: m.label || categories[idx]?.label || `Coleção ${idx + 1}`,
           subtitle: "Explorar seleção",
@@ -439,7 +431,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
           href: "#vitrines",
           enabled: true,
         }))
-      : categories.slice(0, 4).map((c, idx) => ({
+      : categories.slice(0, SECTION_LIMITS.moodBanners).map((c, idx) => ({
           id: `mood-${idx + 1}`,
           title: c.label,
           subtitle: "Ver modelos",
@@ -453,9 +445,9 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         enabled: true,
         mode: "image",
         imageUrl: slimExtracted.imageUrl,
-        badgeText: "CAMPANHA",
+        badgeText: DEFAULT_COPY.slimBadgeImage,
         headline: slimExtracted.alt || `Condições especiais na ${extracted.storeName}`,
-        ctaText: "Conferir",
+        ctaText: DEFAULT_COPY.slimCtaImage,
         backgroundColor: secondaryBackground,
         textColor: secondaryForeground,
       }
@@ -463,11 +455,11 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         enabled: true,
         mode: "designed",
         imageUrl: "",
-        badgeText: "VANTAGEM EXCLUSIVA",
+        badgeText: DEFAULT_COPY.slimBadgeDesigned,
         headline:
           extracted.announcementText ||
           `5% OFF no PIX + Parcele em até 6x sem juros na ${extracted.storeName}`,
-        ctaText: "Aproveitar Agora",
+        ctaText: DEFAULT_COPY.slimCtaDesigned,
         backgroundColor: secondaryBackground,
         textColor: secondaryForeground,
       };
@@ -516,7 +508,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     headingFont: fonts.heading,
     bodyFont: fonts.body,
     radius,
-    headerLayout: "layout-1",
+    headerLayout: HEADER_DEFAULTS.layout,
   };
 
   const designInsights = buildDesignInsights(
@@ -545,28 +537,28 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         gradientTransition: false,
         background: headerBackground,
         foreground: headerForeground,
-        backgroundOpacity: 0.98,
-        blurPx: 8,
+        backgroundOpacity: HEADER_DEFAULTS.backgroundOpacity,
+        blurPx: HEADER_DEFAULTS.blurPx,
         highContrastLogoOnHover: false,
-        categoryCase: "uppercase",
+        categoryCase: HEADER_DEFAULTS.categoryCase,
       },
       banner: {
         width: "full",
       },
       productCard: {
         listWidth: "container",
-        titleAlign: "center",
+        titleAlign: PRODUCT_CARD_DEFAULTS.titleAlign,
         cardBackground: bodyBackground,
-        paddingX: 16,
+        paddingX: PRODUCT_CARD_DEFAULTS.paddingX,
         buyBtnBackground: primaryBackground,
         buyBtnForeground: primaryForeground,
         buyBtnBorder: "transparent",
         priceColor: bodyForeground,
-        oldPriceColor: "#9CA3AF",
+        oldPriceColor: PALETTE.oldPrice,
       },
       pageProduct: {
         galleryOrientation: "vertical",
-        buyButtonText: "Comprar agora",
+        buyButtonText: DEFAULT_COPY.buyButton,
       },
       footer: {
         width: "container",
@@ -579,7 +571,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     sections: {
       announcementText:
         extracted.announcementText ||
-        "Frete Grátis em compras selecionadas • 5% OFF no PIX • Parcele em até 6x sem juros",
+        DEFAULT_COPY.announcement,
       categories,
       hero: {
         headline: heroSlides[0]?.headline || `${extracted.storeName}`,
@@ -592,23 +584,18 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
       slimBanner,
       moodSectionTitle: pickSectionHeading(
         extracted.sectionHeadings,
-        /mood|estilo|categoria|cole/i,
-        "Explore por Estilo & Categoria"
+        SECTION_HEADING_PATTERNS.mood,
+        DEFAULT_COPY.moodSectionTitle
       ),
       moodBanners,
       secondaryBanner,
       promoStripText: `Descubra a essência e os detalhes de ${extracted.storeName}`,
-      benefits: [
-        { icon: "truck", title: "Envio Rápido", subtitle: "Para todo o Brasil com rastreio" },
-        { icon: "credit-card", title: "Até 6x Sem Juros", subtitle: "Ou desconto especial no PIX" },
-        { icon: "shield-check", title: "Compra 100% Segura", subtitle: "Checkout transparente protegido" },
-        { icon: "refresh-cw", title: "Troca Facilitada", subtitle: "Primeira troca simples e rápida" },
-      ],
+      benefits: DEFAULT_COPY.benefits.map((b) => ({ ...b })),
       showcases,
       testimonialsTitle: pickSectionHeading(
         extracted.sectionHeadings,
-        /dissemos|dizem|avalia|depoiment|cliente/i,
-        "Quem compra recomenda"
+        SECTION_HEADING_PATTERNS.testimonials,
+        DEFAULT_COPY.testimonialsTitle
       ),
       testimonials: [
         {
@@ -648,11 +635,7 @@ export interface ArchitectResult {
   aiError?: string;
 }
 
-const DEFAULT_GEMINI_MODELS = [
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-flash-latest",
-];
+const DEFAULT_GEMINI_MODELS = GEMINI_TEXT_MODELS;
 
 export function extractJsonObject(raw: string): Record<string, unknown> {
   const cleaned = raw
@@ -668,7 +651,7 @@ async function callGeminiWithTimeout(
   ai: GoogleGenAI,
   model: string,
   parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
-  timeoutMs = 35000,
+  timeoutMs = GEMINI_ARCHITECT.timeoutMs,
   outerSignal?: AbortSignal
 ) {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
@@ -679,7 +662,7 @@ async function callGeminiWithTimeout(
       contents: parts,
       config: {
         responseMimeType: "application/json",
-        temperature: 0.25,
+        temperature: GEMINI_ARCHITECT.temperature,
         abortSignal,
       },
     });
@@ -704,7 +687,7 @@ export async function buildStoreBlueprint(
 
   const preferredModel = process.env.GEMINI_MODEL?.trim();
   const modelQueue = Array.from(
-    new Set([preferredModel || "gemini-3.5-flash", ...DEFAULT_GEMINI_MODELS])
+    new Set([preferredModel || GEMINI_DEFAULT_MODEL, ...DEFAULT_GEMINI_MODELS])
   );
 
   const ai = new GoogleGenAI({ apiKey });
@@ -811,7 +794,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
 
   for (const model of modelQueue) {
     try {
-      const response = await callGeminiWithTimeout(ai, model, parts, 35000, options.signal);
+      const response = await callGeminiWithTimeout(ai, model, parts, GEMINI_ARCHITECT.timeoutMs, options.signal);
       const text = response.text?.trim();
       if (!text) {
         lastErrorMsg = `Resposta vazia do modelo ${model}`;
