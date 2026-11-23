@@ -330,6 +330,8 @@ export const StoreBlueprintSchema = z.object({
       })
     ),
     testimonialsTitle: z.string().max(5000).default("Quem compra recomenda"),
+    /** true quando os depoimentos são exemplos gerados (heurística/IA), não avaliações reais. */
+    testimonialsIllustrative: z.boolean().default(false),
     testimonials: z.array(
       z.object({
         author: z.string().max(5000),

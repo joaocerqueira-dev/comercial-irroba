@@ -39,3 +39,26 @@ describe("layout patterns", () => {
     expect([undefined, 2, 6, 14, 15].map(mapBorderRadius)).toEqual(["none", "none", "small", "medium", "large"]);
   });
 });
+
+describe("depoimentos ilustrativos", () => {
+  it("heurística marca depoimentos como ilustrativos e o HTML avisa", async () => {
+    const { buildHeuristicBlueprint } = await import("@/lib/ai/architect");
+    const { compileStorefrontDocument } = await import("@/lib/irroba-blocks/compiler");
+    const { DEFAULT_COPY } = await import("@/lib/layout-patterns");
+    const bp = buildHeuristicBlueprint({
+      sourceUrl: "https://x.example.com/",
+      storeName: "X",
+      tokens: { headerIsOverlay: false },
+      sectionHeadings: [],
+      categories: [],
+      banners: [],
+      products: [],
+      contacts: {},
+    } as never);
+    expect(bp.sections.testimonialsIllustrative).toBe(true);
+    expect(compileStorefrontDocument(bp)).toContain("Depoimentos ilustrativos");
+    expect(
+      compileStorefrontDocument({ ...bp, sections: { ...bp.sections, testimonialsIllustrative: false } })
+    ).toContain(DEFAULT_COPY.testimonialsSubtitle);
+  });
+});

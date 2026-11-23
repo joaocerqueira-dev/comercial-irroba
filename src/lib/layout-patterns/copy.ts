@@ -15,6 +15,9 @@ export const DEFAULT_COPY = {
   showcase2Title: "Mais Procurados & Novidades",
   showcase2Subtitle: "Seleção especial com pagamento facilitado no PIX e cartão",
   testimonialsTitle: "Quem compra recomenda",
+  testimonialsSubtitle: "Prova social integrada nativamente na plataforma Irroba",
+  /** Aviso exibido quando os depoimentos são exemplos e não avaliações reais. */
+  testimonialsIllustrativeNotice: "Depoimentos ilustrativos — substitua pelas avaliações reais da sua loja.",
   buyButton: "Comprar agora",
   benefits: [
     { icon: "truck", title: "Envio Rápido", subtitle: "Para todo o Brasil com rastreio" },

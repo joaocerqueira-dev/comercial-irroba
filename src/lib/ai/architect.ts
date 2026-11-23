@@ -606,6 +606,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
         SECTION_HEADING_PATTERNS.testimonials,
         DEFAULT_COPY.testimonialsTitle
       ),
+      testimonialsIllustrative: true,
       testimonials: [
         {
           author: "Mariana S.",
@@ -1094,6 +1095,8 @@ Retorne APENAS um JSON válido com esta estrutura exata:
               ? aiData.promoStripText
               : baseBlueprint.sections.promoStripText,
           benefits: parsedBenefits.length >= 3 ? parsedBenefits : baseBlueprint.sections.benefits,
+          // Depoimentos vindos da IA também são inventados: continuam ilustrativos.
+          testimonialsIllustrative: true,
           testimonials:
             parsedTestimonials.length >= 2
               ? parsedTestimonials

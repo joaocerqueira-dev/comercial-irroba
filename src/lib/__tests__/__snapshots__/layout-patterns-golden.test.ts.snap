@@ -343,6 +343,7 @@ exports[`layout patterns golden > fitness > blueprint 1`] = `
         "rating": 5,
       },
     ],
+    "testimonialsIllustrative": true,
     "testimonialsTitle": "Quem compra recomenda",
   },
   "theme": {
@@ -1942,7 +1943,7 @@ exports[`layout patterns golden > fitness > html 1`] = `
         <div class="container">
           <div class="productList__header" style="text-align:center;">
             <h2 class="productList__title">Quem compra recomenda</h2>
-            <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
+            <p class="productList__subtitle">Depoimentos ilustrativos — substitua pelas avaliações reais da sua loja.</p>
           </div>
           <div class="reviewGrid"><div class="reviewCard">
   <div class="reviewCard__stars">★★★★★</div>
@@ -2880,6 +2881,7 @@ exports[`layout patterns golden > generic > blueprint 1`] = `
         "rating": 5,
       },
     ],
+    "testimonialsIllustrative": true,
     "testimonialsTitle": "Quem compra recomenda",
   },
   "theme": {
@@ -4317,7 +4319,7 @@ exports[`layout patterns golden > generic > html 1`] = `
         <div class="container">
           <div class="productList__header" style="text-align:center;">
             <h2 class="productList__title">Quem compra recomenda</h2>
-            <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
+            <p class="productList__subtitle">Depoimentos ilustrativos — substitua pelas avaliações reais da sua loja.</p>
           </div>
           <div class="reviewGrid"><div class="reviewCard">
   <div class="reviewCard__stars">★★★★★</div>
@@ -5423,6 +5425,7 @@ exports[`layout patterns golden > luxury > blueprint 1`] = `
         "rating": 5,
       },
     ],
+    "testimonialsIllustrative": true,
     "testimonialsTitle": "Quem compra recomenda",
   },
   "theme": {
@@ -7022,7 +7025,7 @@ exports[`layout patterns golden > luxury > html 1`] = `
         <div class="container">
           <div class="productList__header" style="text-align:center;">
             <h2 class="productList__title">Quem compra recomenda</h2>
-            <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
+            <p class="productList__subtitle">Depoimentos ilustrativos — substitua pelas avaliações reais da sua loja.</p>
           </div>
           <div class="reviewGrid"><div class="reviewCard">
   <div class="reviewCard__stars">★★★★★</div>
@@ -8128,6 +8131,7 @@ exports[`layout patterns golden > tech > blueprint 1`] = `
         "rating": 5,
       },
     ],
+    "testimonialsIllustrative": true,
     "testimonialsTitle": "Quem compra recomenda",
   },
   "theme": {
@@ -9727,7 +9731,7 @@ exports[`layout patterns golden > tech > html 1`] = `
         <div class="container">
           <div class="productList__header" style="text-align:center;">
             <h2 class="productList__title">Quem compra recomenda</h2>
-            <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
+            <p class="productList__subtitle">Depoimentos ilustrativos — substitua pelas avaliações reais da sua loja.</p>
           </div>
           <div class="reviewGrid"><div class="reviewCard">
   <div class="reviewCard__stars">★★★★★</div>
@@ -10833,6 +10837,7 @@ exports[`layout patterns golden > vegan > blueprint 1`] = `
         "rating": 5,
       },
     ],
+    "testimonialsIllustrative": true,
     "testimonialsTitle": "Quem compra recomenda",
   },
   "theme": {
@@ -12432,7 +12437,7 @@ exports[`layout patterns golden > vegan > html 1`] = `
         <div class="container">
           <div class="productList__header" style="text-align:center;">
             <h2 class="productList__title">Quem compra recomenda</h2>
-            <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
+            <p class="productList__subtitle">Depoimentos ilustrativos — substitua pelas avaliações reais da sua loja.</p>
           </div>
           <div class="reviewGrid"><div class="reviewCard">
   <div class="reviewCard__stars">★★★★★</div>

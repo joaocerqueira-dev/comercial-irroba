@@ -1763,7 +1763,11 @@ export function compileStorefrontDocument(bp: StoreBlueprint, precompiledExport?
         <div class="container">
           <div class="productList__header" style="text-align:center;">
             <h2 class="productList__title">${escapeHtml(bp.sections.testimonialsTitle || "Quem compra recomenda")}</h2>
-            <p class="productList__subtitle">Prova social integrada nativamente na plataforma Irroba</p>
+            <p class="productList__subtitle">${escapeHtml(
+              bp.sections.testimonialsIllustrative
+                ? DEFAULT_COPY.testimonialsIllustrativeNotice
+                : DEFAULT_COPY.testimonialsSubtitle
+            )}</p>
           </div>
           <div class="reviewGrid">${testimonialsHtml}</div>
         </div>
