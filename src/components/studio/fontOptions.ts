@@ -1,14 +1,4 @@
-export const FONT_OPTIONS = [
-  "Montserrat",
-  "Poppins",
-  "Cormorant Garamond",
-  "Playfair Display",
-  "Jost",
-  "Lora",
-  "Lato",
-  "Roboto",
-  "Oswald",
-  "Cabin",
-  "Anton",
-  "Manrope",
-];
+import { ALLOWED_FONTS } from "@/lib/layout-patterns/typography";
+
+/** Lista vinda de src/lib/layout-patterns/typography.ts (mesma usada pela IA). */
+export const FONT_OPTIONS = [...ALLOWED_FONTS];

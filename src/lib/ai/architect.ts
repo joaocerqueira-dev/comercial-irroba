@@ -17,7 +17,6 @@ import {
   COLOR_DERIVATION,
   COLOR_THRESHOLDS,
   DEFAULT_COPY,
-  DEFAULT_FONT_PAIRING,
   GEMINI_ARCHITECT,
   GEMINI_DEFAULT_MODEL,
   GEMINI_TEXT_MODELS,
@@ -28,7 +27,11 @@ import {
   SECTION_HEADING_PATTERNS,
   SECTION_LIMITS,
   SYSTEM_FONTS,
-  TONE_FONT_PAIRING,
+  ALLOWED_BODY_FONTS,
+  ALLOWED_FONTS,
+  ALLOWED_HEADING_FONTS,
+  matchAllowedFont,
+  pickFontPairingForStore,
   mapBorderRadius,
 } from "@/lib/layout-patterns";
 import {
@@ -117,7 +120,13 @@ function pickFontPairing(extracted: ExtractedStoreData, tone: StoreBlueprint["br
     return { heading: rawHeading, body: rawBody };
   }
 
-  return TONE_FONT_PAIRING[tone] ?? DEFAULT_FONT_PAIRING;
+  const storeText = [
+    extracted.storeName,
+    extracted.description ?? "",
+    ...extracted.categories.map((c) => c.label),
+    ...extracted.products.slice(0, 6).map((p) => p.title),
+  ].join(" ");
+  return pickFontPairingForStore(storeText, tone);
 }
 
 function pickSectionHeading(headings: string[], keywords: RegExp, fallback: string): string {
@@ -753,8 +762,8 @@ Retorne APENAS um JSON válido com esta estrutura exata:
   "neutralBackground": "#HEX real das faixas neutras/alternadas (ex: bege, creme, cinza suave)",
   "btnPrimaryBackground": "#HEX real do botão de compra/CTA",
   "btnSecondaryOutline": true | false,
-  "headingFont": "Cormorant Garamond" | "Playfair Display" | "Montserrat" | "Poppins" | "Oswald" | "Anton" | "Lato",
-  "bodyFont": "Jost" | "Lora" | "Poppins" | "Cabin" | "Roboto" | "Manrope",
+  "headingFont": ${ALLOWED_HEADING_FONTS.map((f) => `"${f}"`).join(" | ")},
+  "bodyFont": ${ALLOWED_BODY_FONTS.map((f) => `"${f}"`).join(" | ")},
   "radius": "none" | "small" | "medium" | "large",
   "headerLayout": "layout-1" | "layout-2" | "layout-3",
   "headerPosition": "default" | "sticky" | "overlay",
@@ -807,45 +816,48 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         typeof aiData.bodyBackground === "string" ? aiData.bodyBackground : undefined,
         baseBlueprint.theme.bodyBackground
       );
-      const bodyFg = getContrastingForeground(bodyBg);
+      const bodyFg = ensureReadableForeground(bodyBg, baseBlueprint.theme.bodyForeground);
 
       const headerBg = normalizeHex(
         typeof aiData.headerBackground === "string" ? aiData.headerBackground : undefined,
         baseBlueprint.visualOverrides.header.background
       );
-      const headerFg = getContrastingForeground(headerBg);
+      const headerFg = ensureReadableForeground(headerBg, baseBlueprint.visualOverrides.header.foreground);
 
       const announcementBg = normalizeHex(
         typeof aiData.announcementBackground === "string" ? aiData.announcementBackground : undefined,
         baseBlueprint.visualOverrides.announcement.background
       );
-      const announcementFg = getContrastingForeground(announcementBg);
+      const announcementFg = ensureReadableForeground(
+        announcementBg,
+        baseBlueprint.visualOverrides.announcement.foreground
+      );
 
       const primaryBg = normalizeHex(
         typeof aiData.primaryBackground === "string" ? aiData.primaryBackground : undefined,
         baseBlueprint.theme.primaryBackground
       );
-      const primaryFg = getContrastingForeground(primaryBg);
+      const primaryFg = ensureReadableForeground(primaryBg, baseBlueprint.theme.primaryForeground);
 
       const secondaryBg = normalizeHex(
         typeof aiData.secondaryBackground === "string" ? aiData.secondaryBackground : undefined,
         baseBlueprint.theme.secondaryBackground
       );
-      const secondaryFg = getContrastingForeground(secondaryBg);
-      const legalBg = darkenHex(secondaryBg, 0.25);
+      const secondaryFg = ensureReadableForeground(secondaryBg, baseBlueprint.theme.secondaryForeground);
+      const legalBg = darkenHex(secondaryBg, COLOR_DERIVATION.legalDarken);
       const legalFg = ensureReadableForeground(legalBg, secondaryFg);
 
       const neutralBg = normalizeHex(
         typeof aiData.neutralBackground === "string" ? aiData.neutralBackground : undefined,
         baseBlueprint.theme.neutralBackground
       );
-      const neutralFg = getContrastingForeground(neutralBg);
+      const neutralFg = ensureReadableForeground(neutralBg, baseBlueprint.theme.neutralForeground);
 
       const btnPrimaryBg = normalizeHex(
         typeof aiData.btnPrimaryBackground === "string" ? aiData.btnPrimaryBackground : undefined,
         primaryBg
       );
-      const btnPrimaryFg = getContrastingForeground(btnPrimaryBg);
+      const btnPrimaryFg = ensureReadableForeground(btnPrimaryBg, baseBlueprint.theme.btnPrimaryColor);
 
       const aiInsightsRaw = Array.isArray(aiData.insights) ? aiData.insights : [];
       const parsedAiInsights: DesignInsight[] = aiInsightsRaw
@@ -982,12 +994,9 @@ Retorne APENAS um JSON válido com esta estrutura exata:
             typeof aiData.btnSecondaryOutline === "boolean"
               ? aiData.btnSecondaryOutline
               : baseBlueprint.theme.btnSecondaryOutline,
-          headingFont:
-            typeof aiData.headingFont === "string"
-              ? aiData.headingFont
-              : baseBlueprint.theme.headingFont,
-          bodyFont:
-            typeof aiData.bodyFont === "string" ? aiData.bodyFont : baseBlueprint.theme.bodyFont,
+          // Só aceita fontes suportadas; qualquer outra mantém a fonte da heurística.
+          headingFont: matchAllowedFont(aiData.headingFont, ALLOWED_FONTS) ?? baseBlueprint.theme.headingFont,
+          bodyFont: matchAllowedFont(aiData.bodyFont, ALLOWED_FONTS) ?? baseBlueprint.theme.bodyFont,
           radius: validRadius,
           headerLayout: validHeaderLayout,
         },
