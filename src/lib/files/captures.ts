@@ -40,7 +40,12 @@ export interface DeleteCapturesOptions {
   capturesDir?: string;
 }
 
-/** Remove arquivos de captura exclusivos de um preview (screenshots, espelhos e imagens de IA). */
+/** Prefixo dos arquivos enviados diretamente do computador no Studio. */
+export function uploadFilePrefix(previewId: string): string {
+  return `up-${previewId.slice(0, 10)}-`;
+}
+
+/** Remove arquivos de captura exclusivos de um preview (screenshots, espelhos, uploads e imagens de IA). */
 export async function deletePreviewCaptures(
   slug: string,
   previewId: string,
@@ -48,7 +53,15 @@ export async function deletePreviewCaptures(
 ): Promise<number> {
   const capturesDir = options.capturesDir ?? CAPTURES_DIR;
   const thumbsDir = path.join(capturesDir, ".thumbs");
-  const exclusivePrefixes = [`${slug}.`, `${slug}-full.`, mirrorFilePrefix(slug), `ai-${previewId.slice(0, 10)}-`];
+  const exclusivePrefixes = [
+    `${slug}.`,
+    `${slug}-full.`,
+    `${slug}-mobile.`,
+    `${slug}-mobile-full.`,
+    mirrorFilePrefix(slug),
+    `ai-${previewId.slice(0, 10)}-`,
+    uploadFilePrefix(previewId),
+  ];
   const legacyPrefix = legacyMirrorPrefix(slug);
   const shouldDelete = (original: string): boolean => {
     if (exclusivePrefixes.some((p) => original.startsWith(p))) return true;

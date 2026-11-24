@@ -1,6 +1,7 @@
 import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
 import { getSharedBrowser } from "./browser";
+import { captureMobileStoreScreenshots } from "./mobile-screenshot";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import { mirrorFilePrefix } from "@/lib/files/captures";
 import { fetchPublic, followPublicRedirects } from "@/lib/net/safe-fetch";
@@ -1117,9 +1118,18 @@ export async function extractStoreFromUrl(
       report({
         step: "images",
         message: `Copiando imagens da loja (${done}/${total})...`,
-        fraction: 0.6 + 0.4 * (total ? done / total : 1),
+        fraction: 0.6 + 0.32 * (total ? done / total : 1),
       })
     );
+
+    const mobileCaptures = await captureMobileStoreScreenshots(normalizedUrl, slug, {
+      signal,
+      capturesDir,
+    }).catch(() => null);
+    if (mobileCaptures) {
+      parsed.mobileScreenshotPath = mobileCaptures.mobileScreenshotPath;
+      parsed.mobileFullScreenshotPath = mobileCaptures.mobileFullScreenshotPath;
+    }
 
     return parsed;
   } catch (error) {

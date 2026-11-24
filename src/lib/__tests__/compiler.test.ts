@@ -367,4 +367,15 @@ describe("XSS no documento compilado", () => {
     const html = compileStorefrontDocument(bp);
     expect(html).not.toContain("</script><img src=x");
   });
+
+  it("injeta o inspetor visual Irroba apenas quando studioInspector está ativo", () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    const cleanHtml = compileStorefrontDocument(bp);
+    const studioHtml = compileStorefrontDocument(bp, undefined, { studioInspector: true });
+
+    expect(cleanHtml).not.toContain("irb-studio-inspector-js");
+    expect(studioHtml).toContain("irb-studio-inspector-js");
+    expect(studioHtml).toContain("irb-studio-hover-badge");
+    expect(studioHtml).toContain("Clique para editar");
+  });
 });

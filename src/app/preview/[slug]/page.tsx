@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getPreviewWithBlueprint, resolveFullScreenshotPath } from "@/lib/previews/repository";
+import {
+  getPreviewWithBlueprint,
+  resolveFullScreenshotPath,
+  resolveMobileScreenshotPaths,
+} from "@/lib/previews/repository";
 import PreviewViewerClient from "@/components/PreviewViewerClient";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +47,7 @@ export default async function PublicPreviewPage({
   }
   const { preview } = result;
   const fullScreenshotPath = resolveFullScreenshotPath(preview);
+  const { mobileScreenshotPath, mobileFullScreenshotPath } = resolveMobileScreenshotPaths(preview);
 
   return (
     <PreviewViewerClient
@@ -52,6 +57,8 @@ export default async function PublicPreviewPage({
       detectedPlatform={preview.detectedPlatform ?? "E-commerce"}
       screenshotPath={preview.screenshotPath}
       fullScreenshotPath={fullScreenshotPath}
+      mobileScreenshotPath={mobileScreenshotPath}
+      mobileFullScreenshotPath={mobileFullScreenshotPath}
       sellerWhatsapp={preview.sellerWhatsapp}
     />
   );

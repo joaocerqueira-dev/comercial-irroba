@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { copyToClipboard } from "@/lib/client/clipboard";
 import { useRouter } from "next/navigation";
@@ -18,10 +18,13 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  Hand,
   Image as ImageIcon,
   Loader2,
   Monitor,
+  MousePointerClick,
   Palette,
+  Pencil,
   Plus,
   RotateCcw,
   Save,
@@ -29,6 +32,7 @@ import {
   Smartphone,
   Sparkles,
   Trash2,
+  X,
 } from "lucide-react";
 import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
 import { compileIrrobaExport, compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
@@ -42,8 +46,14 @@ import {
 import StoreCompareView from "./StoreCompareView";
 import { AiImageSlot } from "./studio/AiImageSlot";
 import { ColorField } from "./studio/ColorField";
+import { ElementInspectorPanel } from "./studio/ElementInspectorPanel";
 import { FONT_OPTIONS } from "./studio/fontOptions";
 import { ExportPanel } from "./studio/ExportPanel";
+import {
+  INSPECTOR_META,
+  type InspectorSelection,
+  type InspectorTargetId,
+} from "./studio/inspectorTargets";
 
 interface StudioClientProps {
   id: string;
@@ -54,6 +64,8 @@ interface StudioClientProps {
   initialWhatsapp: string;
   screenshotPath: string | null;
   fullScreenshotPath: string | null;
+  mobileScreenshotPath?: string | null;
+  mobileFullScreenshotPath?: string | null;
   initialBlueprint: StoreBlueprint;
   /** Base pública dos assets (PUBLIC_ASSET_BASE_URL). Null = não configurada. */
   publicAssetBaseUrl?: string | null;
@@ -73,6 +85,8 @@ export default function StudioClient({
   initialWhatsapp,
   screenshotPath,
   fullScreenshotPath,
+  mobileScreenshotPath = null,
+  mobileFullScreenshotPath = null,
   initialBlueprint,
   publicAssetBaseUrl = null,
   extractionWarnings = [],
@@ -89,6 +103,9 @@ export default function StudioClient({
   const [mobilePane, setMobilePane] = useState<"edit" | "view">("view");
   const [editorTab, setEditorTab] = useState<EditorSubTab>("insights");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
+  const [inspectMode, setInspectMode] = useState(true);
+  const [selectedElement, setSelectedElement] = useState<InspectorSelection | null>(null);
+  const [hoveredPreviewLabel, setHoveredPreviewLabel] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -99,6 +116,78 @@ export default function StudioClient({
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragSectionIdxRef = useRef<number | null>(null);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const postToPreview = useCallback((payload: Record<string, unknown>) => {
+    try {
+      previewIframeRef.current?.contentWindow?.postMessage(payload, "*");
+    } catch {
+      // ignore detached iframe
+    }
+  }, []);
+
+  const selectAndFocusElement = useCallback(
+    (next: InspectorSelection | null, scrollIntoView = false) => {
+      setSelectedElement(next);
+      postToPreview({ type: "irb-studio:set-active", selection: next, scrollIntoView });
+      if (next) {
+        setMobilePane("edit");
+        sidebarScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    },
+    [postToPreview]
+  );
+
+  const hoverSidebarTarget = useCallback(
+    (targetId: InspectorTargetId | null) => {
+      postToPreview({ type: "irb-studio:hover-target", targetId });
+    },
+    [postToPreview]
+  );
+
+  useEffect(() => {
+    postToPreview({ type: "irb-studio:set-mode", inspectMode });
+    if (!inspectMode) {
+      setHoveredPreviewLabel(null);
+    }
+  }, [inspectMode, postToPreview]);
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (
+        !previewIframeRef.current ||
+        e.source !== previewIframeRef.current.contentWindow ||
+        !e.data ||
+        typeof e.data !== "object"
+      ) {
+        return;
+      }
+      const msg = e.data as {
+        type?: string;
+        targetId?: InspectorTargetId | null;
+        label?: string | null;
+        productId?: string;
+        showcaseIdx?: number;
+        subIndex?: number;
+      };
+      if (msg.type === "irb-studio:hover") {
+        setHoveredPreviewLabel(msg.label ?? null);
+      } else if (msg.type === "irb-studio:select" && msg.targetId && INSPECTOR_META[msg.targetId]) {
+        setSelectedElement({
+          targetId: msg.targetId,
+          label: msg.label ?? INSPECTOR_META[msg.targetId].title,
+          productId: msg.productId,
+          showcaseIdx: msg.showcaseIdx,
+          subIndex: msg.subIndex,
+        });
+        setMobilePane("edit");
+        sidebarScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -112,7 +201,14 @@ export default function StudioClient({
 
   // Prévia ao vivo usa valor adiado: digitação não recompila o iframe a cada tecla
   const deferredBp = useDeferredValue(bp);
-  const liveHtml = useMemo(() => compileStorefrontDocument(deferredBp), [deferredBp]);
+  const liveHtml = useMemo(
+    () => compileStorefrontDocument(deferredBp, undefined, { studioInspector: true }),
+    [deferredBp]
+  );
+  const compareHtml = useMemo(
+    () => (activeTab === "compare" ? compileStorefrontDocument(deferredBp) : ""),
+    [activeTab, deferredBp]
+  );
   // Pacote de export só é calculado na aba Exportar
   const compiled = useMemo(
     () => (activeTab === "export" ? compileIrrobaExport(bp) : null),
@@ -498,11 +594,14 @@ export default function StudioClient({
           <div role="tablist" aria-label="Seções do editor" className="grid grid-cols-4 border-b border-slate-200 bg-slate-50 text-xs font-semibold">
             <button
               type="button"
-              onClick={() => setEditorTab("insights")}
+              onClick={() => {
+                selectAndFocusElement(null);
+                setEditorTab("insights");
+              }}
               role="tab"
-              aria-selected={editorTab === "insights"}
+              aria-selected={!selectedElement && editorTab === "insights"}
               className={`relative flex flex-col items-center gap-1 py-2.5 ${
-                editorTab === "insights"
+                !selectedElement && editorTab === "insights"
                   ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
                   : "text-slate-500 hover:text-slate-800"
               }`}
@@ -521,11 +620,14 @@ export default function StudioClient({
             </button>
             <button
               type="button"
-              onClick={() => setEditorTab("colors")}
+              onClick={() => {
+                selectAndFocusElement(null);
+                setEditorTab("colors");
+              }}
               role="tab"
-              aria-selected={editorTab === "colors"}
+              aria-selected={!selectedElement && editorTab === "colors"}
               className={`flex flex-col items-center gap-1 py-2.5 ${
-                editorTab === "colors"
+                !selectedElement && editorTab === "colors"
                   ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
                   : "text-slate-500 hover:text-slate-800"
               }`}
@@ -535,11 +637,14 @@ export default function StudioClient({
             </button>
             <button
               type="button"
-              onClick={() => setEditorTab("banners")}
+              onClick={() => {
+                selectAndFocusElement(null);
+                setEditorTab("banners");
+              }}
               role="tab"
-              aria-selected={editorTab === "banners"}
+              aria-selected={!selectedElement && editorTab === "banners"}
               className={`flex flex-col items-center gap-1 py-2.5 ${
-                editorTab === "banners"
+                !selectedElement && editorTab === "banners"
                   ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
                   : "text-slate-500 hover:text-slate-800"
               }`}
@@ -549,11 +654,14 @@ export default function StudioClient({
             </button>
             <button
               type="button"
-              onClick={() => setEditorTab("structure")}
+              onClick={() => {
+                selectAndFocusElement(null);
+                setEditorTab("structure");
+              }}
               role="tab"
-              aria-selected={editorTab === "structure"}
+              aria-selected={!selectedElement && editorTab === "structure"}
               className={`flex flex-col items-center gap-1 py-2.5 ${
-                editorTab === "structure"
+                !selectedElement && editorTab === "structure"
                   ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
                   : "text-slate-500 hover:text-slate-800"
               }`}
@@ -563,7 +671,7 @@ export default function StudioClient({
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 text-xs">
+          <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto p-4 text-xs">
             {actionError && (
               <div
                 role="alert"
@@ -573,8 +681,22 @@ export default function StudioClient({
               </div>
             )}
 
+            {selectedElement ? (
+              <ElementInspectorPanel
+                previewId={id}
+                bp={bp}
+                selection={selectedElement}
+                onUpdateBp={updateBp}
+                onSelect={(next) => selectAndFocusElement(next, Boolean(next))}
+                onToggleSection={toggleSection}
+                onMoveSection={moveSection}
+                onDownloadBenefitsPng={handleDownloadBenefitsPng}
+                onShowSlide={(slideIdx) => postToPreview({ type: "irb-studio:show-slide", slideIdx })}
+              />
+            ) : null}
+
             {/* TAB 1: DIAGNÓSTICO, PALETA FIEL & MARCA */}
-            {editorTab === "insights" && (
+            {!selectedElement && editorTab === "insights" && (
               <div className="space-y-4">
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -709,20 +831,21 @@ export default function StudioClient({
                       className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
                     />
                   </div>
-                  <div>
-                    <label className="mb-1 block text-slate-500">URL da Logo</label>
-                    <input
-                      type="text"
-                      value={bp.brand.logoUrl}
-                      onChange={(e) =>
-                        updateBp((prev) => ({
-                          ...prev,
-                          brand: { ...prev.brand, logoUrl: e.target.value },
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
-                    />
-                  </div>
+                  <AiImageSlot
+                    previewId={id}
+                    label="Logotipo da Loja"
+                    value={bp.brand.logoUrl}
+                    defaultAspectRatio="1:1"
+                    minRecommendedWidth={0}
+                    fit="contain"
+                    allowClear
+                    onChange={(nextUrl) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        brand: { ...prev.brand, logoUrl: nextUrl },
+                      }))
+                    }
+                  />
                   <div>
                     <label className="mb-1 block text-slate-500">Nicho / Segmento</label>
                     <input
@@ -769,7 +892,7 @@ export default function StudioClient({
             )}
 
             {/* TAB 2: CORES & BOTÕES (LIBERDADE TOTAL) */}
-            {editorTab === "colors" && (
+            {!selectedElement && editorTab === "colors" && (
               <div className="space-y-4">
                 <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
                   <div className="font-bold text-slate-800">8 Tokens de Cor (Tema LIME)</div>
@@ -1168,7 +1291,7 @@ export default function StudioClient({
             )}
 
             {/* TAB 3: BANNERS (HERO CAROUSEL, SLIM, MOOD, CAMPANHA) */}
-            {editorTab === "banners" && (
+            {!selectedElement && editorTab === "banners" && (
               <div className="space-y-4">
                 <div className="space-y-3 rounded-xl border border-slate-200 p-3">
                   <div className="flex items-center justify-between">
@@ -1961,15 +2084,53 @@ export default function StudioClient({
             )}
 
             {/* TAB 4: MANIPULAÇÃO DE SEÇÕES, LOOKBOOK, TIPOGRAFIA, CATEGORIAS & PRODUTOS */}
-            {editorTab === "structure" && (
+            {!selectedElement && editorTab === "structure" && (
               <div className="space-y-4">
+                {/* 0. Árvore Fixa: Topo e Rodapé (Igual ao Editor de Tema Irroba) */}
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div>
+                    <div className="font-bold text-slate-900">Topo, Rodapé &amp; Páginas</div>
+                    <div className="text-xs text-slate-500">
+                      Passe o cursor para destacar na prévia ou clique para editar cada área
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: "announcement", label: "Barra de Aviso", sub: "#overlineEditor" },
+                        { id: "header", label: "Cabeçalho", sub: "#headerEditor" },
+                        { id: "header-logo", label: "Logotipo", sub: "Upload / Marca" },
+                        { id: "header-nav", label: "Menu Categorias", sub: "Navegação" },
+                        { id: "footer", label: "Rodapé Geral", sub: "#footerInformation" },
+                        { id: "footer-legal", label: "Faixa Legal", sub: "#footerLegalEditor" },
+                      ] as const
+                    ).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseEnter={() => hoverSidebarTarget(item.id)}
+                        onMouseLeave={() => hoverSidebarTarget(null)}
+                        onClick={() =>
+                          selectAndFocusElement({ targetId: item.id, label: item.label }, true)
+                        }
+                        className="flex flex-col items-start rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left transition hover:border-emerald-400 hover:bg-emerald-50/50"
+                      >
+                        <span className="font-semibold text-slate-800">{item.label}</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          {item.sub}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* 1. Manipulador de Seções da Página Inicial */}
                 <div className="space-y-2.5 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-bold text-slate-900">Seções da Página Inicial</div>
                       <div className="text-xs text-slate-500">
-                        Arraste, mova (↑/↓) ou oculte qualquer seção em tempo real
+                        Clique em qualquer seção para editar, arraste para reordenar ou oculte
                       </div>
                     </div>
                     <button aria-label="Restaurar ordem padrão"
@@ -1988,6 +2149,8 @@ export default function StudioClient({
                       <div
                         key={sec.id}
                         draggable
+                        onMouseEnter={() => hoverSidebarTarget(sec.id)}
+                        onMouseLeave={() => hoverSidebarTarget(null)}
                         onDragStart={(e) => {
                           e.dataTransfer.effectAllowed = "move";
                           e.dataTransfer.setData("text/plain", String(idx));
@@ -2038,18 +2201,39 @@ export default function StudioClient({
                           dragOverIdx === idx && dragSectionIdx !== idx
                             ? "border-emerald-500 bg-emerald-50"
                             : sec.enabled
-                              ? "border-slate-200 bg-white"
+                              ? "border-slate-200 bg-white hover:border-emerald-400"
                               : "border-dashed border-slate-200 bg-slate-100/80"
                         } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-emerald-400" : ""}`}
                       >
                         <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-slate-400" />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate font-semibold leading-tight">{sec.label}</div>
+                        <button
+                          type="button"
+                          draggable={false}
+                          onClick={() =>
+                            selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
+                          }
+                          className="min-w-0 flex-1 text-left"
+                          title={`Editar ${sec.label}`}
+                        >
+                          <div className="truncate font-semibold leading-tight hover:text-emerald-700">
+                            {sec.label}
+                          </div>
                           <div className="truncate text-xs font-medium uppercase tracking-wide text-slate-400">
                             {sec.irrobaModule}
                           </div>
-                        </div>
+                        </button>
                         <div className="flex shrink-0 items-center gap-0.5">
+                          <button
+                            type="button"
+                            draggable={false}
+                            onClick={() =>
+                              selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
+                            }
+                            title={`Editar ${sec.label}`}
+                            className="rounded p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             type="button"
                             draggable={false}
@@ -2474,7 +2658,7 @@ export default function StudioClient({
                   ))}
                   <div className="max-h-48 space-y-1.5 overflow-y-auto pt-1">
                     {bp.products.map((prod) => (
-                      <label
+                      <div
                         key={prod.id}
                         className="flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-2 py-1.5"
                       >
@@ -2493,7 +2677,24 @@ export default function StudioClient({
                         <span className="flex-1 truncate text-xs text-slate-700">
                           {prod.title}
                         </span>
-                      </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            selectAndFocusElement(
+                              {
+                                targetId: "product-item",
+                                productId: prod.id,
+                                label: `Produto: ${prod.title.slice(0, 26)}`,
+                              },
+                              true
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                        >
+                          <Pencil className="h-2.5 w-2.5" />
+                          Editar
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -2505,10 +2706,69 @@ export default function StudioClient({
         {/* Center/Right Pane */}
         {activeTab === "preview" ? (
           <main className={`${mobilePane === "view" ? "flex" : "hidden lg:flex"} flex-1 flex-col overflow-hidden p-2 lg:p-4`}>
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-500">
-                Prévia instantânea fiel ao Tema LIME (alterações refletem na hora — clique em Salvar para atualizar a prévia do cliente)
-              </span>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <div
+                  role="group"
+                  aria-label="Modo de interação da prévia"
+                  className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setInspectMode(true)}
+                    aria-pressed={inspectMode}
+                    title="Passe o cursor nos elementos do layout para ver o nome e clique para editar"
+                    className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition ${
+                      inspectMode
+                        ? "bg-emerald-600 text-white"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <MousePointerClick className="h-3.5 w-3.5" />
+                    Clicar para Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInspectMode(false)}
+                    aria-pressed={!inspectMode}
+                    title="Teste livremente menus, busca, sacola e página de produto"
+                    className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition ${
+                      !inspectMode
+                        ? "bg-slate-900 text-white"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    <Hand className="h-3.5 w-3.5" />
+                    Navegar na Loja
+                  </button>
+                </div>
+
+                {inspectMode && hoveredPreviewLabel ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {hoveredPreviewLabel} — clique para editar
+                  </span>
+                ) : selectedElement ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-800">
+                    Editando: {selectedElement.label || INSPECTOR_META[selectedElement.targetId].title}
+                    <button
+                      type="button"
+                      onClick={() => selectAndFocusElement(null)}
+                      aria-label="Fechar seleção do elemento"
+                      className="ml-0.5 rounded-full p-0.5 text-indigo-600 hover:bg-indigo-100"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ) : (
+                  <span className="hidden text-xs font-medium text-slate-500 xl:inline">
+                    {inspectMode
+                      ? "Passe o cursor sobre qualquer elemento do layout para ver o nome e clique para editá-lo"
+                      : "Modo navegação ativo — clique em produtos, menu ou sacola para testar"}
+                  </span>
+                )}
+              </div>
+
               <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
                 <button
                   type="button"
@@ -2535,7 +2795,16 @@ export default function StudioClient({
 
             <div className="flex flex-1 items-start justify-center overflow-auto rounded-xl border border-slate-200 bg-slate-200/70 p-3">
               <iframe
+                ref={previewIframeRef}
                 srcDoc={liveHtml}
+                onLoad={() => {
+                  postToPreview({ type: "irb-studio:set-mode", inspectMode });
+                  postToPreview({
+                    type: "irb-studio:set-active",
+                    selection: selectedElement,
+                    scrollIntoView: false,
+                  });
+                }}
                 title="Preview Irroba LIME"
                 className={`h-full rounded-lg bg-white shadow-xl transition-all duration-300 ${
                   device === "mobile" ? "w-[390px] border-8 border-slate-800" : "w-full"
@@ -2546,12 +2815,17 @@ export default function StudioClient({
         ) : activeTab === "compare" ? (
           <main className="flex min-h-0 flex-1 overflow-hidden">
             <StoreCompareView
+              slug={slug}
               storeName={bp.brand.name}
               sourceUrl={sourceUrl}
               detectedPlatform={detectedPlatform}
               fullScreenshotPath={fullScreenshotPath}
               screenshotPath={screenshotPath}
-              proposalSrcDoc={liveHtml}
+              mobileFullScreenshotPath={mobileFullScreenshotPath}
+              mobileScreenshotPath={mobileScreenshotPath}
+              device={device}
+              onDeviceChange={setDevice}
+              proposalSrcDoc={compareHtml}
             />
           </main>
         ) : compiled ? (

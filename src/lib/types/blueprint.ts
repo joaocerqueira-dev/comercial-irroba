@@ -37,6 +37,8 @@ export const ExtractedStoreDataSchema = z.object({
   faviconUrl: z.string().max(4000000).optional(),
   screenshotPath: z.string().max(5000).optional(),
   fullScreenshotPath: z.string().max(5000).optional(),
+  mobileScreenshotPath: z.string().max(5000).optional(),
+  mobileFullScreenshotPath: z.string().max(5000).optional(),
   tokens: z.object({
     bodyBackground: z.string().max(5000).optional(),
     bodyForeground: z.string().max(5000).optional(),
@@ -349,6 +351,14 @@ export const StoreBlueprintSchema = z.object({
         insetImageUrl: z.string().max(4000000).default(""),
       })
       .optional(),
+    newsletter: z
+      .object({
+        headline: z.string().max(5000).optional(),
+        subheadline: z.string().max(5000).optional(),
+        placeholder: z.string().max(5000).optional(),
+        ctaText: z.string().max(5000).optional(),
+      })
+      .optional(),
     layout: z.array(SectionConfigSchema).optional(),
   }),
   products: z.array(
@@ -371,6 +381,7 @@ export const StoreBlueprintSchema = z.object({
     whatsapp: z.string().max(5000).optional(),
     instagram: z.string().max(5000).optional(),
     email: z.string().max(5000).optional(),
+    legalText: z.string().max(5000).optional(),
   }),
   designInsights: z.array(DesignInsightSchema).default([]),
 });

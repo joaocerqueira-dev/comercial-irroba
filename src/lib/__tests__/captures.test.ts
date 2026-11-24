@@ -7,6 +7,7 @@ import {
   deletePreviewCaptures,
   legacyMirrorPrefix,
   mirrorFilePrefix,
+  uploadFilePrefix,
 } from "@/lib/files/captures";
 
 let dir: string;
@@ -39,10 +40,14 @@ describe("deletePreviewCaptures", () => {
   it("apaga só arquivos exclusivos do preview", async () => {
     await touch(`${slugA}.png`);
     await touch(`${slugA}-full.jpg`);
+    await touch(`${slugA}-mobile.png`);
+    await touch(`${slugA}-mobile-full.jpg`);
     await touch(`${mirrorFilePrefix(slugA)}111.webp`);
     await touch(`${mirrorFilePrefix(slugB)}222.webp`);
     await touch(`${slugB}.png`);
     await touch("ai-previewAAA-1.png");
+    await touch(`${uploadFilePrefix("previewAAAA")}999.png`);
+    await touch(`${uploadFilePrefix("previewBBBB")}888.png`);
     await touch(`.thumbs/480-${mirrorFilePrefix(slugA)}111.webp.webp`);
     await touch(`.thumbs/480-${mirrorFilePrefix(slugB)}222.webp.webp`);
 
@@ -50,8 +55,12 @@ describe("deletePreviewCaptures", () => {
 
     expect(await exists(`${slugA}.png`)).toBe(false);
     expect(await exists(`${slugA}-full.jpg`)).toBe(false);
+    expect(await exists(`${slugA}-mobile.png`)).toBe(false);
+    expect(await exists(`${slugA}-mobile-full.jpg`)).toBe(false);
     expect(await exists(`${mirrorFilePrefix(slugA)}111.webp`)).toBe(false);
     expect(await exists("ai-previewAAA-1.png")).toBe(false);
+    expect(await exists(`${uploadFilePrefix("previewAAAA")}999.png`)).toBe(false);
+    expect(await exists(`${uploadFilePrefix("previewBBBB")}888.png`)).toBe(true);
     expect(await exists(`.thumbs/480-${mirrorFilePrefix(slugA)}111.webp.webp`)).toBe(false);
     expect(await exists(`${mirrorFilePrefix(slugB)}222.webp`)).toBe(true);
     expect(await exists(`${slugB}.png`)).toBe(true);

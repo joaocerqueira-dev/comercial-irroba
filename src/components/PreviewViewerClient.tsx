@@ -20,6 +20,8 @@ interface PreviewViewerClientProps {
   detectedPlatform: string;
   screenshotPath: string | null;
   fullScreenshotPath: string | null;
+  mobileScreenshotPath?: string | null;
+  mobileFullScreenshotPath?: string | null;
   sellerWhatsapp: string | null;
 }
 
@@ -30,6 +32,8 @@ export default function PreviewViewerClient({
   detectedPlatform,
   screenshotPath,
   fullScreenshotPath,
+  mobileScreenshotPath = null,
+  mobileFullScreenshotPath = null,
   sellerWhatsapp,
 }: PreviewViewerClientProps) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
@@ -126,11 +130,16 @@ export default function PreviewViewerClient({
       {showCompare ? (
         <main className="flex min-h-0 flex-1 overflow-hidden">
           <StoreCompareView
+            slug={slug}
             storeName={storeName}
             sourceUrl={sourceUrl}
             detectedPlatform={detectedPlatform}
             fullScreenshotPath={fullScreenshotPath}
             screenshotPath={screenshotPath}
+            mobileFullScreenshotPath={mobileFullScreenshotPath}
+            mobileScreenshotPath={mobileScreenshotPath}
+            device={device}
+            onDeviceChange={setDevice}
             proposalSrc={`/render/${slug}`}
             onClose={() => setShowCompare(false)}
           />
