@@ -45,10 +45,13 @@ import {
 } from "@/lib/types/blueprint";
 import StoreCompareView from "./StoreCompareView";
 import { AiImageSlot } from "./studio/AiImageSlot";
+import { AnnouncementBarControls } from "./studio/AnnouncementBarControls";
+import { BannerDimensionsControl } from "./studio/BannerDimensionsControl";
 import { ColorField } from "./studio/ColorField";
 import { ElementInspectorPanel } from "./studio/ElementInspectorPanel";
 import { FONT_OPTIONS } from "./studio/fontOptions";
 import { ExportPanel } from "./studio/ExportPanel";
+import { HeaderLinksHoverControls } from "./studio/HeaderLinksHoverControls";
 import {
   INSPECTOR_META,
   type InspectorSelection,
@@ -873,20 +876,7 @@ export default function StudioClient({
                       className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
                     />
                   </div>
-                  <div>
-                    <label className="mb-1 block text-slate-500">Tarja Informativa Superior</label>
-                    <input
-                      type="text"
-                      value={bp.sections.announcementText}
-                      onChange={(e) =>
-                        updateBp((prev) => ({
-                          ...prev,
-                          sections: { ...prev.sections, announcementText: e.target.value },
-                        }))
-                      }
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
-                    />
-                  </div>
+                  <AnnouncementBarControls bp={bp} onUpdateBp={updateBp} showColors={false} />
                 </div>
               </div>
             )}
@@ -1286,6 +1276,54 @@ export default function StudioClient({
                       }
                     />
                   </div>
+
+                  <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-700">Opacidade do Cabeçalho</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateBp((prev) => ({
+                              ...prev,
+                              visualOverrides: {
+                                ...prev.visualOverrides,
+                                header: { ...prev.visualOverrides.header, backgroundOpacity: 0 },
+                              },
+                            }))
+                          }
+                          className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-50"
+                        >
+                          100% Transparente
+                        </button>
+                        <strong className="font-mono text-slate-900">
+                          {Math.round(bp.visualOverrides.header.backgroundOpacity * 100)}%
+                        </strong>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      value={bp.visualOverrides.header.backgroundOpacity}
+                      onChange={(e) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          visualOverrides: {
+                            ...prev.visualOverrides,
+                            header: {
+                              ...prev.visualOverrides.header,
+                              backgroundOpacity: Number(e.target.value),
+                            },
+                          },
+                        }))
+                      }
+                      className="w-full accent-emerald-600"
+                    />
+                  </div>
+
+                  <HeaderLinksHoverControls bp={bp} onUpdateBp={updateBp} />
                 </div>
               </div>
             )}
@@ -1294,6 +1332,70 @@ export default function StudioClient({
             {!selectedElement && editorTab === "banners" && (
               <div className="space-y-4">
                 <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+                  <BannerDimensionsControl
+                    title="Tamanho do Banner Principal (PX)"
+                    heightPx={bp.visualOverrides.banner.heightPx}
+                    defaultHeightPx={500}
+                    minHeightPx={160}
+                    maxHeightPx={1100}
+                    widthPx={
+                      bp.visualOverrides.banner.customWidthPx ??
+                      (bp.visualOverrides.banner.width === "container" ? 1280 : undefined)
+                    }
+                    defaultWidthPx={1280}
+                    isFullWidth={
+                      bp.visualOverrides.banner.width === "full" &&
+                      bp.visualOverrides.banner.customWidthPx === undefined
+                    }
+                    onFullWidthChange={(full) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        visualOverrides: {
+                          ...prev.visualOverrides,
+                          banner: {
+                            ...prev.visualOverrides.banner,
+                            width: full ? "full" : "container",
+                            customWidthPx: full
+                              ? undefined
+                              : prev.visualOverrides.banner.customWidthPx ?? 1280,
+                          },
+                        },
+                      }))
+                    }
+                    objectFit={bp.visualOverrides.banner.objectFit}
+                    onHeightChange={(h) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        visualOverrides: {
+                          ...prev.visualOverrides,
+                          banner: { ...prev.visualOverrides.banner, heightPx: h },
+                        },
+                      }))
+                    }
+                    onWidthChange={(w) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        visualOverrides: {
+                          ...prev.visualOverrides,
+                          banner: {
+                            ...prev.visualOverrides.banner,
+                            width: w ? "container" : "full",
+                            customWidthPx: w,
+                          },
+                        },
+                      }))
+                    }
+                    onObjectFitChange={(fit) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        visualOverrides: {
+                          ...prev.visualOverrides,
+                          banner: { ...prev.visualOverrides.banner, objectFit: fit },
+                        },
+                      }))
+                    }
+                  />
+
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800">Slides do Banner Principal</span>
                     <button
@@ -1810,6 +1912,38 @@ export default function StudioClient({
                         }
                       />
                     </label>
+                    <BannerDimensionsControl
+                      title="Tamanho do Banner Slim (PX)"
+                      heightPx={bp.sections.slimBanner.heightPx}
+                      defaultHeightPx={140}
+                      minHeightPx={48}
+                      maxHeightPx={500}
+                      widthPx={bp.sections.slimBanner.widthPx}
+                      defaultWidthPx={1280}
+                      objectFit={bp.sections.slimBanner.objectFit}
+                      onHeightChange={(h) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            slimBanner: prev.sections.slimBanner
+                              ? { ...prev.sections.slimBanner, heightPx: h }
+                              : undefined,
+                          },
+                        }))
+                      }
+                      onWidthChange={(w) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            slimBanner: prev.sections.slimBanner
+                              ? { ...prev.sections.slimBanner, widthPx: w }
+                              : undefined,
+                          },
+                        }))
+                      }
+                    />
                     <select
                       value={bp.sections.slimBanner.mode}
                       onChange={(e) =>
@@ -1926,6 +2060,49 @@ export default function StudioClient({
                         }
                       />
                     </label>
+                    <BannerDimensionsControl
+                      title="Tamanho do Banner Secundário (PX)"
+                      heightPx={bp.sections.secondaryBanner.heightPx}
+                      defaultHeightPx={420}
+                      minHeightPx={140}
+                      maxHeightPx={900}
+                      widthPx={bp.sections.secondaryBanner.widthPx}
+                      defaultWidthPx={1280}
+                      objectFit={bp.sections.secondaryBanner.objectFit}
+                      onHeightChange={(h) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            secondaryBanner: prev.sections.secondaryBanner
+                              ? { ...prev.sections.secondaryBanner, heightPx: h }
+                              : undefined,
+                          },
+                        }))
+                      }
+                      onWidthChange={(w) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            secondaryBanner: prev.sections.secondaryBanner
+                              ? { ...prev.sections.secondaryBanner, widthPx: w }
+                              : undefined,
+                          },
+                        }))
+                      }
+                      onObjectFitChange={(fit) =>
+                        updateBp((prev) => ({
+                          ...prev,
+                          sections: {
+                            ...prev.sections,
+                            secondaryBanner: prev.sections.secondaryBanner
+                              ? { ...prev.sections.secondaryBanner, objectFit: fit }
+                              : undefined,
+                          },
+                        }))
+                      }
+                    />
                     <select
                       value={bp.sections.secondaryBanner.mode}
                       onChange={(e) =>
@@ -2022,6 +2199,19 @@ export default function StudioClient({
                       }))
                     }
                     className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                  <BannerDimensionsControl
+                    title="Altura dos Cards da Galeria (PX)"
+                    heightPx={bp.sections.moodCardHeightPx}
+                    defaultHeightPx={380}
+                    minHeightPx={180}
+                    maxHeightPx={850}
+                    onHeightChange={(h) =>
+                      updateBp((prev) => ({
+                        ...prev,
+                        sections: { ...prev.sections, moodCardHeightPx: h },
+                      }))
+                    }
                   />
                   {bp.sections.moodBanners.map((m, idx) => (
                     <div key={m.id} className="space-y-1.5 rounded-lg bg-slate-50 p-2">
@@ -2403,17 +2593,7 @@ export default function StudioClient({
                 {/* 3. Barra de Aviso Superior */}
                 <div className="space-y-2 rounded-xl border border-slate-200 p-3">
                   <div className="font-bold text-slate-800">Barra de Aviso do Topo</div>
-                  <input
-                    type="text"
-                    value={bp.sections.announcementText}
-                    onChange={(e) =>
-                      updateBp((prev) => ({
-                        ...prev,
-                        sections: { ...prev.sections, announcementText: e.target.value },
-                      }))
-                    }
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
-                  />
+                  <AnnouncementBarControls bp={bp} onUpdateBp={updateBp} />
                 </div>
 
                 <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
@@ -2528,9 +2708,9 @@ export default function StudioClient({
                         }
                         className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
                       >
-                        <option value="default">Padrão</option>
+                        <option value="default">Padrão (Rola com a página)</option>
                         <option value="sticky">Fixo ao rolar</option>
-                        <option value="overlay">Fixo na tela</option>
+                        <option value="overlay">Sobreposto ao Banner (Fixo)</option>
                       </select>
                     </div>
                     <div>
@@ -2560,8 +2740,9 @@ export default function StudioClient({
                 </div>
 
                 {/* Menu de Categorias */}
-                <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Categorias do Menu</div>
+                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
+                  <div className="font-bold text-slate-800">Categorias &amp; Links da Navbar</div>
+                  <HeaderLinksHoverControls bp={bp} onUpdateBp={updateBp} />
                   <div className="flex gap-1.5">
                     <input
                       type="text"

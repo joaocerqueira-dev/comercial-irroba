@@ -378,4 +378,49 @@ describe("XSS no documento compilado", () => {
     expect(studioHtml).toContain("irb-studio-hover-badge");
     expect(studioHtml).toContain("Clique para editar");
   });
+
+  it("aplica posicionamento overlay/sticky, opacidade 100% transparente sem afetar logo, hover de links, tamanhos em PX nos banners, dropdown de conta e ticker na barra superior", () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    bp.visualOverrides.header.position = "overlay";
+    bp.visualOverrides.header.backgroundOpacity = 0;
+    bp.visualOverrides.header.linkHoverColor = "#FF3366";
+    bp.visualOverrides.header.linkHoverStyle = "pill";
+    bp.visualOverrides.header.linkHoverBackground = "#FFE4EC";
+    bp.visualOverrides.banner.heightPx = 620;
+    bp.visualOverrides.banner.customWidthPx = 1140;
+    if (bp.sections.slimBanner) {
+      bp.sections.slimBanner.heightPx = 110;
+      bp.sections.slimBanner.widthPx = 980;
+    }
+    bp.visualOverrides.announcement = {
+      background: "#111827",
+      foreground: "#FFFFFF",
+      messages: ["Frete grátis acima de R$ 199", "5% OFF no PIX imediato"],
+      rollingEnabled: true,
+      intervalSeconds: 3,
+      transitionMode: "slide-up",
+    };
+
+    const html = compileStorefrontDocument(bp);
+
+    expect(html).toContain('class="irb-header header--overlay"');
+    expect(html).toContain("background: rgba(255, 255, 255, 0);");
+    const headerRuleMatch = html.match(/header\.irb-header\s*\{([^}]*)\}/);
+    expect(headerRuleMatch?.[1]).toBeTruthy();
+    expect(headerRuleMatch?.[1]).not.toContain("opacity:");
+    expect(html).toContain("--header-link-hover-color: #FF3366;");
+    expect(html).toContain("--header-link-hover-bg: #FFE4EC;");
+    expect(html).toContain("height: 620px;");
+    expect(html).toContain("max-width:1140px;");
+    expect(html).toContain("min-height:110px;");
+    expect(html).toContain("max-width:980px;");
+    expect(html).toContain('id="irb-account-dropdown"');
+    expect(html).toContain('id="irb-account-backdrop"');
+    expect(html).toContain("<span>Entrar</span>");
+    expect(html).toContain("<span>Criar conta</span>");
+    expect(html).toContain('id="irb-overline-ticker"');
+    expect(html).toContain('data-interval-ms="3000"');
+    expect(html).toContain("Frete grátis acima de R$ 199");
+    expect(html).toContain("5% OFF no PIX imediato");
+  });
 });

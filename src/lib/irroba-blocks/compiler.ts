@@ -110,6 +110,31 @@ function renderTarjaBenefitsHtml(bp: StoreBlueprint): string {
 </div>`;
 }
 
+function colorWithAlpha(cssColor: string, alpha: number): string {
+  const clamped = Math.min(1, Math.max(0, alpha));
+  const trimmed = cssColor.trim();
+  if (trimmed.startsWith("#")) {
+    const hex = trimmed.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      const r = parseInt(hex[0] + hex[0], 16);
+      const g = parseInt(hex[1] + hex[1], 16);
+      const b = parseInt(hex[2] + hex[2], 16);
+      return `rgba(${r}, ${g}, ${b}, ${Number(clamped.toFixed(3))})`;
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${Number(clamped.toFixed(3))})`;
+    }
+  }
+  const rgbMatch = trimmed.match(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i);
+  if (rgbMatch) {
+    return `rgba(${rgbMatch[1]}, ${rgbMatch[2]}, ${rgbMatch[3]}, ${Number(clamped.toFixed(3))})`;
+  }
+  return clamped <= 0 ? "rgba(255, 255, 255, 0)" : trimmed;
+}
+
 function renderSlimBannerHtml(bp: StoreBlueprint): string {
   const slim = bp.sections.slimBanner;
   const bg = sanitizeCssColor(slim?.backgroundColor ?? bp.theme.secondaryBackground, PALETTE.ink);
@@ -117,17 +142,26 @@ function renderSlimBannerHtml(bp: StoreBlueprint): string {
   const btnBg = sanitizeCssColor(bp.theme.btnPrimaryBackground, PALETTE.white);
   const btnFg = sanitizeCssColor(bp.theme.btnPrimaryColor, PALETTE.ink);
   const radius = RADIUS_MAP[bp.theme.radius].css;
+  const slimHeightPx = slim?.heightPx ? Math.min(600, Math.max(40, Math.round(slim.heightPx))) : null;
+  const slimWidthPx = slim?.widthPx ? Math.min(2560, Math.max(280, Math.round(slim.widthPx))) : null;
+  const slimFit = slim?.objectFit ?? "cover";
 
   if (slim?.mode === "image" && slim.imageUrl) {
-    return `<div style="padding:10px 0;">
+    const wrapStyle = slimWidthPx
+      ? `padding:10px 0;max-width:${slimWidthPx}px;margin:0 auto;`
+      : "padding:10px 0;";
+    const imgHeightCss = slimHeightPx ? `height:${slimHeightPx}px;` : "height:auto;";
+    return `<div style="${wrapStyle}">
   <a href="#vitrines" style="display:block;border-radius:${radius};overflow:hidden;">
-    <img src="${escapeAttr(sanitizeUrl(slim.imageUrl, ""))}" alt="${escapeAttr(slim.headline)}" style="width:100%;height:auto;display:block;object-fit:cover;" />
+    <img src="${escapeAttr(sanitizeUrl(slim.imageUrl, ""))}" alt="${escapeAttr(slim.headline)}" style="width:100%;${imgHeightCss}display:block;object-fit:${slimFit};" />
   </a>
 </div>`;
   }
 
-  return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:18px 20px;box-sizing:border-box;">
-  <div style="max-width:${CONTAINER_WIDTH_PX}px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+  const innerMaxW = slimWidthPx ?? CONTAINER_WIDTH_PX;
+  const minHeightCss = slimHeightPx ? `min-height:${slimHeightPx}px;` : "";
+  return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:18px 20px;box-sizing:border-box;${minHeightCss}display:flex;align-items:center;">
+  <div style="width:100%;max-width:${innerMaxW}px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
       <span style="background:${btnBg};color:${btnFg};font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:${radius};">${escapeHtml(slim?.badgeText || DEFAULT_COPY.slimBadge)}</span>
       <span style="font-size:16px;font-weight:600;">${escapeHtml(slim?.headline || bp.sections.announcementText)}</span>
@@ -201,7 +235,11 @@ function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
         ? `<img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(cleanAltText(item.title))}" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform 0.55s ease;" />`
         : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${primaryBg},#18181b);"></div>`;
 
-      return `<a href="${href}" data-irb-cat="${escapeAttr(item.title)}" style="position:relative;flex:1 0 min(260px,74vw);scroll-snap-align:start;aspect-ratio:3/4;min-height:340px;border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#141416;color:#ffffff;box-sizing:border-box;">
+      const moodCardSizeCss = bp.sections.moodCardHeightPx
+        ? `height:${Math.min(900, Math.max(180, Math.round(bp.sections.moodCardHeightPx)))}px;min-height:${Math.min(900, Math.max(180, Math.round(bp.sections.moodCardHeightPx)))}px;`
+        : "aspect-ratio:3/4;min-height:340px;";
+
+      return `<a href="${href}" data-irb-cat="${escapeAttr(item.title)}" style="position:relative;flex:1 0 min(260px,74vw);scroll-snap-align:start;${moodCardSizeCss}border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#141416;color:#ffffff;box-sizing:border-box;">
     ${mediaMarkup}
     <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.52) 0%,rgba(0,0,0,0.16) 24%,rgba(0,0,0,0.03) 48%,rgba(0,0,0,0.82) 100%);"></div>
     <div style="position:absolute;top:18px;left:18px;right:18px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
@@ -396,6 +434,15 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
       controls: [
         { label: "Cor de fundo", value: bp.visualOverrides.announcement.background },
         { label: "Cor do texto", value: bp.visualOverrides.announcement.foreground },
+        ...(bp.visualOverrides.announcement.messages &&
+        bp.visualOverrides.announcement.messages.length > 1
+          ? [
+              {
+                label: "Mensagens em rotação",
+                value: `${bp.visualOverrides.announcement.messages.length} mensagens (${bp.visualOverrides.announcement.intervalSeconds ?? 4}s cada)`,
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -409,6 +456,14 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
         { label: "Opacidade de fundo", value: String(bp.visualOverrides.header.backgroundOpacity) },
         { label: "Desfoque (blur)", value: `${bp.visualOverrides.header.blurPx}px` },
         { label: "Formato texto categorias", value: bp.visualOverrides.header.categoryCase },
+        ...(bp.visualOverrides.header.linkHoverColor
+          ? [
+              {
+                label: "Hover dos links",
+                value: `${bp.visualOverrides.header.linkHoverColor} (${bp.visualOverrides.header.linkHoverStyle ?? "underline"})`,
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -416,8 +471,15 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
       controls: [
         {
           label: "Largura",
-          value: bp.visualOverrides.banner.width === "full" ? "Largura Total" : `Padrão do site (${CONTAINER_WIDTH_PX}px)`,
+          value: bp.visualOverrides.banner.customWidthPx
+            ? `${bp.visualOverrides.banner.customWidthPx}px`
+            : bp.visualOverrides.banner.width === "full"
+              ? "Largura Total"
+              : `Padrão do site (${CONTAINER_WIDTH_PX}px)`,
         },
+        ...(bp.visualOverrides.banner.heightPx
+          ? [{ label: "Altura de exibição", value: `${bp.visualOverrides.banner.heightPx}px` }]
+          : []),
       ],
     },
     {
@@ -827,6 +889,7 @@ function buildStudioInspectorSnippet(): string {
       function resolveEditableTarget(node) {
         if (!(node instanceof Element)) return null;
         if (node.closest('[data-irb-inspector-ui]')) return null;
+        if (node.closest('#irb-account-dropdown, #irb-account-backdrop, #irb-account-modal')) return null;
 
         const logo = node.closest('.headerContent_logo');
         if (logo) return { targetId: 'header-logo', label: 'Logotipo da Loja', el: logo };
@@ -1062,12 +1125,17 @@ function buildStudioInspectorSnippet(): string {
           const targetNode = e.target instanceof Element ? e.target : null;
           if (!targetNode) return;
 
-          // Allow hero carousel navigation arrows/dots to switch slide while also selecting hero
-          const isCarouselControl = Boolean(targetNode.closest('.heroNavBtn, .heroDot'));
+          if (targetNode.closest('#irb-account-dropdown, #irb-account-backdrop, #irb-account-modal')) {
+            return;
+          }
+          // Allow hero carousel arrows/dots and account icon dropdown toggle to execute while still selecting
+          const isInteractiveControl = Boolean(
+            targetNode.closest('.heroNavBtn, .heroDot, #irb-open-account')
+          );
           const match = resolveEditableTarget(targetNode);
           if (!match) return;
 
-          if (!isCarouselControl) {
+          if (!isInteractiveControl) {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
@@ -1090,7 +1158,7 @@ function buildStudioInspectorSnippet(): string {
             writeSavedState({ activeSelection: payload });
             refreshOverlays();
             window.parent.postMessage(Object.assign({ type: 'irb-studio:select' }, payload), '*');
-          }, isCarouselControl ? 20 : 0);
+          }, isInteractiveControl ? 20 : 0);
         },
         true
       );
@@ -1274,27 +1342,34 @@ export function compileStorefrontDocument(
     .join("\n");
 
   const secondaryBanner = bp.sections.secondaryBanner;
+  const secHeightPx = secondaryBanner?.heightPx
+    ? Math.min(1000, Math.max(120, Math.round(secondaryBanner.heightPx)))
+    : null;
+  const secWidthPx = secondaryBanner?.widthPx
+    ? Math.min(2560, Math.max(280, Math.round(secondaryBanner.widthPx)))
+    : null;
+  const secFit = secondaryBanner?.objectFit ?? "cover";
   const secondaryBannerHtml =
     secondaryBanner?.enabled && secondaryBanner.imageUrl
       ? secondaryBanner.mode === "artwork"
         ? `<section class="secondaryBannerSection">
-  <div class="${bp.visualOverrides.banner.width === "container" ? "container" : ""}">
+  <div class="${!secWidthPx && bp.visualOverrides.banner.width === "container" ? "container" : ""}"${secWidthPx ? ` style="max-width:${secWidthPx}px;margin:0 auto;padding:0 20px;"` : ""}>
     <a href="#vitrines" style="display:block;">
-      <img src="${escapeAttr(sanitizeUrl(secondaryBanner.imageUrl, ""))}" alt="${escapeAttr(secondaryBanner.headline)}" style="width:100%;height:auto;max-height:460px;object-fit:cover;display:block;border-radius:${bp.visualOverrides.banner.width === "container" ? radiusCss : "0px"};" />
+      <img src="${escapeAttr(sanitizeUrl(secondaryBanner.imageUrl, ""))}" alt="${escapeAttr(secondaryBanner.headline)}" style="width:100%;height:${secHeightPx ? `${secHeightPx}px` : "auto"};max-height:${secHeightPx ?? 460}px;object-fit:${secFit};display:block;border-radius:${secWidthPx || bp.visualOverrides.banner.width === "container" ? radiusCss : "0px"};" />
     </a>
   </div>
 </section>`
         : `<section class="secondaryBannerSection" style="padding:18px 0;">
-  <div class="container">
-    <div class="secondaryEditorial" style="background:${sanitizeCssColor(secondaryBanner.backgroundColor, secondaryBg)};color:${sanitizeCssColor(secondaryBanner.textColor, secondaryFg)};">
+  <div class="container"${secWidthPx ? ` style="max-width:${secWidthPx}px;"` : ""}>
+    <div class="secondaryEditorial" style="background:${sanitizeCssColor(secondaryBanner.backgroundColor, secondaryBg)};color:${sanitizeCssColor(secondaryBanner.textColor, secondaryFg)};${secHeightPx ? `min-height:${secHeightPx}px;` : ""}">
       <div class="secondaryEditorial__text">
         <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;opacity:0.75;">Campanha Especial</span>
         <h2 style="margin:8px 0 10px;font-size:clamp(24px,3vw,34px);line-height:1.15;">${escapeHtml(secondaryBanner.headline)}</h2>
         <p style="margin:0 0 20px;font-size:15px;line-height:1.55;opacity:0.9;">${escapeHtml(secondaryBanner.subheadline)}</p>
         <a href="#vitrines" class="btnSecondaryCustom">${escapeHtml(secondaryBanner.ctaText)}</a>
       </div>
-      <div class="secondaryEditorial__media">
-        <img src="${escapeAttr(sanitizeUrl(secondaryBanner.imageUrl, ""))}" alt="${escapeAttr(secondaryBanner.headline)}" />
+      <div class="secondaryEditorial__media"${secHeightPx ? ` style="height:${secHeightPx}px;max-height:${secHeightPx}px;"` : ""}>
+        <img src="${escapeAttr(sanitizeUrl(secondaryBanner.imageUrl, ""))}" alt="${escapeAttr(secondaryBanner.headline)}" style="object-fit:${secFit};" />
       </div>
     </div>
   </div>
@@ -1316,9 +1391,45 @@ export function compileStorefrontDocument(
     .join("&");
 
   const headerPosClass =
-    bp.visualOverrides.header.position === "sticky" || bp.visualOverrides.header.position === "overlay"
-      ? "header--sticky"
-      : "";
+    bp.visualOverrides.header.position === "overlay"
+      ? "header--overlay"
+      : bp.visualOverrides.header.position === "sticky"
+        ? "header--sticky"
+        : "";
+
+  const headerOpacity = Math.min(1, Math.max(0, bp.visualOverrides.header.backgroundOpacity));
+  const headerBgCss = colorWithAlpha(headerBg, headerOpacity);
+  const effectiveHeaderBlur = headerOpacity <= 0 ? 0 : bp.visualOverrides.header.blurPx;
+  const headerBorderAlpha = Number((0.08 * headerOpacity).toFixed(4));
+  const logoHeightPx = bp.visualOverrides.header.logoHeightPx
+    ? Math.min(140, Math.max(20, Math.round(bp.visualOverrides.header.logoHeightPx)))
+    : 46;
+
+  const navHoverColor = sanitizeCssColor(bp.visualOverrides.header.linkHoverColor, primaryBg);
+  const navHoverStyle = bp.visualOverrides.header.linkHoverStyle ?? "underline";
+  const navHoverBg = sanitizeCssColor(
+    bp.visualOverrides.header.linkHoverBackground,
+    "rgba(0, 0, 0, 0.07)"
+  );
+
+  const heroHeightPx = bp.visualOverrides.banner.heightPx
+    ? Math.min(1200, Math.max(120, Math.round(bp.visualOverrides.banner.heightPx)))
+    : null;
+  const heroCustomWidthPx = bp.visualOverrides.banner.customWidthPx
+    ? Math.min(2560, Math.max(280, Math.round(bp.visualOverrides.banner.customWidthPx)))
+    : null;
+  const heroFit = bp.visualOverrides.banner.objectFit ?? "cover";
+
+  const rawAnnouncementMsgs = (bp.visualOverrides.announcement.messages ?? [])
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const announcementMessages =
+    rawAnnouncementMsgs.length > 0 ? rawAnnouncementMsgs : [bp.sections.announcementText];
+  const announcementRolling =
+    bp.visualOverrides.announcement.rollingEnabled ?? announcementMessages.length > 1;
+  const announcementIntervalMs =
+    Math.min(30, Math.max(1, bp.visualOverrides.announcement.intervalSeconds ?? 4)) * 1000;
+  const announcementTransition = bp.visualOverrides.announcement.transitionMode ?? "slide-up";
 
   const logoHtml = bp.brand.logoUrl
     ? `<img src="${escapeAttr(sanitizeUrl(bp.brand.logoUrl))}" alt="${escapeAttr(bp.brand.name)}" class="headerContent_logo_img" />`
@@ -1414,6 +1525,8 @@ export function compileStorefrontDocument(
       --announcement-foreground: ${announcementFg};
       --header-background: ${headerBg};
       --header-foreground: ${headerFg};
+      --header-link-hover-color: ${navHoverColor};
+      --header-link-hover-bg: ${navHoverBg};
       --title-font-family: '${headingFont}', ${fontFallback(headingFont)};
       --text-font-family: '${bodyFont}', ${fontFallback(bodyFont)};
       --irb-radius: ${radiusCss};
@@ -1437,14 +1550,14 @@ export function compileStorefrontDocument(
       background: var(--body-background);
       color: var(--body-foreground);
       font-family: var(--text-font-family);
-      overflow-x: hidden;
+      overflow-x: clip;
       -webkit-font-smoothing: antialiased;
     }
     h1, h2, h3, h4 { font-family: var(--title-font-family); }
     .container { max-width: ${CONTAINER_WIDTH_PX}px; margin: 0 auto; padding: 0 20px; }
     .container-full { width: 100%; padding: 0 24px; }
 
-    /* Tarja Informativa (.overlineModule) */
+    /* Tarja Informativa (.overlineModule) + Ticker Rolante */
     .overlineModule {
       background: var(--announcement-background);
       color: var(--announcement-foreground);
@@ -1454,19 +1567,81 @@ export function compileStorefrontDocument(
       padding: 8px 16px;
       letter-spacing: 0.03em;
     }
+    .overlineModule--ticker {
+      position: relative;
+      overflow: hidden;
+      min-height: 34px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlineModule__track {
+      position: relative;
+      width: 100%;
+      max-width: ${CONTAINER_WIDTH_PX}px;
+      height: 34px;
+      overflow: hidden;
+    }
+    .overlineModule__slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(100%);
+      transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
+      pointer-events: none;
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
+      transform: translateX(100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
+      transform: translateY(0);
+    }
+    .overlineModule__slide.is-active {
+      opacity: 1;
+      transform: translate(0, 0);
+      pointer-events: auto;
+    }
+    .overlineModule__slide.is-leaving {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
+      transform: translateX(-100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
+      transform: translateY(0);
+    }
 
-    /* Cabeçalho Tema LIME (.headerContent) — Ícones puros + Busca expansível ao clicar na lupa */
+    /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */
     header.irb-header {
-      background: var(--header-background);
+      background: ${headerBgCss};
       color: var(--header-foreground);
-      opacity: ${bp.visualOverrides.header.backgroundOpacity};
-      backdrop-filter: blur(${bp.visualOverrides.header.blurPx}px);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      z-index: 40;
+      backdrop-filter: ${effectiveHeaderBlur > 0 ? `blur(${effectiveHeaderBlur}px)` : "none"};
+      -webkit-backdrop-filter: ${effectiveHeaderBlur > 0 ? `blur(${effectiveHeaderBlur}px)` : "none"};
+      border-bottom: 1px solid rgba(0, 0, 0, ${headerBorderAlpha});
+      z-index: 60;
       width: 100%;
       position: relative;
     }
-    header.header--sticky { position: sticky; top: 0; }
+    header.header--sticky {
+      position: sticky;
+      top: 0;
+    }
+    header.header--overlay {
+      position: sticky;
+      top: 0;
+    }
+    body:not(.irb-subview-active) header.header--overlay {
+      margin-bottom: calc(-1 * var(--irb-header-height, 76px));
+    }
     .headerContent {
       display: flex;
       align-items: center;
@@ -1484,13 +1659,28 @@ export function compileStorefrontDocument(
       padding: 6px;
       cursor: pointer;
     }
-    .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
-    .headerContent_logo_img { max-height: 46px; max-width: 185px; object-fit: contain; }
+    .headerContent_logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 1;
+      position: relative;
+      z-index: 2;
+    }
+    .headerContent_logo_img {
+      max-height: ${logoHeightPx}px;
+      max-width: 210px;
+      object-fit: contain;
+      opacity: 1;
+      display: block;
+    }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
+      opacity: 1;
     }
     .headerContent_navInline {
       display: flex;
@@ -1537,6 +1727,77 @@ export function compileStorefrontDocument(
       background: var(--primary-background);
       color: var(--primary-foreground);
       font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    /* Dropdown Minha Conta abaixo do ícone com Blur no fundo */
+    .headerAccountWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .irb-account-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: none;
+    }
+    .irb-account-backdrop.open { display: block; }
+    .irb-account-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 215px;
+      padding: 8px;
+      border-radius: calc(var(--irb-radius) + 4px);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.2);
+      z-index: 90;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      animation: irbPopIn .16s ease-out;
+    }
+    .irb-account-dropdown.open { display: flex; }
+    .irb-account-dropdown__item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--irb-radius);
+      font-family: var(--text-font-family);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: transform .12s ease, opacity .15s ease, background .15s ease;
+    }
+    .irb-account-dropdown__item--primary {
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      border: 1px solid var(--btn-primary-border);
+    }
+    .irb-account-dropdown__item--primary:hover { opacity: 0.92; }
+    .irb-account-dropdown__item--secondary {
+      background: rgba(17, 24, 39, 0.05);
+      color: #111827;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+    }
+    .irb-account-dropdown__item--secondary:hover { background: rgba(17, 24, 39, 0.1); }
+    .irb-account-dropdown__plus {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
       font-weight: 700;
       line-height: 1;
     }
@@ -1646,7 +1907,7 @@ export function compileStorefrontDocument(
       justify-content: center;
       gap: 20px;
       padding: 10px 0 14px;
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      border-top: 1px solid rgba(0, 0, 0, ${Number((0.06 * headerOpacity).toFixed(4))});
     }
     .categoryLink {
       text-decoration: none;
@@ -1657,10 +1918,24 @@ export function compileStorefrontDocument(
       letter-spacing: 0.04em;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: color .15s, opacity .15s;
+      padding: ${navHoverStyle === "pill" ? "6px 12px" : navHoverStyle === "bottom-bar" ? "6px 2px" : "2px 0"};
+      border-radius: ${navHoverStyle === "pill" ? "999px" : "0"};
+      transition: color .16s ease, background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
       cursor: pointer;
     }
-    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
+    .categoryLink:hover, .categoryLink.active {
+      color: var(--header-link-hover-color);
+      opacity: 1;
+      ${
+        navHoverStyle === "pill"
+          ? "background: var(--header-link-hover-bg); text-decoration: none;"
+          : navHoverStyle === "bottom-bar"
+            ? "box-shadow: inset 0 -2px 0 0 var(--header-link-hover-color); text-decoration: none;"
+            : navHoverStyle === "color-only"
+              ? "text-decoration: none;"
+              : "text-decoration: underline; text-underline-offset: 5px;"
+      }
+    }
 
     @media (max-width: 900px) {
       .headerMenuBtn { display: inline-flex; flex-shrink: 0; }
@@ -1862,11 +2137,11 @@ export function compileStorefrontDocument(
     .heroSlide__artLink { display: block; width: 100%; }
     .heroSlide__artImg {
       width: 100%;
-      height: auto;
-      max-height: 540px;
-      object-fit: cover;
+      height: ${heroHeightPx ? `${heroHeightPx}px` : "auto"};
+      max-height: ${heroHeightPx ?? 540}px;
+      object-fit: ${heroFit};
       display: block;
-      border-radius: ${bp.visualOverrides.banner.width === "container" ? "var(--irb-radius)" : "0px"};
+      border-radius: ${heroCustomWidthPx || bp.visualOverrides.banner.width === "container" ? "var(--irb-radius)" : "0px"};
     }
     .heroNavBtn {
       position: absolute;
@@ -1908,14 +2183,15 @@ export function compileStorefrontDocument(
 
     .bannerHero {
       position: relative;
-      min-height: 430px;
+      min-height: ${heroHeightPx ?? 430}px;
+      ${heroHeightPx ? `height: ${heroHeightPx}px;` : ""}
       display: flex;
       align-items: center;
       background: #111827;
       overflow: hidden;
-      border-radius: ${bp.visualOverrides.banner.width === "container" ? "var(--irb-radius)" : "0px"};
+      border-radius: ${heroCustomWidthPx || bp.visualOverrides.banner.width === "container" ? "var(--irb-radius)" : "0px"};
     }
-    .bannerHero__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.7; }
+    .bannerHero__img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: ${heroFit}; opacity: 0.7; }
     .bannerHero__overlay {
       position: absolute;
       inset: 0;
@@ -2153,7 +2429,25 @@ export function compileStorefrontDocument(
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
-  <div class="overlineModule">${escapeHtml(bp.sections.announcementText)}</div>
+  ${
+    announcementRolling
+      ? `<div class="overlineModule overlineModule--ticker" id="irb-overline-ticker" data-interval-ms="${announcementIntervalMs}" data-transition="${escapeAttr(announcementTransition)}">
+    <div class="overlineModule__track">
+      ${(announcementMessages.length === 1
+        ? [announcementMessages[0], announcementMessages[0]]
+        : announcementMessages
+      )
+        .map(
+          (msg, idx) =>
+            `<div class="overlineModule__slide ${idx === 0 ? "is-active" : ""}" data-overline-idx="${idx}">${escapeHtml(msg)}</div>`
+        )
+        .join("")}
+    </div>
+  </div>`
+      : `<div class="overlineModule">${escapeHtml(announcementMessages[0] ?? bp.sections.announcementText)}</div>`
+  }
+
+  <div class="irb-account-backdrop" id="irb-account-backdrop" aria-hidden="true"></div>
 
   <header class="irb-header ${headerPosClass}">
     <div class="container">
@@ -2178,9 +2472,21 @@ export function compileStorefrontDocument(
           <button type="button" class="headerIconBtn" id="irb-toggle-search" aria-label="Pesquisar" title="Pesquisar">
             ${IRROBA_ICONS.search}
           </button>
-          <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" title="Entrar">
-            ${IRROBA_ICONS.person}
-          </button>
+          <div class="headerAccountWrap" id="irb-account-wrap">
+            <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" aria-expanded="false" aria-haspopup="menu" title="Minha Conta">
+              ${IRROBA_ICONS.person}
+            </button>
+            <div class="irb-account-dropdown" id="irb-account-dropdown" role="menu" aria-label="Opções da conta">
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--primary" data-account-action="login" role="menuitem">
+                ${IRROBA_ICONS.person}
+                <span>Entrar</span>
+              </button>
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--secondary" data-account-action="register" role="menuitem">
+                <span class="irb-account-dropdown__plus">+</span>
+                <span>Criar conta</span>
+              </button>
+            </div>
+          </div>
           <button type="button" class="headerIconBtn" id="irb-open-cart" aria-label="Sacola" title="Sacola">
             ${IRROBA_ICONS.shoppingBag}
             <span class="cartCountBadge" id="irb-cart-count">0</span>
@@ -2226,7 +2532,7 @@ export function compileStorefrontDocument(
       ${(() => {
         const homeSectionMap: Record<SectionKey, string> = {
           hero: `<section class="bannerModule" data-irb-section="hero">
-        <div class="${bp.visualOverrides.banner.width === "container" ? "container" : ""}" style="position:relative;">
+        <div class="${!heroCustomWidthPx && bp.visualOverrides.banner.width === "container" ? "container" : ""}" style="position:relative;${heroCustomWidthPx ? `max-width:${heroCustomWidthPx}px;margin:0 auto;padding:0 20px;` : ""}">
           ${heroSlidesHtml}
           ${
             slidesToRender.length > 1
@@ -2472,22 +2778,23 @@ export function compileStorefrontDocument(
     </div>
   </div>
 
-  <!-- Account Modal (Demo) -->
+  <!-- Account Modal (Demo: Entrar & Criar conta) -->
   <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
     <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
       <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         ${IRROBA_ICONS.person}
-        <h3 style="margin:0;font-size:19px;">Minha Conta</h3>
+        <h3 id="irb-account-modal-title" style="margin:0;font-size:19px;">Entrar na sua conta</h3>
       </div>
-      <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
-      <form onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <form id="irb-account-form" onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
-        <button type="submit" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
+        <button type="submit" id="irb-account-submit-btn" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
       </form>
       <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
-        Login de demonstração validado com sucesso!
+        Ação de demonstração validada com sucesso!
       </div>
     </div>
   </div>
@@ -2527,10 +2834,56 @@ export function compileStorefrontDocument(
 
       const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+      function syncHeaderHeight() {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) {
+          document.documentElement.style.setProperty('--irb-header-height', hdr.offsetHeight + 'px');
+        }
+      }
+      syncHeaderHeight();
+      if (typeof ResizeObserver !== 'undefined') {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) new ResizeObserver(syncHeaderHeight).observe(hdr);
+      }
+      window.addEventListener('resize', syncHeaderHeight, { passive: true });
+
+      // Barra de Aviso Superior — Rolagem automática mensagem por mensagem
+      const overlineTicker = document.getElementById('irb-overline-ticker');
+      if (overlineTicker) {
+        const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
+        const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        let overlineIdx = 0;
+        let overlinePaused = false;
+        overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
+        overlineTicker.addEventListener('mouseleave', () => { overlinePaused = false; });
+
+        if (overlineSlides.length > 1) {
+          setInterval(() => {
+            if (overlinePaused) return;
+            const prevSlide = overlineSlides[overlineIdx];
+            overlineIdx = (overlineIdx + 1) % overlineSlides.length;
+            const nextSlide = overlineSlides[overlineIdx];
+
+            if (prevSlide && prevSlide !== nextSlide) {
+              prevSlide.classList.remove('is-active');
+              prevSlide.classList.add('is-leaving');
+              setTimeout(() => {
+                prevSlide.classList.remove('is-leaving');
+              }, 520);
+            }
+            if (nextSlide) {
+              nextSlide.classList.remove('is-leaving');
+              nextSlide.classList.add('is-active');
+            }
+          }, intervalMs);
+        }
+      }
+
       function switchView(viewName) {
         document.getElementById('irb-view-home').classList.toggle('active', viewName === 'home');
         document.getElementById('irb-view-category').classList.toggle('active', viewName === 'category');
         document.getElementById('irb-view-product').classList.toggle('active', viewName === 'product');
+        document.body.classList.toggle('irb-subview-active', viewName !== 'home');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -2878,6 +3231,7 @@ export function compileStorefrontDocument(
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           setSearchOpen(false);
+          setAccountDropdownOpen(false);
           const accountModal = document.getElementById('irb-account-modal');
           const cartDrawer = document.getElementById('irb-cart-drawer');
           const mobileDrawer = document.getElementById('irb-mobile-drawer');
@@ -3015,8 +3369,76 @@ export function compileStorefrontDocument(
         document.getElementById('irb-mobile-drawer').classList.remove('open');
       });
       const accountModalEl = document.getElementById('irb-account-modal');
-      document.getElementById('irb-open-account').addEventListener('click', () => {
-        if (accountModalEl) accountModalEl.classList.add('open');
+      const accountDropdownEl = document.getElementById('irb-account-dropdown');
+      const accountBackdropEl = document.getElementById('irb-account-backdrop');
+      const accountToggleBtn = document.getElementById('irb-open-account');
+      const accountWrapEl = document.getElementById('irb-account-wrap');
+
+      function setAccountDropdownOpen(open) {
+        if (accountDropdownEl) accountDropdownEl.classList.toggle('open', open);
+        if (accountBackdropEl) {
+          accountBackdropEl.classList.toggle('open', open);
+          accountBackdropEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (accountToggleBtn) {
+          accountToggleBtn.classList.toggle('is-active', open);
+          accountToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      }
+
+      function openAccountModalInMode(mode) {
+        setAccountDropdownOpen(false);
+        if (!accountModalEl) return;
+        const titleEl = document.getElementById('irb-account-modal-title');
+        const descEl = document.getElementById('irb-account-modal-desc');
+        const nameField = document.getElementById('irb-account-name-field');
+        const submitBtn = document.getElementById('irb-account-submit-btn');
+        const msgEl = document.getElementById('irb-account-msg');
+        if (msgEl) msgEl.style.display = 'none';
+        if (mode === 'register') {
+          if (titleEl) titleEl.textContent = 'Criar conta';
+          if (descEl) descEl.textContent = 'Cadastre-se rapidamente para acompanhar pedidos e aproveitar ofertas exclusivas.';
+          if (nameField) {
+            nameField.style.display = 'block';
+            nameField.required = true;
+          }
+          if (submitBtn) submitBtn.textContent = 'Criar Minha Conta (Demo)';
+        } else {
+          if (titleEl) titleEl.textContent = 'Entrar na sua conta';
+          if (descEl) descEl.textContent = 'Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.';
+          if (nameField) {
+            nameField.style.display = 'none';
+            nameField.required = false;
+          }
+          if (submitBtn) submitBtn.textContent = 'Entrar na Conta (Demo)';
+        }
+        accountModalEl.classList.add('open');
+      }
+
+      if (accountToggleBtn) {
+        accountToggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = accountDropdownEl && accountDropdownEl.classList.contains('open');
+          setAccountDropdownOpen(!isOpen);
+        });
+      }
+      if (accountBackdropEl) {
+        accountBackdropEl.addEventListener('click', () => setAccountDropdownOpen(false));
+      }
+      document.addEventListener('click', (e) => {
+        if (
+          accountDropdownEl &&
+          accountDropdownEl.classList.contains('open') &&
+          accountWrapEl &&
+          !accountWrapEl.contains(e.target)
+        ) {
+          setAccountDropdownOpen(false);
+        }
+      });
+      document.querySelectorAll('[data-account-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openAccountModalInMode(btn.getAttribute('data-account-action') || 'login');
+        });
       });
       document.getElementById('irb-account-close').addEventListener('click', () => {
         if (accountModalEl) accountModalEl.classList.remove('open');

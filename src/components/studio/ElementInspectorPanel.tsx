@@ -15,7 +15,10 @@ import {
 } from "lucide-react";
 import { getNormalizedSectionLayout, type SectionKey, type StoreBlueprint } from "@/lib/types/blueprint";
 import { AiImageSlot } from "./AiImageSlot";
+import { AnnouncementBarControls } from "./AnnouncementBarControls";
+import { BannerDimensionsControl } from "./BannerDimensionsControl";
 import { ColorField } from "./ColorField";
+import { HeaderLinksHoverControls } from "./HeaderLinksHoverControls";
 import { INSPECTOR_META, type InspectorSelection } from "./inspectorTargets";
 
 interface ElementInspectorPanelProps {
@@ -318,52 +321,7 @@ export function ElementInspectorPanel({
       {/* 1. BARRA DE AVISO / OVERLINE */}
       {selection.targetId === "announcement" && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
-          <div>
-            <label className="mb-1 block font-semibold text-slate-700">
-              Texto da Barra de Aviso Superior
-            </label>
-            <input
-              type="text"
-              value={bp.sections.announcementText}
-              onChange={(e) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: { ...prev.sections, announcementText: e.target.value },
-                }))
-              }
-              placeholder="Ex: Frete grátis acima de R$ 299 · 5% OFF no PIX"
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <ColorField
-              label="Cor de Fundo"
-              value={bp.visualOverrides.announcement.background}
-              onChange={(v) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  visualOverrides: {
-                    ...prev.visualOverrides,
-                    announcement: { ...prev.visualOverrides.announcement, background: v },
-                  },
-                }))
-              }
-            />
-            <ColorField
-              label="Cor do Texto"
-              value={bp.visualOverrides.announcement.foreground}
-              contrastWith={bp.visualOverrides.announcement.background}
-              onChange={(v) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  visualOverrides: {
-                    ...prev.visualOverrides,
-                    announcement: { ...prev.visualOverrides.announcement, foreground: v },
-                  },
-                }))
-              }
-            />
-          </div>
+          <AnnouncementBarControls bp={bp} onUpdateBp={onUpdateBp} />
         </div>
       )}
 
@@ -401,6 +359,38 @@ export function ElementInspectorPanel({
             }
           />
 
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+            <div className="mb-1 flex items-center justify-between text-slate-700">
+              <span className="font-semibold">Altura da Logo (PX)</span>
+              <strong className="font-mono text-slate-900">
+                {bp.visualOverrides.header.logoHeightPx ?? 46}px
+              </strong>
+            </div>
+            <input
+              type="range"
+              min={24}
+              max={120}
+              step={2}
+              value={bp.visualOverrides.header.logoHeightPx ?? 46}
+              onChange={(e) =>
+                onUpdateBp((prev) => ({
+                  ...prev,
+                  visualOverrides: {
+                    ...prev.visualOverrides,
+                    header: {
+                      ...prev.visualOverrides.header,
+                      logoHeightPx: Number(e.target.value),
+                    },
+                  },
+                }))
+              }
+              className="w-full accent-emerald-600"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">
+              A logo é um elemento independente e mantém 100% de nitidez mesmo com a navbar transparente.
+            </p>
+          </div>
+
           <div>
             <label className="mb-1 block font-semibold text-slate-700">
               Posição da Logo no Cabeçalho
@@ -429,7 +419,7 @@ export function ElementInspectorPanel({
             onClick={() => onSelect({ targetId: "header", label: "Cabeçalho" })}
             className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
           >
-            Editar cores e fixação do Cabeçalho →
+            Editar cores, opacidade e posicionamento do Cabeçalho →
           </button>
         </div>
       )}
@@ -437,6 +427,8 @@ export function ElementInspectorPanel({
       {/* 3. MENU DE CATEGORIAS */}
       {selection.targetId === "header-nav" && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <HeaderLinksHoverControls bp={bp} onUpdateBp={onUpdateBp} />
+
           <div>
             <label className="mb-1 block font-semibold text-slate-700">
               Formato do Texto das Categorias
@@ -638,9 +630,9 @@ export function ElementInspectorPanel({
                   }
                   className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
                 >
-                  <option value="default">Padrão</option>
+                  <option value="default">Padrão (Rola com a página)</option>
                   <option value="sticky">Fixo ao rolar</option>
-                  <option value="overlay">Fixo na tela</option>
+                  <option value="overlay">Sobreposto ao Banner (Fixo)</option>
                 </select>
               </div>
             </div>
@@ -675,40 +667,57 @@ export function ElementInspectorPanel({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div>
-                <div className="mb-0.5 flex justify-between text-slate-600">
-                  <span>Opacidade</span>
-                  <strong className="font-mono text-slate-800">
+            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-700">Opacidade do Fundo</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateBp((prev) => ({
+                        ...prev,
+                        visualOverrides: {
+                          ...prev.visualOverrides,
+                          header: { ...prev.visualOverrides.header, backgroundOpacity: 0 },
+                        },
+                      }))
+                    }
+                    className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-50"
+                  >
+                    100% Transparente
+                  </button>
+                  <strong className="font-mono text-slate-900">
                     {Math.round(bp.visualOverrides.header.backgroundOpacity * 100)}%
                   </strong>
                 </div>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={1}
-                  step={0.05}
-                  value={bp.visualOverrides.header.backgroundOpacity}
-                  onChange={(e) =>
-                    onUpdateBp((prev) => ({
-                      ...prev,
-                      visualOverrides: {
-                        ...prev.visualOverrides,
-                        header: {
-                          ...prev.visualOverrides.header,
-                          backgroundOpacity: Number(e.target.value),
-                        },
-                      },
-                    }))
-                  }
-                  className="w-full accent-emerald-600"
-                />
               </div>
-              <div>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={bp.visualOverrides.header.backgroundOpacity}
+                onChange={(e) =>
+                  onUpdateBp((prev) => ({
+                    ...prev,
+                    visualOverrides: {
+                      ...prev.visualOverrides,
+                      header: {
+                        ...prev.visualOverrides.header,
+                        backgroundOpacity: Number(e.target.value),
+                      },
+                    },
+                  }))
+                }
+                className="w-full accent-emerald-600"
+              />
+              <div className="pt-1">
                 <div className="mb-0.5 flex justify-between text-slate-600">
-                  <span>Desfoque (Blur)</span>
+                  <span>Desfoque de vidro (Blur)</span>
                   <strong className="font-mono text-slate-800">
-                    {bp.visualOverrides.header.blurPx}px
+                    {bp.visualOverrides.header.backgroundOpacity <= 0
+                      ? "0px (Transparente)"
+                      : `${bp.visualOverrides.header.blurPx}px`}
                   </strong>
                 </div>
                 <input
@@ -732,23 +741,20 @@ export function ElementInspectorPanel({
                   className="w-full accent-emerald-600"
                 />
               </div>
+              <p className="text-[11px] text-slate-500">
+                A opacidade atua somente no fundo da navbar; a logo e os links permanecem nítidos.
+              </p>
             </div>
 
-            <AiImageSlot
-              previewId={previewId}
-              label="Logotipo no Cabeçalho"
-              value={bp.brand.logoUrl}
-              defaultAspectRatio="1:1"
-              minRecommendedWidth={0}
-              fit="contain"
-              allowClear
-              onChange={(nextUrl) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  brand: { ...prev.brand, logoUrl: nextUrl },
-                }))
-              }
-            />
+            <HeaderLinksHoverControls bp={bp} onUpdateBp={onUpdateBp} />
+
+            <button
+              type="button"
+              onClick={() => onSelect({ targetId: "header-logo", label: "Logotipo da Loja" })}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Editar Logotipo (Elemento Separado) →
+            </button>
 
             <button
               type="button"
@@ -764,26 +770,70 @@ export function ElementInspectorPanel({
       {/* 5. BANNER PRINCIPAL (HERO CAROUSEL) */}
       {selection.targetId === "hero" && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <BannerDimensionsControl
+            title="Tamanho de Exibição do Banner Principal (PX)"
+            heightPx={bp.visualOverrides.banner.heightPx}
+            defaultHeightPx={500}
+            minHeightPx={160}
+            maxHeightPx={1100}
+            widthPx={
+              bp.visualOverrides.banner.customWidthPx ??
+              (bp.visualOverrides.banner.width === "container" ? 1280 : undefined)
+            }
+            defaultWidthPx={1280}
+            isFullWidth={
+              bp.visualOverrides.banner.width === "full" &&
+              bp.visualOverrides.banner.customWidthPx === undefined
+            }
+            onFullWidthChange={(full) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                visualOverrides: {
+                  ...prev.visualOverrides,
+                  banner: {
+                    ...prev.visualOverrides.banner,
+                    width: full ? "full" : "container",
+                    customWidthPx: full ? undefined : prev.visualOverrides.banner.customWidthPx ?? 1280,
+                  },
+                },
+              }))
+            }
+            objectFit={bp.visualOverrides.banner.objectFit}
+            onHeightChange={(h) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                visualOverrides: {
+                  ...prev.visualOverrides,
+                  banner: { ...prev.visualOverrides.banner, heightPx: h },
+                },
+              }))
+            }
+            onWidthChange={(w) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                visualOverrides: {
+                  ...prev.visualOverrides,
+                  banner: {
+                    ...prev.visualOverrides.banner,
+                    width: w ? "container" : "full",
+                    customWidthPx: w,
+                  },
+                },
+              }))
+            }
+            onObjectFitChange={(fit) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                visualOverrides: {
+                  ...prev.visualOverrides,
+                  banner: { ...prev.visualOverrides.banner, objectFit: fit },
+                },
+              }))
+            }
+          />
+
           <div className="flex items-center justify-between gap-2">
-            <div>
-              <label className="mb-0.5 block text-slate-500">Largura do Módulo</label>
-              <select
-                value={bp.visualOverrides.banner.width}
-                onChange={(e) =>
-                  onUpdateBp((prev) => ({
-                    ...prev,
-                    visualOverrides: {
-                      ...prev.visualOverrides,
-                      banner: { width: e.target.value as "full" | "container" },
-                    },
-                  }))
-                }
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
-              >
-                <option value="full">Largura Total</option>
-                <option value="container">Container (1280px)</option>
-              </select>
-            </div>
+            <span className="font-bold text-slate-800">Slides do Banner Principal</span>
 
             <button
               type="button"
@@ -1296,6 +1346,20 @@ export function ElementInspectorPanel({
             />
           </div>
 
+          <BannerDimensionsControl
+            title="Tamanho dos Cards da Galeria (PX)"
+            heightPx={bp.sections.moodCardHeightPx}
+            defaultHeightPx={380}
+            minHeightPx={180}
+            maxHeightPx={850}
+            onHeightChange={(h) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                sections: { ...prev.sections, moodCardHeightPx: h },
+              }))
+            }
+          />
+
           <div className="flex items-center justify-between">
             <span className="font-semibold text-slate-700">Cards da Galeria (até 4 ativos)</span>
             {bp.sections.moodBanners.length < 4 && (
@@ -1416,6 +1480,53 @@ export function ElementInspectorPanel({
       {/* 8. BANNER SLIM PROMOCIONAL */}
       {selection.targetId === "slimBanner" && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <BannerDimensionsControl
+            title="Tamanho do Banner Slim (PX)"
+            heightPx={bp.sections.slimBanner?.heightPx}
+            defaultHeightPx={140}
+            minHeightPx={48}
+            maxHeightPx={500}
+            widthPx={bp.sections.slimBanner?.widthPx}
+            defaultWidthPx={1280}
+            objectFit={bp.sections.slimBanner?.objectFit}
+            onHeightChange={(h) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                sections: {
+                  ...prev.sections,
+                  slimBanner: prev.sections.slimBanner
+                    ? { ...prev.sections.slimBanner, heightPx: h }
+                    : undefined,
+                },
+              }))
+            }
+            onWidthChange={(w) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                sections: {
+                  ...prev.sections,
+                  slimBanner: prev.sections.slimBanner
+                    ? { ...prev.sections.slimBanner, widthPx: w }
+                    : undefined,
+                },
+              }))
+            }
+            onObjectFitChange={
+              bp.sections.slimBanner?.mode === "image"
+                ? (fit) =>
+                    onUpdateBp((prev) => ({
+                      ...prev,
+                      sections: {
+                        ...prev.sections,
+                        slimBanner: prev.sections.slimBanner
+                          ? { ...prev.sections.slimBanner, objectFit: fit }
+                          : undefined,
+                      },
+                    }))
+                : undefined
+            }
+          />
+
           <div>
             <label className="mb-1 block font-semibold text-slate-700">Modo da Faixa</label>
             <select
@@ -1437,6 +1548,7 @@ export function ElementInspectorPanel({
                         prev.sections.slimBanner?.backgroundColor ?? prev.theme.secondaryBackground,
                       textColor:
                         prev.sections.slimBanner?.textColor ?? prev.theme.secondaryForeground,
+                      ...prev.sections.slimBanner,
                       mode: e.target.value as "image" | "designed",
                     },
                   },
@@ -1909,6 +2021,50 @@ export function ElementInspectorPanel({
       {/* 12. BANNER SECUNDÁRIO DE CAMPANHA */}
       {selection.targetId === "secondaryBanner" && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <BannerDimensionsControl
+            title="Tamanho do Banner Secundário (PX)"
+            heightPx={bp.sections.secondaryBanner?.heightPx}
+            defaultHeightPx={420}
+            minHeightPx={140}
+            maxHeightPx={900}
+            widthPx={bp.sections.secondaryBanner?.widthPx}
+            defaultWidthPx={1280}
+            objectFit={bp.sections.secondaryBanner?.objectFit}
+            onHeightChange={(h) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                sections: {
+                  ...prev.sections,
+                  secondaryBanner: prev.sections.secondaryBanner
+                    ? { ...prev.sections.secondaryBanner, heightPx: h }
+                    : undefined,
+                },
+              }))
+            }
+            onWidthChange={(w) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                sections: {
+                  ...prev.sections,
+                  secondaryBanner: prev.sections.secondaryBanner
+                    ? { ...prev.sections.secondaryBanner, widthPx: w }
+                    : undefined,
+                },
+              }))
+            }
+            onObjectFitChange={(fit) =>
+              onUpdateBp((prev) => ({
+                ...prev,
+                sections: {
+                  ...prev.sections,
+                  secondaryBanner: prev.sections.secondaryBanner
+                    ? { ...prev.sections.secondaryBanner, objectFit: fit }
+                    : undefined,
+                },
+              }))
+            }
+          />
+
           <div>
             <label className="mb-1 block font-semibold text-slate-700">Modo do Banner</label>
             <select
@@ -1933,6 +2089,7 @@ export function ElementInspectorPanel({
                         prev.theme.secondaryBackground,
                       textColor:
                         prev.sections.secondaryBanner?.textColor ?? prev.theme.secondaryForeground,
+                      ...prev.sections.secondaryBanner,
                       mode: e.target.value as "artwork" | "editorial",
                     },
                   },
@@ -1971,6 +2128,7 @@ export function ElementInspectorPanel({
                       prev.theme.secondaryBackground,
                     textColor:
                       prev.sections.secondaryBanner?.textColor ?? prev.theme.secondaryForeground,
+                    ...prev.sections.secondaryBanner,
                     imageUrl: nextUrl,
                   },
                 },
