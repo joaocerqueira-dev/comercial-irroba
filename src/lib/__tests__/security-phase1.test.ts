@@ -127,6 +127,42 @@ describe("arte IA: MIME, rede e chave", () => {
   });
 });
 
+describe("image-studio: AbortSignal do pedido", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("repassa o signal ao Gemini e para de tentar modelos quando o cliente aborta", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "chave");
+    const controller = new AbortController();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const signal = (init as RequestInit).signal!;
+      expect(signal.aborted).toBe(false);
+      controller.abort(new Error("cliente saiu"));
+      // o signal da requisição segue o do cliente (além do timeout próprio)
+      expect(signal.aborted).toBe(true);
+      throw signal.reason;
+    });
+    await expect(
+      processAiImageRequest(
+        {
+          previewId: "test-abort",
+          prompt: "x",
+          mode: "generate",
+          aspectRatio: "1:1",
+          brandName: "Loja",
+          niche: "moda",
+          palette: { primary: "#000", primaryFg: "#fff", secondary: "#111", secondaryFg: "#fff", neutral: "#eee" },
+        },
+        { signal: controller.signal }
+      )
+    ).rejects.toThrow("cliente saiu");
+    // um modelo só: nem os outros modelos de imagem, nem a direção de arte
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("CSV injection", () => {
   it("prefixa apóstrofo em células que começam como fórmula", () => {
     expect(escapeCsvCell("=HYPERLINK(\"http://x\")")).toBe(`"'=HYPERLINK(""http://x"")"`);

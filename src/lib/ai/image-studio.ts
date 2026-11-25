@@ -120,19 +120,26 @@ const isSvgMime = (raw: string | null | undefined) => /svg/i.test(raw ?? "");
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
+/** Timeout próprio da etapa, cancelado também quando o pedido do cliente é abortado. */
+function withTimeout(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 /** Chave no header x-goog-api-key: não vaza em logs de URL nem em mensagens de erro. */
-function geminiRequestInit(apiKey: string, body: unknown, timeoutMs: number): RequestInit {
+function geminiRequestInit(apiKey: string, body: unknown, timeoutMs: number, signal?: AbortSignal): RequestInit {
   return {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
+    signal: withTimeout(signal, timeoutMs),
   };
 }
 
 async function loadImageAsBuffer(
   imageUrl: string | undefined,
-  refererUrl?: string
+  refererUrl?: string,
+  signal?: AbortSignal
 ): Promise<{ buffer: Buffer; mimeType: string } | null> {
   if (!imageUrl || !imageUrl.trim()) return null;
   const trimmed = imageUrl.trim();
@@ -163,7 +170,7 @@ async function loadImageAsBuffer(
           ...(refererUrl ? { Referer: refererUrl } : {}),
           Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
         },
-        signal: AbortSignal.timeout(8000),
+        signal: withTimeout(signal, 8000),
       });
       if (!res || !res.ok) return null;
       const ct = (res.headers.get("content-type") || "image/jpeg").split(";")[0].trim().toLowerCase();
@@ -184,7 +191,8 @@ async function loadImageAsBuffer(
 
 async function tryGeminiNativeImage(
   req: AiImageRequest,
-  sourceImage: { buffer: Buffer; mimeType: string } | null
+  sourceImage: { buffer: Buffer; mimeType: string } | null,
+  signal?: AbortSignal
 ): Promise<{ buffer: Buffer; mimeType: string; modelUsed: string } | { error: string }> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) return { error: "GEMINI_API_KEY não configurada." };
@@ -214,6 +222,8 @@ Entregue imagem limpa, fotográfica ou editorial de altíssima qualidade, sem ma
 
   let lastError = "Modelo de imagem indisponível.";
   for (const model of GEMINI_IMAGE_MODELS) {
+    // Cliente desistiu: não tenta o próximo modelo
+    signal?.throwIfAborted();
     try {
       const res = await fetch(
         `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
@@ -226,7 +236,8 @@ Entregue imagem limpa, fotográfica ou editorial de altíssima qualidade, sem ma
               imageConfig: { aspectRatio: ratioForApi },
             },
           },
-          35000
+          35000,
+          signal
         )
       );
 
@@ -256,6 +267,7 @@ Entregue imagem limpa, fotográfica ou editorial de altíssima qualidade, sem ma
         };
       }
     } catch (err) {
+      signal?.throwIfAborted();
       lastError = err instanceof Error ? err.message : String(err);
     }
   }
@@ -280,7 +292,8 @@ interface ArtDirectionSpec {
 
 async function getGeminiArtDirection(
   req: AiImageRequest,
-  hasSourceImage: boolean
+  hasSourceImage: boolean,
+  signal?: AbortSignal
 ): Promise<{ spec: ArtDirectionSpec; modelUsed: string }> {
   const defaultBg = sanitizeCssColor(
     req.mode === "generate" ? req.palette.secondary : req.palette.neutral,
@@ -338,6 +351,7 @@ Formato JSON:
 }`;
 
   for (const model of GEMINI_TEXT_MODELS) {
+    signal?.throwIfAborted();
     try {
       const res = await fetch(
         `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
@@ -350,7 +364,8 @@ Formato JSON:
               responseMimeType: "application/json",
             },
           },
-          12000
+          12000,
+          signal
         )
       );
       if (!res.ok) continue;
@@ -381,6 +396,7 @@ Formato JSON:
         modelUsed: `${model} + Art Studio HD`,
       };
     } catch {
+      signal?.throwIfAborted();
       continue;
     }
   }
@@ -497,10 +513,12 @@ export async function processAiImageRequest(
   const capturesDir = path.join(process.cwd(), "public", "captures");
   await fs.mkdir(capturesDir, { recursive: true });
 
-  const sourceImage = await loadImageAsBuffer(req.sourceImageUrl, req.sourceStoreUrl);
+  const { signal } = options;
+  const sourceImage = await loadImageAsBuffer(req.sourceImageUrl, req.sourceStoreUrl, signal);
+  signal?.throwIfAborted();
 
   // 1) Try native Gemini Image generation / image-to-image editing first
-  const nativeAttempt = await tryGeminiNativeImage(req, sourceImage);
+  const nativeAttempt = await tryGeminiNativeImage(req, sourceImage, signal);
   if ("buffer" in nativeAttempt) {
     const ext = nativeAttempt.mimeType.includes("jpeg")
       ? ".jpg"
@@ -521,8 +539,8 @@ export async function processAiImageRequest(
   }
 
   // 2) Guaranteed HD fallback: Gemini Art Direction + Playwright High-Res PNG rendering
-  const { spec, modelUsed } = await getGeminiArtDirection(req, Boolean(sourceImage));
-  const pngBuffer = await renderArtStudioPng(req, sourceImage, spec, width, height, options.signal);
+  const { spec, modelUsed } = await getGeminiArtDirection(req, Boolean(sourceImage), signal);
+  const pngBuffer = await renderArtStudioPng(req, sourceImage, spec, width, height, signal);
 
   const hash = crypto.randomBytes(5).toString("hex");
   const filename = `${aiImageFilePrefix(req.previewId)}${Date.now()}-${hash}.png`;
