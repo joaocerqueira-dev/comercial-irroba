@@ -15,6 +15,22 @@ Na inicialização, o entrypoint (`docker/entrypoint.sh`) roda `prisma db push -
 
 A imagem usa `mcr.microsoft.com/playwright:<versão>-noble` e roda como `pwuser` (não-root), o que permite manter o sandbox do Chromium. Ao atualizar o pacote `playwright`, atualize também a tag da imagem no `Dockerfile` (`ARG PLAYWRIGHT_IMAGE`).
 
+## Atualizar
+
+```bash
+cd /opt/irroba-preview-ai        # ou onde o repositório estiver
+git pull
+# backup do SQLite antes (seção "Volumes e backup")
+docker compose build
+docker compose up -d             # recria o container com a imagem nova
+docker compose ps                # aguarde "healthy"
+docker compose logs -f app       # confira o "db push" e o boot
+```
+
+O schema é aplicado no boot com `prisma db push`, sem migrations versionadas. Se uma mudança no `schema.prisma` implicar perda de dados, como remover uma coluna ou adicionar um `@unique`, o `db push` recusa e o entrypoint sai com erro. O container entra em restart em loop e o motivo aparece em `docker compose logs app`. Nesse caso, volte a imagem anterior ou aplique a mudança manualmente depois do backup. Não use `--accept-data-loss` sem backup.
+
+Ao atualizar o pacote `playwright`, mude também `ARG PLAYWRIGHT_IMAGE` no `Dockerfile` para a mesma versão. Com versões diferentes, o Chromium esperado pelo pacote não existe em `/ms-playwright`.
+
 ## Build precisa de rede (fontes)
 
 As fontes do app (Inter, Montserrat, Nunito e Instrument Serif) vêm do `next/font/google` em `src/app/layout.tsx`. O `next build` baixa os arquivos do Google Fonts e os embute no bundle; em runtime o app serve as fontes do próprio domínio, sem chamar o Google. Por isso o `docker compose build` e a CI precisam de acesso a `fonts.googleapis.com` e `fonts.gstatic.com` durante o build. Sem rede, o build falha ao buscar as fontes.
@@ -46,6 +62,19 @@ docker run --rm -v irroba-preview-ai_app-captures:/src -v "$PWD":/out alpine \
 ```
 
 O nome real do volume aparece em `docker volume ls`. O prefixo é o nome do projeto do compose.
+
+### Restore do SQLite
+
+Pare o app antes de trocar o arquivo do banco:
+
+```bash
+docker compose stop app
+docker run --rm -v irroba-preview-ai_app-data:/data -v "$PWD":/in alpine sh -c \
+  'cp /in/backup-AAAA-MM-DD.db /data/prod.db && rm -f /data/prod.db-journal && chown "$(stat -c %u:%g /data)" /data/prod.db'
+docker compose start app
+```
+
+O `chown` devolve o arquivo ao dono do volume, que é o `pwuser`. Sem ele o arquivo fica do root do container alpine, e o `prisma db push` do boot ou as gravações do app falham. Para restaurar as capturas, use o mesmo padrão: `tar xzf /in/captures-AAAA-MM-DD.tgz -C /data` montando o volume `app-captures`. Restaure banco e capturas da mesma data, porque os previews citam os arquivos pelo nome.
 
 Rode só uma réplica: SQLite e os limites em memória não são compartilhados entre instâncias.
 
@@ -85,6 +114,8 @@ server {
 ```
 
 Com o proxy na mesma máquina, publique a porta só em loopback: `"127.0.0.1:3000:3000"` no `docker-compose.yml`.
+
+Atrás desse proxy, defina `TRUST_PROXY=1` no `.env`. Assim o rate limit passa a usar o IP real do cliente, lido do `X-Forwarded-For`. Sem a variável, todas as requisições caem na chave `unknown` e o limite fica separado só por usuário. Não defina `TRUST_PROXY` se o app estiver exposto sem proxy: o header seria forjável.
 
 ## Egress do Chromium (opcional, recomendado)
 
@@ -129,3 +160,33 @@ Cron no host, diário às 4h, com log:
 ```
 
 Faça o backup das capturas (seção acima) antes da primeira execução com `--apply`.
+
+## Troubleshooting: sandbox do Chromium
+
+O sandbox fica ligado por padrão (`chromiumSandbox: true` em `src/lib/scraper/browser.ts`). Se o Chromium não abrir, a geração falha e o log mostra:
+
+```
+[browser] O Chromium não abriu com sandbox. Use a imagem oficial do Playwright com usuário não-root e perfil seccomp, ou, como último recurso, PLAYWRIGHT_NO_SANDBOX=1.
+```
+
+Verifique, nesta ordem:
+
+1. **Usuário**: o container precisa rodar como `pwuser`, e não como root. `docker compose exec app id` deve mostrar `pwuser`. Um `user:` no compose ou um `docker run --user root` quebra o sandbox.
+2. **Seccomp/AppArmor do host**: perfis restritivos (`security_opt` customizado, AppArmor de user namespaces em hosts Ubuntu recentes, runtimes como gVisor) podem bloquear as syscalls do sandbox. A documentação do Playwright para Docker traz um perfil seccomp próprio para o Chromium, que pode ser aplicado com `security_opt: ["seccomp=/caminho/seccomp_profile.json"]` no serviço.
+3. **Memória compartilhada**: o compose já define `shm_size: 1gb` e o app passa `--disable-dev-shm-usage`. Crashes de aba em páginas grandes costumam vir daí, se alguém remover essas opções.
+4. **Último recurso**: `PLAYWRIGHT_NO_SANDBOX=1` no `.env`, seguido de `docker compose up -d`. O Chromium abre sites de terceiros, então use só temporariamente e, de preferência, com a regra de egress da seção acima.
+
+Para testar sem gerar um preview:
+
+```bash
+docker compose exec app node -e "require('playwright').chromium.launch({chromiumSandbox:true}).then(b=>{console.log('ok');return b.close()}).catch(e=>{console.error(e.message);process.exit(1)})"
+```
+
+## Rotação de `ADMIN_PASS`
+
+1. Gere uma senha nova, por exemplo com `openssl rand -base64 24`, e troque `ADMIN_PASS` (e `ADMIN_USER`, se for o caso) no `.env`.
+2. `docker compose up -d`: o compose detecta a mudança no `env_file` e recria o container. Um `restart` sozinho **não** relê o `.env`.
+3. Confira: `curl -s -o /dev/null -w '%{http_code}' -u usuario:senha-nova http://127.0.0.1:3000/` deve responder `200`, e com a senha antiga, `401`.
+4. Avise o time. O navegador guarda o Basic auth da sessão, então quem estiver logado recebe o prompt de login de novo.
+
+Há um único par usuário/senha, compartilhado pelo time. Os links públicos (`/preview/*`, `/render/*`, `/api/captures/*`) não dependem da senha e continuam funcionando. Recriar o container também zera os contadores do rate limit, que ficam em memória.
