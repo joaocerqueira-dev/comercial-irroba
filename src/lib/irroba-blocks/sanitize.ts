@@ -77,8 +77,13 @@ export function formatBrl(value: number): string {
   }).format(value);
 }
 
-/** Primeiro caractere que faz Excel/Planilhas interpretarem a célula como fórmula. */
-const CSV_FORMULA_PREFIX_RE = /^[=+\-@\t\r]/;
+/**
+ * Começo de célula que uma planilha leria como fórmula. O CSV vai para a importação do
+ * Irroba (não para uma planilha), então texto comum como "- Tecido" ou "+ brinde" não
+ * ganha apóstrofo: `+`/`-` só contam quando seguidos de algo que não seja espaço nem letra
+ * (dígito, `(`, `=`...). `=`, `@`, tab e CR no início sempre contam.
+ */
+const CSV_FORMULA_PREFIX_RE = /^(?:[=@\t\r]|[+-][^\s\p{L}])/u;
 
 export function escapeCsvCell(value: string | number | undefined | null): string {
   let str = String(value ?? "");

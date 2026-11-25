@@ -135,6 +135,14 @@ describe("CSV injection", () => {
     expect(escapeCsvCell("@SUM(A1)")).toBe("'@SUM(A1)");
     expect(escapeCsvCell("\tcmd")).toBe("'\tcmd");
     expect(escapeCsvCell("\r=1")).toBe(`"'\r=1"`);
+    expect(escapeCsvCell("=SUM(A1:A2)")).toBe("'=SUM(A1:A2)");
+    expect(escapeCsvCell("-(1)")).toBe("'-(1)");
+    expect(escapeCsvCell("+=1")).toBe("'+=1");
+  });
+  it("não prefixa +/- seguidos de espaço ou letra (texto de importação do Irroba)", () => {
+    expect(escapeCsvCell("- Tecido")).toBe("- Tecido");
+    expect(escapeCsvCell("+ brinde")).toBe("+ brinde");
+    expect(escapeCsvCell("-Óculos")).toBe("-Óculos");
   });
   it("não altera texto comum nem números", () => {
     expect(escapeCsvCell("Bolsa de couro")).toBe("Bolsa de couro");
