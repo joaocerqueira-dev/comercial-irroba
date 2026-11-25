@@ -34,6 +34,9 @@ export async function POST(
   if (found.status === "not_found") {
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
+  if (found.status === "no_blueprint") {
+    return NextResponse.json({ error: "Blueprint ainda não gerado" }, { status: 400 });
+  }
   if (found.status === "invalid") {
     return NextResponse.json(
       { error: "O blueprint deste preview está em formato incompatível. Gere o preview novamente." },

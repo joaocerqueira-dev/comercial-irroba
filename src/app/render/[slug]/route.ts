@@ -11,10 +11,12 @@ export async function GET(
   const result = await getPreviewWithBlueprint({ slug });
 
   if (result.status !== "ok") {
+    // Sem blueprint ainda não há vitrine: mesmo 404 de preview inexistente
+    const missing = result.status === "not_found" || result.status === "no_blueprint";
     return new Response(
-      result.status === "not_found" ? "<h1>Preview não encontrado</h1>" : "<h1>Blueprint inválido</h1>",
+      missing ? "<h1>Preview não encontrado</h1>" : "<h1>Blueprint inválido</h1>",
       {
-        status: result.status === "not_found" ? 404 : 500,
+        status: missing ? 404 : 500,
         headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": RENDER_CSP },
       }
     );

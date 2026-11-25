@@ -107,6 +107,14 @@ describe("ai-image: blueprint validado e erros genéricos", () => {
     expect(res.status).toBe(404);
   });
 
+  it("400 quando o preview existe mas o blueprint ainda não foi gerado", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", sourceUrl: "https://a.com", blueprint: null });
+    const res = await AI_IMAGE(jsonReq("http://localhost/x", {}), ctx());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Blueprint ainda não gerado");
+    expect(studio.processAiImageRequest).not.toHaveBeenCalled();
+  });
+
   it("409 quando o blueprint gravado não passa no schema", async () => {
     db.storePreview.findUnique.mockResolvedValue({ id: "abc", sourceUrl: "https://a.com", blueprint: { foo: 1 } });
     const res = await AI_IMAGE(jsonReq("http://localhost/x", {}), ctx());

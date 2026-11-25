@@ -15,6 +15,8 @@ export type PreviewLookup = { id: string } | { slug: string };
 export type PreviewWithBlueprint =
   | { status: "ok"; preview: PreviewRow; blueprint: StoreBlueprint }
   | { status: "not_found" }
+  /** O preview existe, mas o blueprint ainda não foi gerado (geração em andamento ou falhou). */
+  | { status: "no_blueprint"; preview: PreviewRow }
   | { status: "invalid"; preview: PreviewRow };
 
 /**
@@ -33,7 +35,8 @@ export function parseStoredBlueprint(raw: unknown): StoreBlueprint | null {
 /** Busca um preview e valida o blueprint com zod. */
 export async function getPreviewWithBlueprint(where: PreviewLookup): Promise<PreviewWithBlueprint> {
   const preview = await prisma.storePreview.findUnique({ where });
-  if (!preview || !preview.blueprint) return { status: "not_found" };
+  if (!preview) return { status: "not_found" };
+  if (!preview.blueprint) return { status: "no_blueprint", preview };
   const blueprint = parseStoredBlueprint(preview.blueprint);
   if (!blueprint) return { status: "invalid", preview };
   return { status: "ok", preview, blueprint };

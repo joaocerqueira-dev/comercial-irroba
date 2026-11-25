@@ -88,3 +88,16 @@ describe("leitura tolerante de previews gravados", () => {
     expect((await getPreviewWithBlueprint({ id: "abc" })).status).toBe("invalid");
   });
 });
+
+describe("getPreviewWithBlueprint: inexistente x sem blueprint", () => {
+  it("distingue not_found de no_blueprint e mantém 404 no /render", async () => {
+    db.storePreview.findUnique.mockResolvedValueOnce(null);
+    expect((await getPreviewWithBlueprint({ id: "x" })).status).toBe("not_found");
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", slug: "loja", blueprint: null });
+    expect((await getPreviewWithBlueprint({ id: "abc" })).status).toBe("no_blueprint");
+    const res = await RENDER(new NextRequest("http://localhost/render/loja"), {
+      params: Promise.resolve({ slug: "loja" }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
