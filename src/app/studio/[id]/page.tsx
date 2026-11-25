@@ -1,5 +1,10 @@
 import { notFound } from "next/navigation";
-import { getPreviewWithBlueprint, resolveExtractionWarnings, resolveFullScreenshotPath } from "@/lib/previews/repository";
+import {
+  getPreviewWithBlueprint,
+  resolveExtractionWarnings,
+  resolveFullScreenshotPath,
+  resolveMobileScreenshotPaths,
+} from "@/lib/previews/repository";
 import { normalizeBaseUrl } from "@/lib/public-url";
 import StudioClient from "@/components/StudioClient";
 
@@ -17,6 +22,7 @@ export default async function StudioPage({
   }
   const { preview, blueprint } = result;
   const fullScreenshotPath = resolveFullScreenshotPath(preview);
+  const { mobileScreenshotPath, mobileFullScreenshotPath } = resolveMobileScreenshotPaths(preview);
 
   return (
     <StudioClient
@@ -28,6 +34,8 @@ export default async function StudioPage({
       initialWhatsapp={preview.sellerWhatsapp ?? ""}
       screenshotPath={preview.screenshotPath}
       fullScreenshotPath={fullScreenshotPath}
+      mobileScreenshotPath={mobileScreenshotPath}
+      mobileFullScreenshotPath={mobileFullScreenshotPath}
       initialBlueprint={blueprint}
       publicAssetBaseUrl={normalizeBaseUrl(process.env.PUBLIC_ASSET_BASE_URL)}
       extractionWarnings={resolveExtractionWarnings(preview)}

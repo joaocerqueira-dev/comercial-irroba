@@ -33,6 +33,23 @@ export function resolveFullScreenshotPath(preview: Pick<PreviewRow, "extractedDa
   );
 }
 
+/** Caminhos públicos dos screenshots mobile (quando já capturados). */
+export function resolveMobileScreenshotPaths(
+  preview: Pick<PreviewRow, "extractedData">
+): { mobileScreenshotPath: string | null; mobileFullScreenshotPath: string | null } {
+  const extractedObj =
+    preview.extractedData && typeof preview.extractedData === "object"
+      ? (preview.extractedData as {
+          mobileScreenshotPath?: string;
+          mobileFullScreenshotPath?: string;
+        })
+      : null;
+  return {
+    mobileScreenshotPath: extractedObj?.mobileScreenshotPath ?? null,
+    mobileFullScreenshotPath: extractedObj?.mobileFullScreenshotPath ?? null,
+  };
+}
+
 /** Avisos gravados na extração (ex.: loja sem produtos/banners legíveis). */
 export function resolveExtractionWarnings(preview: Pick<PreviewRow, "extractedData">): string[] {
   const data = preview.extractedData;

@@ -840,6 +840,8 @@ exports[`layout patterns golden > fitness > html 1`] = `
       --announcement-foreground: #FFFFFF;
       --header-background: #FFFFFF;
       --header-foreground: #111827;
+      --header-link-hover-color: #111827;
+      --header-link-hover-bg: rgba(0, 0, 0, 0.07);
       --title-font-family: 'Anton', sans-serif;
       --text-font-family: 'Lato', sans-serif;
       --irb-radius: 12px;
@@ -863,14 +865,14 @@ exports[`layout patterns golden > fitness > html 1`] = `
       background: var(--body-background);
       color: var(--body-foreground);
       font-family: var(--text-font-family);
-      overflow-x: hidden;
+      overflow-x: clip;
       -webkit-font-smoothing: antialiased;
     }
     h1, h2, h3, h4 { font-family: var(--title-font-family); }
     .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
     .container-full { width: 100%; padding: 0 24px; }
 
-    /* Tarja Informativa (.overlineModule) */
+    /* Tarja Informativa (.overlineModule) + Ticker Rolante */
     .overlineModule {
       background: var(--announcement-background);
       color: var(--announcement-foreground);
@@ -880,19 +882,81 @@ exports[`layout patterns golden > fitness > html 1`] = `
       padding: 8px 16px;
       letter-spacing: 0.03em;
     }
+    .overlineModule--ticker {
+      position: relative;
+      overflow: hidden;
+      min-height: 34px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlineModule__track {
+      position: relative;
+      width: 100%;
+      max-width: 1280px;
+      height: 34px;
+      overflow: hidden;
+    }
+    .overlineModule__slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(100%);
+      transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
+      pointer-events: none;
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
+      transform: translateX(100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
+      transform: translateY(0);
+    }
+    .overlineModule__slide.is-active {
+      opacity: 1;
+      transform: translate(0, 0);
+      pointer-events: auto;
+    }
+    .overlineModule__slide.is-leaving {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
+      transform: translateX(-100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
+      transform: translateY(0);
+    }
 
-    /* Cabeçalho Tema LIME (.headerContent) — Ícones puros + Busca expansível ao clicar na lupa */
+    /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */
     header.irb-header {
-      background: var(--header-background);
+      background: rgba(255, 255, 255, 0.98);
       color: var(--header-foreground);
-      opacity: 0.98;
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      z-index: 40;
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.0784);
+      z-index: 60;
       width: 100%;
       position: relative;
     }
-    header.header--sticky { position: sticky; top: 0; }
+    header.header--sticky {
+      position: sticky;
+      top: 0;
+    }
+    header.header--overlay {
+      position: sticky;
+      top: 0;
+    }
+    body:not(.irb-subview-active) header.header--overlay {
+      margin-bottom: calc(-1 * var(--irb-header-height, 76px));
+    }
     .headerContent {
       display: flex;
       align-items: center;
@@ -910,13 +974,28 @@ exports[`layout patterns golden > fitness > html 1`] = `
       padding: 6px;
       cursor: pointer;
     }
-    .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
-    .headerContent_logo_img { max-height: 46px; max-width: 185px; object-fit: contain; }
+    .headerContent_logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 1;
+      position: relative;
+      z-index: 2;
+    }
+    .headerContent_logo_img {
+      max-height: 46px;
+      max-width: 210px;
+      object-fit: contain;
+      opacity: 1;
+      display: block;
+    }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
+      opacity: 1;
     }
     .headerContent_navInline {
       display: flex;
@@ -963,6 +1042,77 @@ exports[`layout patterns golden > fitness > html 1`] = `
       background: var(--primary-background);
       color: var(--primary-foreground);
       font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    /* Dropdown Minha Conta abaixo do ícone com Blur no fundo */
+    .headerAccountWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .irb-account-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: none;
+    }
+    .irb-account-backdrop.open { display: block; }
+    .irb-account-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 215px;
+      padding: 8px;
+      border-radius: calc(var(--irb-radius) + 4px);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.2);
+      z-index: 90;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      animation: irbPopIn .16s ease-out;
+    }
+    .irb-account-dropdown.open { display: flex; }
+    .irb-account-dropdown__item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--irb-radius);
+      font-family: var(--text-font-family);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: transform .12s ease, opacity .15s ease, background .15s ease;
+    }
+    .irb-account-dropdown__item--primary {
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      border: 1px solid var(--btn-primary-border);
+    }
+    .irb-account-dropdown__item--primary:hover { opacity: 0.92; }
+    .irb-account-dropdown__item--secondary {
+      background: rgba(17, 24, 39, 0.05);
+      color: #111827;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+    }
+    .irb-account-dropdown__item--secondary:hover { background: rgba(17, 24, 39, 0.1); }
+    .irb-account-dropdown__plus {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
       font-weight: 700;
       line-height: 1;
     }
@@ -1072,7 +1222,7 @@ exports[`layout patterns golden > fitness > html 1`] = `
       justify-content: center;
       gap: 20px;
       padding: 10px 0 14px;
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      border-top: 1px solid rgba(0, 0, 0, 0.0588);
     }
     .categoryLink {
       text-decoration: none;
@@ -1083,10 +1233,16 @@ exports[`layout patterns golden > fitness > html 1`] = `
       letter-spacing: 0.04em;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: color .15s, opacity .15s;
+      padding: 2px 0;
+      border-radius: 0;
+      transition: color .16s ease, background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
       cursor: pointer;
     }
-    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
+    .categoryLink:hover, .categoryLink.active {
+      color: var(--header-link-hover-color);
+      opacity: 1;
+      text-decoration: underline; text-underline-offset: 5px;
+    }
 
     @media (max-width: 900px) {
       .headerMenuBtn { display: inline-flex; flex-shrink: 0; }
@@ -1335,6 +1491,7 @@ exports[`layout patterns golden > fitness > html 1`] = `
     .bannerHero {
       position: relative;
       min-height: 430px;
+      
       display: flex;
       align-items: center;
       background: #111827;
@@ -1581,6 +1738,8 @@ exports[`layout patterns golden > fitness > html 1`] = `
 <body class="page-common-home common-home theme-_lime">
   <div class="overlineModule">Frete Grátis em compras selecionadas • 5% OFF no PIX • Parcele em até 6x sem juros</div>
 
+  <div class="irb-account-backdrop" id="irb-account-backdrop" aria-hidden="true"></div>
+
   <header class="irb-header ">
     <div class="container">
       <div class="headerContent headerContent--layout-1">
@@ -1600,9 +1759,21 @@ exports[`layout patterns golden > fitness > html 1`] = `
           <button type="button" class="headerIconBtn" id="irb-toggle-search" aria-label="Pesquisar" title="Pesquisar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           </button>
-          <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" title="Entrar">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </button>
+          <div class="headerAccountWrap" id="irb-account-wrap">
+            <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" aria-expanded="false" aria-haspopup="menu" title="Minha Conta">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </button>
+            <div class="irb-account-dropdown" id="irb-account-dropdown" role="menu" aria-label="Opções da conta">
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--primary" data-account-action="login" role="menuitem">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Entrar</span>
+              </button>
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--secondary" data-account-action="register" role="menuitem">
+                <span class="irb-account-dropdown__plus">+</span>
+                <span>Criar conta</span>
+              </button>
+            </div>
+          </div>
           <button type="button" class="headerIconBtn" id="irb-open-cart" aria-label="Sacola" title="Sacola">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
             <span class="cartCountBadge" id="irb-cart-count">0</span>
@@ -1700,8 +1871,8 @@ exports[`layout patterns golden > fitness > html 1`] = `
   </div>
 </div></div>
       </section>
-      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#0E131F;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;">
-  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#0E131F;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;display:flex;align-items:center;">
+  <div style="width:100%;max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
       <span style="background:#111827;color:#FFFFFF;font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:12px;">OFERTA ESPECIAL</span>
       <span style="font-size:16px;font-weight:600;">5% OFF no PIX + Parcele em até 6x sem juros na Fit Sup</span>
@@ -1809,7 +1980,7 @@ exports[`layout patterns golden > fitness > html 1`] = `
         <a href="#vitrines" class="btnSecondaryCustom">Explorar Coleção</a>
       </div>
       <div class="secondaryEditorial__media">
-        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" />
+        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" style="object-fit:cover;" />
       </div>
     </div>
   </div>
@@ -2146,22 +2317,23 @@ exports[`layout patterns golden > fitness > html 1`] = `
     </div>
   </div>
 
-  <!-- Account Modal (Demo) -->
+  <!-- Account Modal (Demo: Entrar & Criar conta) -->
   <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
     <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
       <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <h3 style="margin:0;font-size:19px;">Minha Conta</h3>
+        <h3 id="irb-account-modal-title" style="margin:0;font-size:19px;">Entrar na sua conta</h3>
       </div>
-      <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
-      <form onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <form id="irb-account-form" onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
-        <button type="submit" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
+        <button type="submit" id="irb-account-submit-btn" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
       </form>
       <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
-        Login de demonstração validado com sucesso!
+        Ação de demonstração validada com sucesso!
       </div>
     </div>
   </div>
@@ -2201,10 +2373,56 @@ exports[`layout patterns golden > fitness > html 1`] = `
 
       const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+      function syncHeaderHeight() {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) {
+          document.documentElement.style.setProperty('--irb-header-height', hdr.offsetHeight + 'px');
+        }
+      }
+      syncHeaderHeight();
+      if (typeof ResizeObserver !== 'undefined') {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) new ResizeObserver(syncHeaderHeight).observe(hdr);
+      }
+      window.addEventListener('resize', syncHeaderHeight, { passive: true });
+
+      // Barra de Aviso Superior — Rolagem automática mensagem por mensagem
+      const overlineTicker = document.getElementById('irb-overline-ticker');
+      if (overlineTicker) {
+        const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
+        const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        let overlineIdx = 0;
+        let overlinePaused = false;
+        overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
+        overlineTicker.addEventListener('mouseleave', () => { overlinePaused = false; });
+
+        if (overlineSlides.length > 1) {
+          setInterval(() => {
+            if (overlinePaused) return;
+            const prevSlide = overlineSlides[overlineIdx];
+            overlineIdx = (overlineIdx + 1) % overlineSlides.length;
+            const nextSlide = overlineSlides[overlineIdx];
+
+            if (prevSlide && prevSlide !== nextSlide) {
+              prevSlide.classList.remove('is-active');
+              prevSlide.classList.add('is-leaving');
+              setTimeout(() => {
+                prevSlide.classList.remove('is-leaving');
+              }, 520);
+            }
+            if (nextSlide) {
+              nextSlide.classList.remove('is-leaving');
+              nextSlide.classList.add('is-active');
+            }
+          }, intervalMs);
+        }
+      }
+
       function switchView(viewName) {
         document.getElementById('irb-view-home').classList.toggle('active', viewName === 'home');
         document.getElementById('irb-view-category').classList.toggle('active', viewName === 'category');
         document.getElementById('irb-view-product').classList.toggle('active', viewName === 'product');
+        document.body.classList.toggle('irb-subview-active', viewName !== 'home');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -2552,6 +2770,7 @@ exports[`layout patterns golden > fitness > html 1`] = `
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           setSearchOpen(false);
+          setAccountDropdownOpen(false);
           const accountModal = document.getElementById('irb-account-modal');
           const cartDrawer = document.getElementById('irb-cart-drawer');
           const mobileDrawer = document.getElementById('irb-mobile-drawer');
@@ -2689,8 +2908,76 @@ exports[`layout patterns golden > fitness > html 1`] = `
         document.getElementById('irb-mobile-drawer').classList.remove('open');
       });
       const accountModalEl = document.getElementById('irb-account-modal');
-      document.getElementById('irb-open-account').addEventListener('click', () => {
-        if (accountModalEl) accountModalEl.classList.add('open');
+      const accountDropdownEl = document.getElementById('irb-account-dropdown');
+      const accountBackdropEl = document.getElementById('irb-account-backdrop');
+      const accountToggleBtn = document.getElementById('irb-open-account');
+      const accountWrapEl = document.getElementById('irb-account-wrap');
+
+      function setAccountDropdownOpen(open) {
+        if (accountDropdownEl) accountDropdownEl.classList.toggle('open', open);
+        if (accountBackdropEl) {
+          accountBackdropEl.classList.toggle('open', open);
+          accountBackdropEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (accountToggleBtn) {
+          accountToggleBtn.classList.toggle('is-active', open);
+          accountToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      }
+
+      function openAccountModalInMode(mode) {
+        setAccountDropdownOpen(false);
+        if (!accountModalEl) return;
+        const titleEl = document.getElementById('irb-account-modal-title');
+        const descEl = document.getElementById('irb-account-modal-desc');
+        const nameField = document.getElementById('irb-account-name-field');
+        const submitBtn = document.getElementById('irb-account-submit-btn');
+        const msgEl = document.getElementById('irb-account-msg');
+        if (msgEl) msgEl.style.display = 'none';
+        if (mode === 'register') {
+          if (titleEl) titleEl.textContent = 'Criar conta';
+          if (descEl) descEl.textContent = 'Cadastre-se rapidamente para acompanhar pedidos e aproveitar ofertas exclusivas.';
+          if (nameField) {
+            nameField.style.display = 'block';
+            nameField.required = true;
+          }
+          if (submitBtn) submitBtn.textContent = 'Criar Minha Conta (Demo)';
+        } else {
+          if (titleEl) titleEl.textContent = 'Entrar na sua conta';
+          if (descEl) descEl.textContent = 'Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.';
+          if (nameField) {
+            nameField.style.display = 'none';
+            nameField.required = false;
+          }
+          if (submitBtn) submitBtn.textContent = 'Entrar na Conta (Demo)';
+        }
+        accountModalEl.classList.add('open');
+      }
+
+      if (accountToggleBtn) {
+        accountToggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = accountDropdownEl && accountDropdownEl.classList.contains('open');
+          setAccountDropdownOpen(!isOpen);
+        });
+      }
+      if (accountBackdropEl) {
+        accountBackdropEl.addEventListener('click', () => setAccountDropdownOpen(false));
+      }
+      document.addEventListener('click', (e) => {
+        if (
+          accountDropdownEl &&
+          accountDropdownEl.classList.contains('open') &&
+          accountWrapEl &&
+          !accountWrapEl.contains(e.target)
+        ) {
+          setAccountDropdownOpen(false);
+        }
+      });
+      document.querySelectorAll('[data-account-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openAccountModalInMode(btn.getAttribute('data-account-action') || 'login');
+        });
       });
       document.getElementById('irb-account-close').addEventListener('click', () => {
         if (accountModalEl) accountModalEl.classList.remove('open');
@@ -3360,6 +3647,8 @@ exports[`layout patterns golden > generic > html 1`] = `
       --announcement-foreground: #FFFFFF;
       --header-background: #FFFFFF;
       --header-foreground: #111827;
+      --header-link-hover-color: #111827;
+      --header-link-hover-bg: rgba(0, 0, 0, 0.07);
       --title-font-family: 'Montserrat', sans-serif;
       --text-font-family: 'Poppins', sans-serif;
       --irb-radius: 0px;
@@ -3383,14 +3672,14 @@ exports[`layout patterns golden > generic > html 1`] = `
       background: var(--body-background);
       color: var(--body-foreground);
       font-family: var(--text-font-family);
-      overflow-x: hidden;
+      overflow-x: clip;
       -webkit-font-smoothing: antialiased;
     }
     h1, h2, h3, h4 { font-family: var(--title-font-family); }
     .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
     .container-full { width: 100%; padding: 0 24px; }
 
-    /* Tarja Informativa (.overlineModule) */
+    /* Tarja Informativa (.overlineModule) + Ticker Rolante */
     .overlineModule {
       background: var(--announcement-background);
       color: var(--announcement-foreground);
@@ -3400,19 +3689,81 @@ exports[`layout patterns golden > generic > html 1`] = `
       padding: 8px 16px;
       letter-spacing: 0.03em;
     }
+    .overlineModule--ticker {
+      position: relative;
+      overflow: hidden;
+      min-height: 34px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlineModule__track {
+      position: relative;
+      width: 100%;
+      max-width: 1280px;
+      height: 34px;
+      overflow: hidden;
+    }
+    .overlineModule__slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(100%);
+      transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
+      pointer-events: none;
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
+      transform: translateX(100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
+      transform: translateY(0);
+    }
+    .overlineModule__slide.is-active {
+      opacity: 1;
+      transform: translate(0, 0);
+      pointer-events: auto;
+    }
+    .overlineModule__slide.is-leaving {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
+      transform: translateX(-100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
+      transform: translateY(0);
+    }
 
-    /* Cabeçalho Tema LIME (.headerContent) — Ícones puros + Busca expansível ao clicar na lupa */
+    /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */
     header.irb-header {
-      background: var(--header-background);
+      background: rgba(255, 255, 255, 0.98);
       color: var(--header-foreground);
-      opacity: 0.98;
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      z-index: 40;
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.0784);
+      z-index: 60;
       width: 100%;
       position: relative;
     }
-    header.header--sticky { position: sticky; top: 0; }
+    header.header--sticky {
+      position: sticky;
+      top: 0;
+    }
+    header.header--overlay {
+      position: sticky;
+      top: 0;
+    }
+    body:not(.irb-subview-active) header.header--overlay {
+      margin-bottom: calc(-1 * var(--irb-header-height, 76px));
+    }
     .headerContent {
       display: flex;
       align-items: center;
@@ -3430,13 +3781,28 @@ exports[`layout patterns golden > generic > html 1`] = `
       padding: 6px;
       cursor: pointer;
     }
-    .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
-    .headerContent_logo_img { max-height: 46px; max-width: 185px; object-fit: contain; }
+    .headerContent_logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 1;
+      position: relative;
+      z-index: 2;
+    }
+    .headerContent_logo_img {
+      max-height: 46px;
+      max-width: 210px;
+      object-fit: contain;
+      opacity: 1;
+      display: block;
+    }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
+      opacity: 1;
     }
     .headerContent_navInline {
       display: flex;
@@ -3483,6 +3849,77 @@ exports[`layout patterns golden > generic > html 1`] = `
       background: var(--primary-background);
       color: var(--primary-foreground);
       font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    /* Dropdown Minha Conta abaixo do ícone com Blur no fundo */
+    .headerAccountWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .irb-account-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: none;
+    }
+    .irb-account-backdrop.open { display: block; }
+    .irb-account-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 215px;
+      padding: 8px;
+      border-radius: calc(var(--irb-radius) + 4px);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.2);
+      z-index: 90;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      animation: irbPopIn .16s ease-out;
+    }
+    .irb-account-dropdown.open { display: flex; }
+    .irb-account-dropdown__item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--irb-radius);
+      font-family: var(--text-font-family);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: transform .12s ease, opacity .15s ease, background .15s ease;
+    }
+    .irb-account-dropdown__item--primary {
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      border: 1px solid var(--btn-primary-border);
+    }
+    .irb-account-dropdown__item--primary:hover { opacity: 0.92; }
+    .irb-account-dropdown__item--secondary {
+      background: rgba(17, 24, 39, 0.05);
+      color: #111827;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+    }
+    .irb-account-dropdown__item--secondary:hover { background: rgba(17, 24, 39, 0.1); }
+    .irb-account-dropdown__plus {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
       font-weight: 700;
       line-height: 1;
     }
@@ -3592,7 +4029,7 @@ exports[`layout patterns golden > generic > html 1`] = `
       justify-content: center;
       gap: 20px;
       padding: 10px 0 14px;
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      border-top: 1px solid rgba(0, 0, 0, 0.0588);
     }
     .categoryLink {
       text-decoration: none;
@@ -3603,10 +4040,16 @@ exports[`layout patterns golden > generic > html 1`] = `
       letter-spacing: 0.04em;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: color .15s, opacity .15s;
+      padding: 2px 0;
+      border-radius: 0;
+      transition: color .16s ease, background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
       cursor: pointer;
     }
-    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
+    .categoryLink:hover, .categoryLink.active {
+      color: var(--header-link-hover-color);
+      opacity: 1;
+      text-decoration: underline; text-underline-offset: 5px;
+    }
 
     @media (max-width: 900px) {
       .headerMenuBtn { display: inline-flex; flex-shrink: 0; }
@@ -3855,6 +4298,7 @@ exports[`layout patterns golden > generic > html 1`] = `
     .bannerHero {
       position: relative;
       min-height: 430px;
+      
       display: flex;
       align-items: center;
       background: #111827;
@@ -4101,6 +4545,8 @@ exports[`layout patterns golden > generic > html 1`] = `
 <body class="page-common-home common-home theme-_lime">
   <div class="overlineModule">Frete Grátis em compras selecionadas • 5% OFF no PIX • Parcele em até 6x sem juros</div>
 
+  <div class="irb-account-backdrop" id="irb-account-backdrop" aria-hidden="true"></div>
+
   <header class="irb-header ">
     <div class="container">
       <div class="headerContent headerContent--layout-1">
@@ -4120,9 +4566,21 @@ exports[`layout patterns golden > generic > html 1`] = `
           <button type="button" class="headerIconBtn" id="irb-toggle-search" aria-label="Pesquisar" title="Pesquisar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           </button>
-          <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" title="Entrar">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </button>
+          <div class="headerAccountWrap" id="irb-account-wrap">
+            <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" aria-expanded="false" aria-haspopup="menu" title="Minha Conta">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </button>
+            <div class="irb-account-dropdown" id="irb-account-dropdown" role="menu" aria-label="Opções da conta">
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--primary" data-account-action="login" role="menuitem">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Entrar</span>
+              </button>
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--secondary" data-account-action="register" role="menuitem">
+                <span class="irb-account-dropdown__plus">+</span>
+                <span>Criar conta</span>
+              </button>
+            </div>
+          </div>
           <button type="button" class="headerIconBtn" id="irb-open-cart" aria-label="Sacola" title="Sacola">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
             <span class="cartCountBadge" id="irb-cart-count">0</span>
@@ -4227,8 +4685,8 @@ exports[`layout patterns golden > generic > html 1`] = `
   </div>
 </div></div>
       </section>
-      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#0E131F;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;">
-  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#0E131F;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;display:flex;align-items:center;">
+  <div style="width:100%;max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
       <span style="background:#111827;color:#FFFFFF;font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:0px;">OFERTA ESPECIAL</span>
       <span style="font-size:16px;font-weight:600;">5% OFF no PIX + Parcele em até 6x sem juros na Loja Exemplo</span>
@@ -4272,7 +4730,7 @@ exports[`layout patterns golden > generic > html 1`] = `
         <a href="#vitrines" class="btnSecondaryCustom">Explorar Coleção</a>
       </div>
       <div class="secondaryEditorial__media">
-        <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&amp;q=80" alt="Autenticidade e estilo em cada detalhe" />
+        <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&amp;q=80" alt="Autenticidade e estilo em cada detalhe" style="object-fit:cover;" />
       </div>
     </div>
   </div>
@@ -4522,22 +4980,23 @@ exports[`layout patterns golden > generic > html 1`] = `
     </div>
   </div>
 
-  <!-- Account Modal (Demo) -->
+  <!-- Account Modal (Demo: Entrar & Criar conta) -->
   <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
     <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
       <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <h3 style="margin:0;font-size:19px;">Minha Conta</h3>
+        <h3 id="irb-account-modal-title" style="margin:0;font-size:19px;">Entrar na sua conta</h3>
       </div>
-      <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
-      <form onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <form id="irb-account-form" onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
-        <button type="submit" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
+        <button type="submit" id="irb-account-submit-btn" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
       </form>
       <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
-        Login de demonstração validado com sucesso!
+        Ação de demonstração validada com sucesso!
       </div>
     </div>
   </div>
@@ -4577,10 +5036,56 @@ exports[`layout patterns golden > generic > html 1`] = `
 
       const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+      function syncHeaderHeight() {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) {
+          document.documentElement.style.setProperty('--irb-header-height', hdr.offsetHeight + 'px');
+        }
+      }
+      syncHeaderHeight();
+      if (typeof ResizeObserver !== 'undefined') {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) new ResizeObserver(syncHeaderHeight).observe(hdr);
+      }
+      window.addEventListener('resize', syncHeaderHeight, { passive: true });
+
+      // Barra de Aviso Superior — Rolagem automática mensagem por mensagem
+      const overlineTicker = document.getElementById('irb-overline-ticker');
+      if (overlineTicker) {
+        const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
+        const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        let overlineIdx = 0;
+        let overlinePaused = false;
+        overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
+        overlineTicker.addEventListener('mouseleave', () => { overlinePaused = false; });
+
+        if (overlineSlides.length > 1) {
+          setInterval(() => {
+            if (overlinePaused) return;
+            const prevSlide = overlineSlides[overlineIdx];
+            overlineIdx = (overlineIdx + 1) % overlineSlides.length;
+            const nextSlide = overlineSlides[overlineIdx];
+
+            if (prevSlide && prevSlide !== nextSlide) {
+              prevSlide.classList.remove('is-active');
+              prevSlide.classList.add('is-leaving');
+              setTimeout(() => {
+                prevSlide.classList.remove('is-leaving');
+              }, 520);
+            }
+            if (nextSlide) {
+              nextSlide.classList.remove('is-leaving');
+              nextSlide.classList.add('is-active');
+            }
+          }, intervalMs);
+        }
+      }
+
       function switchView(viewName) {
         document.getElementById('irb-view-home').classList.toggle('active', viewName === 'home');
         document.getElementById('irb-view-category').classList.toggle('active', viewName === 'category');
         document.getElementById('irb-view-product').classList.toggle('active', viewName === 'product');
+        document.body.classList.toggle('irb-subview-active', viewName !== 'home');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -4928,6 +5433,7 @@ exports[`layout patterns golden > generic > html 1`] = `
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           setSearchOpen(false);
+          setAccountDropdownOpen(false);
           const accountModal = document.getElementById('irb-account-modal');
           const cartDrawer = document.getElementById('irb-cart-drawer');
           const mobileDrawer = document.getElementById('irb-mobile-drawer');
@@ -5065,8 +5571,76 @@ exports[`layout patterns golden > generic > html 1`] = `
         document.getElementById('irb-mobile-drawer').classList.remove('open');
       });
       const accountModalEl = document.getElementById('irb-account-modal');
-      document.getElementById('irb-open-account').addEventListener('click', () => {
-        if (accountModalEl) accountModalEl.classList.add('open');
+      const accountDropdownEl = document.getElementById('irb-account-dropdown');
+      const accountBackdropEl = document.getElementById('irb-account-backdrop');
+      const accountToggleBtn = document.getElementById('irb-open-account');
+      const accountWrapEl = document.getElementById('irb-account-wrap');
+
+      function setAccountDropdownOpen(open) {
+        if (accountDropdownEl) accountDropdownEl.classList.toggle('open', open);
+        if (accountBackdropEl) {
+          accountBackdropEl.classList.toggle('open', open);
+          accountBackdropEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (accountToggleBtn) {
+          accountToggleBtn.classList.toggle('is-active', open);
+          accountToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      }
+
+      function openAccountModalInMode(mode) {
+        setAccountDropdownOpen(false);
+        if (!accountModalEl) return;
+        const titleEl = document.getElementById('irb-account-modal-title');
+        const descEl = document.getElementById('irb-account-modal-desc');
+        const nameField = document.getElementById('irb-account-name-field');
+        const submitBtn = document.getElementById('irb-account-submit-btn');
+        const msgEl = document.getElementById('irb-account-msg');
+        if (msgEl) msgEl.style.display = 'none';
+        if (mode === 'register') {
+          if (titleEl) titleEl.textContent = 'Criar conta';
+          if (descEl) descEl.textContent = 'Cadastre-se rapidamente para acompanhar pedidos e aproveitar ofertas exclusivas.';
+          if (nameField) {
+            nameField.style.display = 'block';
+            nameField.required = true;
+          }
+          if (submitBtn) submitBtn.textContent = 'Criar Minha Conta (Demo)';
+        } else {
+          if (titleEl) titleEl.textContent = 'Entrar na sua conta';
+          if (descEl) descEl.textContent = 'Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.';
+          if (nameField) {
+            nameField.style.display = 'none';
+            nameField.required = false;
+          }
+          if (submitBtn) submitBtn.textContent = 'Entrar na Conta (Demo)';
+        }
+        accountModalEl.classList.add('open');
+      }
+
+      if (accountToggleBtn) {
+        accountToggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = accountDropdownEl && accountDropdownEl.classList.contains('open');
+          setAccountDropdownOpen(!isOpen);
+        });
+      }
+      if (accountBackdropEl) {
+        accountBackdropEl.addEventListener('click', () => setAccountDropdownOpen(false));
+      }
+      document.addEventListener('click', (e) => {
+        if (
+          accountDropdownEl &&
+          accountDropdownEl.classList.contains('open') &&
+          accountWrapEl &&
+          !accountWrapEl.contains(e.target)
+        ) {
+          setAccountDropdownOpen(false);
+        }
+      });
+      document.querySelectorAll('[data-account-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openAccountModalInMode(btn.getAttribute('data-account-action') || 'login');
+        });
       });
       document.getElementById('irb-account-close').addEventListener('click', () => {
         if (accountModalEl) accountModalEl.classList.remove('open');
@@ -5922,6 +6496,8 @@ exports[`layout patterns golden > luxury > html 1`] = `
       --announcement-foreground: #FFFFFF;
       --header-background: #FAF7F2;
       --header-foreground: #111827;
+      --header-link-hover-color: #111827;
+      --header-link-hover-bg: rgba(0, 0, 0, 0.07);
       --title-font-family: 'Cormorant Garamond', serif;
       --text-font-family: 'Jost', sans-serif;
       --irb-radius: 0px;
@@ -5945,14 +6521,14 @@ exports[`layout patterns golden > luxury > html 1`] = `
       background: var(--body-background);
       color: var(--body-foreground);
       font-family: var(--text-font-family);
-      overflow-x: hidden;
+      overflow-x: clip;
       -webkit-font-smoothing: antialiased;
     }
     h1, h2, h3, h4 { font-family: var(--title-font-family); }
     .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
     .container-full { width: 100%; padding: 0 24px; }
 
-    /* Tarja Informativa (.overlineModule) */
+    /* Tarja Informativa (.overlineModule) + Ticker Rolante */
     .overlineModule {
       background: var(--announcement-background);
       color: var(--announcement-foreground);
@@ -5962,19 +6538,81 @@ exports[`layout patterns golden > luxury > html 1`] = `
       padding: 8px 16px;
       letter-spacing: 0.03em;
     }
+    .overlineModule--ticker {
+      position: relative;
+      overflow: hidden;
+      min-height: 34px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlineModule__track {
+      position: relative;
+      width: 100%;
+      max-width: 1280px;
+      height: 34px;
+      overflow: hidden;
+    }
+    .overlineModule__slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(100%);
+      transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
+      pointer-events: none;
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
+      transform: translateX(100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
+      transform: translateY(0);
+    }
+    .overlineModule__slide.is-active {
+      opacity: 1;
+      transform: translate(0, 0);
+      pointer-events: auto;
+    }
+    .overlineModule__slide.is-leaving {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
+      transform: translateX(-100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
+      transform: translateY(0);
+    }
 
-    /* Cabeçalho Tema LIME (.headerContent) — Ícones puros + Busca expansível ao clicar na lupa */
+    /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */
     header.irb-header {
-      background: var(--header-background);
+      background: rgba(250, 247, 242, 0.98);
       color: var(--header-foreground);
-      opacity: 0.98;
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      z-index: 40;
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.0784);
+      z-index: 60;
       width: 100%;
       position: relative;
     }
-    header.header--sticky { position: sticky; top: 0; }
+    header.header--sticky {
+      position: sticky;
+      top: 0;
+    }
+    header.header--overlay {
+      position: sticky;
+      top: 0;
+    }
+    body:not(.irb-subview-active) header.header--overlay {
+      margin-bottom: calc(-1 * var(--irb-header-height, 76px));
+    }
     .headerContent {
       display: flex;
       align-items: center;
@@ -5992,13 +6630,28 @@ exports[`layout patterns golden > luxury > html 1`] = `
       padding: 6px;
       cursor: pointer;
     }
-    .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
-    .headerContent_logo_img { max-height: 46px; max-width: 185px; object-fit: contain; }
+    .headerContent_logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 1;
+      position: relative;
+      z-index: 2;
+    }
+    .headerContent_logo_img {
+      max-height: 46px;
+      max-width: 210px;
+      object-fit: contain;
+      opacity: 1;
+      display: block;
+    }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
+      opacity: 1;
     }
     .headerContent_navInline {
       display: flex;
@@ -6045,6 +6698,77 @@ exports[`layout patterns golden > luxury > html 1`] = `
       background: var(--primary-background);
       color: var(--primary-foreground);
       font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    /* Dropdown Minha Conta abaixo do ícone com Blur no fundo */
+    .headerAccountWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .irb-account-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: none;
+    }
+    .irb-account-backdrop.open { display: block; }
+    .irb-account-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 215px;
+      padding: 8px;
+      border-radius: calc(var(--irb-radius) + 4px);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.2);
+      z-index: 90;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      animation: irbPopIn .16s ease-out;
+    }
+    .irb-account-dropdown.open { display: flex; }
+    .irb-account-dropdown__item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--irb-radius);
+      font-family: var(--text-font-family);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: transform .12s ease, opacity .15s ease, background .15s ease;
+    }
+    .irb-account-dropdown__item--primary {
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      border: 1px solid var(--btn-primary-border);
+    }
+    .irb-account-dropdown__item--primary:hover { opacity: 0.92; }
+    .irb-account-dropdown__item--secondary {
+      background: rgba(17, 24, 39, 0.05);
+      color: #111827;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+    }
+    .irb-account-dropdown__item--secondary:hover { background: rgba(17, 24, 39, 0.1); }
+    .irb-account-dropdown__plus {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
       font-weight: 700;
       line-height: 1;
     }
@@ -6154,7 +6878,7 @@ exports[`layout patterns golden > luxury > html 1`] = `
       justify-content: center;
       gap: 20px;
       padding: 10px 0 14px;
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      border-top: 1px solid rgba(0, 0, 0, 0.0588);
     }
     .categoryLink {
       text-decoration: none;
@@ -6165,10 +6889,16 @@ exports[`layout patterns golden > luxury > html 1`] = `
       letter-spacing: 0.04em;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: color .15s, opacity .15s;
+      padding: 2px 0;
+      border-radius: 0;
+      transition: color .16s ease, background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
       cursor: pointer;
     }
-    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
+    .categoryLink:hover, .categoryLink.active {
+      color: var(--header-link-hover-color);
+      opacity: 1;
+      text-decoration: underline; text-underline-offset: 5px;
+    }
 
     @media (max-width: 900px) {
       .headerMenuBtn { display: inline-flex; flex-shrink: 0; }
@@ -6417,6 +7147,7 @@ exports[`layout patterns golden > luxury > html 1`] = `
     .bannerHero {
       position: relative;
       min-height: 430px;
+      
       display: flex;
       align-items: center;
       background: #111827;
@@ -6663,6 +7394,8 @@ exports[`layout patterns golden > luxury > html 1`] = `
 <body class="page-common-home common-home theme-_lime">
   <div class="overlineModule">Frete Grátis em compras selecionadas • 5% OFF no PIX • Parcele em até 6x sem juros</div>
 
+  <div class="irb-account-backdrop" id="irb-account-backdrop" aria-hidden="true"></div>
+
   <header class="irb-header ">
     <div class="container">
       <div class="headerContent headerContent--layout-1">
@@ -6682,9 +7415,21 @@ exports[`layout patterns golden > luxury > html 1`] = `
           <button type="button" class="headerIconBtn" id="irb-toggle-search" aria-label="Pesquisar" title="Pesquisar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           </button>
-          <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" title="Entrar">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </button>
+          <div class="headerAccountWrap" id="irb-account-wrap">
+            <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" aria-expanded="false" aria-haspopup="menu" title="Minha Conta">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </button>
+            <div class="irb-account-dropdown" id="irb-account-dropdown" role="menu" aria-label="Opções da conta">
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--primary" data-account-action="login" role="menuitem">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Entrar</span>
+              </button>
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--secondary" data-account-action="register" role="menuitem">
+                <span class="irb-account-dropdown__plus">+</span>
+                <span>Criar conta</span>
+              </button>
+            </div>
+          </div>
           <button type="button" class="headerIconBtn" id="irb-open-cart" aria-label="Sacola" title="Sacola">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
             <span class="cartCountBadge" id="irb-cart-count">0</span>
@@ -6782,8 +7527,8 @@ exports[`layout patterns golden > luxury > html 1`] = `
   </div>
 </div></div>
       </section>
-      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#0E131F;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;">
-  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#0E131F;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;display:flex;align-items:center;">
+  <div style="width:100%;max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
       <span style="background:#111827;color:#FFFFFF;font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:0px;">OFERTA ESPECIAL</span>
       <span style="font-size:16px;font-weight:600;">5% OFF no PIX + Parcele em até 6x sem juros na Joias Lux</span>
@@ -6891,7 +7636,7 @@ exports[`layout patterns golden > luxury > html 1`] = `
         <a href="#vitrines" class="btnSecondaryCustom">Explorar Coleção</a>
       </div>
       <div class="secondaryEditorial__media">
-        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" />
+        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" style="object-fit:cover;" />
       </div>
     </div>
   </div>
@@ -7228,22 +7973,23 @@ exports[`layout patterns golden > luxury > html 1`] = `
     </div>
   </div>
 
-  <!-- Account Modal (Demo) -->
+  <!-- Account Modal (Demo: Entrar & Criar conta) -->
   <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
     <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
       <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <h3 style="margin:0;font-size:19px;">Minha Conta</h3>
+        <h3 id="irb-account-modal-title" style="margin:0;font-size:19px;">Entrar na sua conta</h3>
       </div>
-      <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
-      <form onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <form id="irb-account-form" onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
-        <button type="submit" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
+        <button type="submit" id="irb-account-submit-btn" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
       </form>
       <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
-        Login de demonstração validado com sucesso!
+        Ação de demonstração validada com sucesso!
       </div>
     </div>
   </div>
@@ -7283,10 +8029,56 @@ exports[`layout patterns golden > luxury > html 1`] = `
 
       const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+      function syncHeaderHeight() {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) {
+          document.documentElement.style.setProperty('--irb-header-height', hdr.offsetHeight + 'px');
+        }
+      }
+      syncHeaderHeight();
+      if (typeof ResizeObserver !== 'undefined') {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) new ResizeObserver(syncHeaderHeight).observe(hdr);
+      }
+      window.addEventListener('resize', syncHeaderHeight, { passive: true });
+
+      // Barra de Aviso Superior — Rolagem automática mensagem por mensagem
+      const overlineTicker = document.getElementById('irb-overline-ticker');
+      if (overlineTicker) {
+        const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
+        const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        let overlineIdx = 0;
+        let overlinePaused = false;
+        overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
+        overlineTicker.addEventListener('mouseleave', () => { overlinePaused = false; });
+
+        if (overlineSlides.length > 1) {
+          setInterval(() => {
+            if (overlinePaused) return;
+            const prevSlide = overlineSlides[overlineIdx];
+            overlineIdx = (overlineIdx + 1) % overlineSlides.length;
+            const nextSlide = overlineSlides[overlineIdx];
+
+            if (prevSlide && prevSlide !== nextSlide) {
+              prevSlide.classList.remove('is-active');
+              prevSlide.classList.add('is-leaving');
+              setTimeout(() => {
+                prevSlide.classList.remove('is-leaving');
+              }, 520);
+            }
+            if (nextSlide) {
+              nextSlide.classList.remove('is-leaving');
+              nextSlide.classList.add('is-active');
+            }
+          }, intervalMs);
+        }
+      }
+
       function switchView(viewName) {
         document.getElementById('irb-view-home').classList.toggle('active', viewName === 'home');
         document.getElementById('irb-view-category').classList.toggle('active', viewName === 'category');
         document.getElementById('irb-view-product').classList.toggle('active', viewName === 'product');
+        document.body.classList.toggle('irb-subview-active', viewName !== 'home');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -7634,6 +8426,7 @@ exports[`layout patterns golden > luxury > html 1`] = `
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           setSearchOpen(false);
+          setAccountDropdownOpen(false);
           const accountModal = document.getElementById('irb-account-modal');
           const cartDrawer = document.getElementById('irb-cart-drawer');
           const mobileDrawer = document.getElementById('irb-mobile-drawer');
@@ -7771,8 +8564,76 @@ exports[`layout patterns golden > luxury > html 1`] = `
         document.getElementById('irb-mobile-drawer').classList.remove('open');
       });
       const accountModalEl = document.getElementById('irb-account-modal');
-      document.getElementById('irb-open-account').addEventListener('click', () => {
-        if (accountModalEl) accountModalEl.classList.add('open');
+      const accountDropdownEl = document.getElementById('irb-account-dropdown');
+      const accountBackdropEl = document.getElementById('irb-account-backdrop');
+      const accountToggleBtn = document.getElementById('irb-open-account');
+      const accountWrapEl = document.getElementById('irb-account-wrap');
+
+      function setAccountDropdownOpen(open) {
+        if (accountDropdownEl) accountDropdownEl.classList.toggle('open', open);
+        if (accountBackdropEl) {
+          accountBackdropEl.classList.toggle('open', open);
+          accountBackdropEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (accountToggleBtn) {
+          accountToggleBtn.classList.toggle('is-active', open);
+          accountToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      }
+
+      function openAccountModalInMode(mode) {
+        setAccountDropdownOpen(false);
+        if (!accountModalEl) return;
+        const titleEl = document.getElementById('irb-account-modal-title');
+        const descEl = document.getElementById('irb-account-modal-desc');
+        const nameField = document.getElementById('irb-account-name-field');
+        const submitBtn = document.getElementById('irb-account-submit-btn');
+        const msgEl = document.getElementById('irb-account-msg');
+        if (msgEl) msgEl.style.display = 'none';
+        if (mode === 'register') {
+          if (titleEl) titleEl.textContent = 'Criar conta';
+          if (descEl) descEl.textContent = 'Cadastre-se rapidamente para acompanhar pedidos e aproveitar ofertas exclusivas.';
+          if (nameField) {
+            nameField.style.display = 'block';
+            nameField.required = true;
+          }
+          if (submitBtn) submitBtn.textContent = 'Criar Minha Conta (Demo)';
+        } else {
+          if (titleEl) titleEl.textContent = 'Entrar na sua conta';
+          if (descEl) descEl.textContent = 'Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.';
+          if (nameField) {
+            nameField.style.display = 'none';
+            nameField.required = false;
+          }
+          if (submitBtn) submitBtn.textContent = 'Entrar na Conta (Demo)';
+        }
+        accountModalEl.classList.add('open');
+      }
+
+      if (accountToggleBtn) {
+        accountToggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = accountDropdownEl && accountDropdownEl.classList.contains('open');
+          setAccountDropdownOpen(!isOpen);
+        });
+      }
+      if (accountBackdropEl) {
+        accountBackdropEl.addEventListener('click', () => setAccountDropdownOpen(false));
+      }
+      document.addEventListener('click', (e) => {
+        if (
+          accountDropdownEl &&
+          accountDropdownEl.classList.contains('open') &&
+          accountWrapEl &&
+          !accountWrapEl.contains(e.target)
+        ) {
+          setAccountDropdownOpen(false);
+        }
+      });
+      document.querySelectorAll('[data-account-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openAccountModalInMode(btn.getAttribute('data-account-action') || 'login');
+        });
       });
       document.getElementById('irb-account-close').addEventListener('click', () => {
         if (accountModalEl) accountModalEl.classList.remove('open');
@@ -8628,6 +9489,8 @@ exports[`layout patterns golden > tech > html 1`] = `
       --announcement-foreground: #FFFFFF;
       --header-background: #0B0B0F;
       --header-foreground: #FFFFFF;
+      --header-link-hover-color: #F5D90A;
+      --header-link-hover-bg: rgba(0, 0, 0, 0.07);
       --title-font-family: 'Oswald', sans-serif;
       --text-font-family: 'Cabin', sans-serif;
       --irb-radius: 24px;
@@ -8651,14 +9514,14 @@ exports[`layout patterns golden > tech > html 1`] = `
       background: var(--body-background);
       color: var(--body-foreground);
       font-family: var(--text-font-family);
-      overflow-x: hidden;
+      overflow-x: clip;
       -webkit-font-smoothing: antialiased;
     }
     h1, h2, h3, h4 { font-family: var(--title-font-family); }
     .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
     .container-full { width: 100%; padding: 0 24px; }
 
-    /* Tarja Informativa (.overlineModule) */
+    /* Tarja Informativa (.overlineModule) + Ticker Rolante */
     .overlineModule {
       background: var(--announcement-background);
       color: var(--announcement-foreground);
@@ -8668,19 +9531,81 @@ exports[`layout patterns golden > tech > html 1`] = `
       padding: 8px 16px;
       letter-spacing: 0.03em;
     }
+    .overlineModule--ticker {
+      position: relative;
+      overflow: hidden;
+      min-height: 34px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlineModule__track {
+      position: relative;
+      width: 100%;
+      max-width: 1280px;
+      height: 34px;
+      overflow: hidden;
+    }
+    .overlineModule__slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(100%);
+      transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
+      pointer-events: none;
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
+      transform: translateX(100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
+      transform: translateY(0);
+    }
+    .overlineModule__slide.is-active {
+      opacity: 1;
+      transform: translate(0, 0);
+      pointer-events: auto;
+    }
+    .overlineModule__slide.is-leaving {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
+      transform: translateX(-100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
+      transform: translateY(0);
+    }
 
-    /* Cabeçalho Tema LIME (.headerContent) — Ícones puros + Busca expansível ao clicar na lupa */
+    /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */
     header.irb-header {
-      background: var(--header-background);
+      background: rgba(11, 11, 15, 0.98);
       color: var(--header-foreground);
-      opacity: 0.98;
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      z-index: 40;
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.0784);
+      z-index: 60;
       width: 100%;
       position: relative;
     }
-    header.header--sticky { position: sticky; top: 0; }
+    header.header--sticky {
+      position: sticky;
+      top: 0;
+    }
+    header.header--overlay {
+      position: sticky;
+      top: 0;
+    }
+    body:not(.irb-subview-active) header.header--overlay {
+      margin-bottom: calc(-1 * var(--irb-header-height, 76px));
+    }
     .headerContent {
       display: flex;
       align-items: center;
@@ -8698,13 +9623,28 @@ exports[`layout patterns golden > tech > html 1`] = `
       padding: 6px;
       cursor: pointer;
     }
-    .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
-    .headerContent_logo_img { max-height: 46px; max-width: 185px; object-fit: contain; }
+    .headerContent_logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 1;
+      position: relative;
+      z-index: 2;
+    }
+    .headerContent_logo_img {
+      max-height: 46px;
+      max-width: 210px;
+      object-fit: contain;
+      opacity: 1;
+      display: block;
+    }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
+      opacity: 1;
     }
     .headerContent_navInline {
       display: flex;
@@ -8751,6 +9691,77 @@ exports[`layout patterns golden > tech > html 1`] = `
       background: var(--primary-background);
       color: var(--primary-foreground);
       font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    /* Dropdown Minha Conta abaixo do ícone com Blur no fundo */
+    .headerAccountWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .irb-account-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: none;
+    }
+    .irb-account-backdrop.open { display: block; }
+    .irb-account-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 215px;
+      padding: 8px;
+      border-radius: calc(var(--irb-radius) + 4px);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.2);
+      z-index: 90;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      animation: irbPopIn .16s ease-out;
+    }
+    .irb-account-dropdown.open { display: flex; }
+    .irb-account-dropdown__item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--irb-radius);
+      font-family: var(--text-font-family);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: transform .12s ease, opacity .15s ease, background .15s ease;
+    }
+    .irb-account-dropdown__item--primary {
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      border: 1px solid var(--btn-primary-border);
+    }
+    .irb-account-dropdown__item--primary:hover { opacity: 0.92; }
+    .irb-account-dropdown__item--secondary {
+      background: rgba(17, 24, 39, 0.05);
+      color: #111827;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+    }
+    .irb-account-dropdown__item--secondary:hover { background: rgba(17, 24, 39, 0.1); }
+    .irb-account-dropdown__plus {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
       font-weight: 700;
       line-height: 1;
     }
@@ -8860,7 +9871,7 @@ exports[`layout patterns golden > tech > html 1`] = `
       justify-content: center;
       gap: 20px;
       padding: 10px 0 14px;
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      border-top: 1px solid rgba(0, 0, 0, 0.0588);
     }
     .categoryLink {
       text-decoration: none;
@@ -8871,10 +9882,16 @@ exports[`layout patterns golden > tech > html 1`] = `
       letter-spacing: 0.04em;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: color .15s, opacity .15s;
+      padding: 2px 0;
+      border-radius: 0;
+      transition: color .16s ease, background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
       cursor: pointer;
     }
-    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
+    .categoryLink:hover, .categoryLink.active {
+      color: var(--header-link-hover-color);
+      opacity: 1;
+      text-decoration: underline; text-underline-offset: 5px;
+    }
 
     @media (max-width: 900px) {
       .headerMenuBtn { display: inline-flex; flex-shrink: 0; }
@@ -9123,6 +10140,7 @@ exports[`layout patterns golden > tech > html 1`] = `
     .bannerHero {
       position: relative;
       min-height: 430px;
+      
       display: flex;
       align-items: center;
       background: #111827;
@@ -9369,6 +10387,8 @@ exports[`layout patterns golden > tech > html 1`] = `
 <body class="page-common-home common-home theme-_lime">
   <div class="overlineModule">Frete Grátis em compras selecionadas • 5% OFF no PIX • Parcele em até 6x sem juros</div>
 
+  <div class="irb-account-backdrop" id="irb-account-backdrop" aria-hidden="true"></div>
+
   <header class="irb-header header--sticky">
     <div class="container">
       <div class="headerContent headerContent--layout-1">
@@ -9388,9 +10408,21 @@ exports[`layout patterns golden > tech > html 1`] = `
           <button type="button" class="headerIconBtn" id="irb-toggle-search" aria-label="Pesquisar" title="Pesquisar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           </button>
-          <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" title="Entrar">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </button>
+          <div class="headerAccountWrap" id="irb-account-wrap">
+            <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" aria-expanded="false" aria-haspopup="menu" title="Minha Conta">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </button>
+            <div class="irb-account-dropdown" id="irb-account-dropdown" role="menu" aria-label="Opções da conta">
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--primary" data-account-action="login" role="menuitem">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Entrar</span>
+              </button>
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--secondary" data-account-action="register" role="menuitem">
+                <span class="irb-account-dropdown__plus">+</span>
+                <span>Criar conta</span>
+              </button>
+            </div>
+          </div>
           <button type="button" class="headerIconBtn" id="irb-open-cart" aria-label="Sacola" title="Sacola">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
             <span class="cartCountBadge" id="irb-cart-count">0</span>
@@ -9488,8 +10520,8 @@ exports[`layout patterns golden > tech > html 1`] = `
   </div>
 </div></div>
       </section>
-      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#18181B;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;">
-  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#18181B;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;display:flex;align-items:center;">
+  <div style="width:100%;max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
       <span style="background:#F5D90A;color:#111827;font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:24px;">OFERTA ESPECIAL</span>
       <span style="font-size:16px;font-weight:600;">5% OFF no PIX + Parcele em até 6x sem juros na Gamer Tech</span>
@@ -9597,7 +10629,7 @@ exports[`layout patterns golden > tech > html 1`] = `
         <a href="#vitrines" class="btnSecondaryCustom">Explorar Coleção</a>
       </div>
       <div class="secondaryEditorial__media">
-        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" />
+        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" style="object-fit:cover;" />
       </div>
     </div>
   </div>
@@ -9934,22 +10966,23 @@ exports[`layout patterns golden > tech > html 1`] = `
     </div>
   </div>
 
-  <!-- Account Modal (Demo) -->
+  <!-- Account Modal (Demo: Entrar & Criar conta) -->
   <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
     <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
       <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <h3 style="margin:0;font-size:19px;">Minha Conta</h3>
+        <h3 id="irb-account-modal-title" style="margin:0;font-size:19px;">Entrar na sua conta</h3>
       </div>
-      <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
-      <form onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <form id="irb-account-form" onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
-        <button type="submit" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
+        <button type="submit" id="irb-account-submit-btn" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
       </form>
       <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
-        Login de demonstração validado com sucesso!
+        Ação de demonstração validada com sucesso!
       </div>
     </div>
   </div>
@@ -9989,10 +11022,56 @@ exports[`layout patterns golden > tech > html 1`] = `
 
       const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+      function syncHeaderHeight() {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) {
+          document.documentElement.style.setProperty('--irb-header-height', hdr.offsetHeight + 'px');
+        }
+      }
+      syncHeaderHeight();
+      if (typeof ResizeObserver !== 'undefined') {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) new ResizeObserver(syncHeaderHeight).observe(hdr);
+      }
+      window.addEventListener('resize', syncHeaderHeight, { passive: true });
+
+      // Barra de Aviso Superior — Rolagem automática mensagem por mensagem
+      const overlineTicker = document.getElementById('irb-overline-ticker');
+      if (overlineTicker) {
+        const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
+        const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        let overlineIdx = 0;
+        let overlinePaused = false;
+        overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
+        overlineTicker.addEventListener('mouseleave', () => { overlinePaused = false; });
+
+        if (overlineSlides.length > 1) {
+          setInterval(() => {
+            if (overlinePaused) return;
+            const prevSlide = overlineSlides[overlineIdx];
+            overlineIdx = (overlineIdx + 1) % overlineSlides.length;
+            const nextSlide = overlineSlides[overlineIdx];
+
+            if (prevSlide && prevSlide !== nextSlide) {
+              prevSlide.classList.remove('is-active');
+              prevSlide.classList.add('is-leaving');
+              setTimeout(() => {
+                prevSlide.classList.remove('is-leaving');
+              }, 520);
+            }
+            if (nextSlide) {
+              nextSlide.classList.remove('is-leaving');
+              nextSlide.classList.add('is-active');
+            }
+          }, intervalMs);
+        }
+      }
+
       function switchView(viewName) {
         document.getElementById('irb-view-home').classList.toggle('active', viewName === 'home');
         document.getElementById('irb-view-category').classList.toggle('active', viewName === 'category');
         document.getElementById('irb-view-product').classList.toggle('active', viewName === 'product');
+        document.body.classList.toggle('irb-subview-active', viewName !== 'home');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -10340,6 +11419,7 @@ exports[`layout patterns golden > tech > html 1`] = `
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           setSearchOpen(false);
+          setAccountDropdownOpen(false);
           const accountModal = document.getElementById('irb-account-modal');
           const cartDrawer = document.getElementById('irb-cart-drawer');
           const mobileDrawer = document.getElementById('irb-mobile-drawer');
@@ -10477,8 +11557,76 @@ exports[`layout patterns golden > tech > html 1`] = `
         document.getElementById('irb-mobile-drawer').classList.remove('open');
       });
       const accountModalEl = document.getElementById('irb-account-modal');
-      document.getElementById('irb-open-account').addEventListener('click', () => {
-        if (accountModalEl) accountModalEl.classList.add('open');
+      const accountDropdownEl = document.getElementById('irb-account-dropdown');
+      const accountBackdropEl = document.getElementById('irb-account-backdrop');
+      const accountToggleBtn = document.getElementById('irb-open-account');
+      const accountWrapEl = document.getElementById('irb-account-wrap');
+
+      function setAccountDropdownOpen(open) {
+        if (accountDropdownEl) accountDropdownEl.classList.toggle('open', open);
+        if (accountBackdropEl) {
+          accountBackdropEl.classList.toggle('open', open);
+          accountBackdropEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (accountToggleBtn) {
+          accountToggleBtn.classList.toggle('is-active', open);
+          accountToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      }
+
+      function openAccountModalInMode(mode) {
+        setAccountDropdownOpen(false);
+        if (!accountModalEl) return;
+        const titleEl = document.getElementById('irb-account-modal-title');
+        const descEl = document.getElementById('irb-account-modal-desc');
+        const nameField = document.getElementById('irb-account-name-field');
+        const submitBtn = document.getElementById('irb-account-submit-btn');
+        const msgEl = document.getElementById('irb-account-msg');
+        if (msgEl) msgEl.style.display = 'none';
+        if (mode === 'register') {
+          if (titleEl) titleEl.textContent = 'Criar conta';
+          if (descEl) descEl.textContent = 'Cadastre-se rapidamente para acompanhar pedidos e aproveitar ofertas exclusivas.';
+          if (nameField) {
+            nameField.style.display = 'block';
+            nameField.required = true;
+          }
+          if (submitBtn) submitBtn.textContent = 'Criar Minha Conta (Demo)';
+        } else {
+          if (titleEl) titleEl.textContent = 'Entrar na sua conta';
+          if (descEl) descEl.textContent = 'Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.';
+          if (nameField) {
+            nameField.style.display = 'none';
+            nameField.required = false;
+          }
+          if (submitBtn) submitBtn.textContent = 'Entrar na Conta (Demo)';
+        }
+        accountModalEl.classList.add('open');
+      }
+
+      if (accountToggleBtn) {
+        accountToggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = accountDropdownEl && accountDropdownEl.classList.contains('open');
+          setAccountDropdownOpen(!isOpen);
+        });
+      }
+      if (accountBackdropEl) {
+        accountBackdropEl.addEventListener('click', () => setAccountDropdownOpen(false));
+      }
+      document.addEventListener('click', (e) => {
+        if (
+          accountDropdownEl &&
+          accountDropdownEl.classList.contains('open') &&
+          accountWrapEl &&
+          !accountWrapEl.contains(e.target)
+        ) {
+          setAccountDropdownOpen(false);
+        }
+      });
+      document.querySelectorAll('[data-account-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openAccountModalInMode(btn.getAttribute('data-account-action') || 'login');
+        });
       });
       document.getElementById('irb-account-close').addEventListener('click', () => {
         if (accountModalEl) accountModalEl.classList.remove('open');
@@ -11334,6 +12482,8 @@ exports[`layout patterns golden > vegan > html 1`] = `
       --announcement-foreground: #FFFFFF;
       --header-background: #FFFFFF;
       --header-foreground: #111827;
+      --header-link-hover-color: #026526;
+      --header-link-hover-bg: rgba(0, 0, 0, 0.07);
       --title-font-family: 'Playfair Display', serif;
       --text-font-family: 'Lora', serif;
       --irb-radius: 12px;
@@ -11357,14 +12507,14 @@ exports[`layout patterns golden > vegan > html 1`] = `
       background: var(--body-background);
       color: var(--body-foreground);
       font-family: var(--text-font-family);
-      overflow-x: hidden;
+      overflow-x: clip;
       -webkit-font-smoothing: antialiased;
     }
     h1, h2, h3, h4 { font-family: var(--title-font-family); }
     .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
     .container-full { width: 100%; padding: 0 24px; }
 
-    /* Tarja Informativa (.overlineModule) */
+    /* Tarja Informativa (.overlineModule) + Ticker Rolante */
     .overlineModule {
       background: var(--announcement-background);
       color: var(--announcement-foreground);
@@ -11374,19 +12524,81 @@ exports[`layout patterns golden > vegan > html 1`] = `
       padding: 8px 16px;
       letter-spacing: 0.03em;
     }
+    .overlineModule--ticker {
+      position: relative;
+      overflow: hidden;
+      min-height: 34px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlineModule__track {
+      position: relative;
+      width: 100%;
+      max-width: 1280px;
+      height: 34px;
+      overflow: hidden;
+    }
+    .overlineModule__slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      opacity: 0;
+      transform: translateY(100%);
+      transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
+      pointer-events: none;
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
+      transform: translateX(100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
+      transform: translateY(0);
+    }
+    .overlineModule__slide.is-active {
+      opacity: 1;
+      transform: translate(0, 0);
+      pointer-events: auto;
+    }
+    .overlineModule__slide.is-leaving {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
+      transform: translateX(-100%);
+    }
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
+      transform: translateY(0);
+    }
 
-    /* Cabeçalho Tema LIME (.headerContent) — Ícones puros + Busca expansível ao clicar na lupa */
+    /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */
     header.irb-header {
-      background: var(--header-background);
+      background: rgba(255, 255, 255, 0.98);
       color: var(--header-foreground);
-      opacity: 0.98;
       backdrop-filter: blur(8px);
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-      z-index: 40;
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(0, 0, 0, 0.0784);
+      z-index: 60;
       width: 100%;
       position: relative;
     }
-    header.header--sticky { position: sticky; top: 0; }
+    header.header--sticky {
+      position: sticky;
+      top: 0;
+    }
+    header.header--overlay {
+      position: sticky;
+      top: 0;
+    }
+    body:not(.irb-subview-active) header.header--overlay {
+      margin-bottom: calc(-1 * var(--irb-header-height, 76px));
+    }
     .headerContent {
       display: flex;
       align-items: center;
@@ -11404,13 +12616,28 @@ exports[`layout patterns golden > vegan > html 1`] = `
       padding: 6px;
       cursor: pointer;
     }
-    .headerContent_logo { display: flex; align-items: center; text-decoration: none; cursor: pointer; }
-    .headerContent_logo_img { max-height: 46px; max-width: 185px; object-fit: contain; }
+    .headerContent_logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      cursor: pointer;
+      opacity: 1;
+      position: relative;
+      z-index: 2;
+    }
+    .headerContent_logo_img {
+      max-height: 46px;
+      max-width: 210px;
+      object-fit: contain;
+      opacity: 1;
+      display: block;
+    }
     .headerContent_logo_text {
       font-family: var(--title-font-family);
       font-size: 24px;
       font-weight: 700;
       color: var(--header-foreground);
+      opacity: 1;
     }
     .headerContent_navInline {
       display: flex;
@@ -11457,6 +12684,77 @@ exports[`layout patterns golden > vegan > html 1`] = `
       background: var(--primary-background);
       color: var(--primary-foreground);
       font-size: 10px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    /* Dropdown Minha Conta abaixo do ícone com Blur no fundo */
+    .headerAccountWrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .irb-account-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 55;
+      background: rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      display: none;
+    }
+    .irb-account-backdrop.open { display: block; }
+    .irb-account-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      min-width: 215px;
+      padding: 8px;
+      border-radius: calc(var(--irb-radius) + 4px);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 20px 44px rgba(15, 23, 42, 0.2);
+      z-index: 90;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      animation: irbPopIn .16s ease-out;
+    }
+    .irb-account-dropdown.open { display: flex; }
+    .irb-account-dropdown__item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--irb-radius);
+      font-family: var(--text-font-family);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+      transition: transform .12s ease, opacity .15s ease, background .15s ease;
+    }
+    .irb-account-dropdown__item--primary {
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      border: 1px solid var(--btn-primary-border);
+    }
+    .irb-account-dropdown__item--primary:hover { opacity: 0.92; }
+    .irb-account-dropdown__item--secondary {
+      background: rgba(17, 24, 39, 0.05);
+      color: #111827;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+    }
+    .irb-account-dropdown__item--secondary:hover { background: rgba(17, 24, 39, 0.1); }
+    .irb-account-dropdown__plus {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 17px;
       font-weight: 700;
       line-height: 1;
     }
@@ -11566,7 +12864,7 @@ exports[`layout patterns golden > vegan > html 1`] = `
       justify-content: center;
       gap: 20px;
       padding: 10px 0 14px;
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      border-top: 1px solid rgba(0, 0, 0, 0.0588);
     }
     .categoryLink {
       text-decoration: none;
@@ -11577,10 +12875,16 @@ exports[`layout patterns golden > vegan > html 1`] = `
       letter-spacing: 0.04em;
       white-space: nowrap;
       flex-shrink: 0;
-      transition: color .15s, opacity .15s;
+      padding: 2px 0;
+      border-radius: 0;
+      transition: color .16s ease, background-color .16s ease, box-shadow .16s ease, opacity .16s ease;
       cursor: pointer;
     }
-    .categoryLink:hover, .categoryLink.active { color: var(--primary-background); opacity: 1; text-decoration: underline; text-underline-offset: 5px; }
+    .categoryLink:hover, .categoryLink.active {
+      color: var(--header-link-hover-color);
+      opacity: 1;
+      text-decoration: underline; text-underline-offset: 5px;
+    }
 
     @media (max-width: 900px) {
       .headerMenuBtn { display: inline-flex; flex-shrink: 0; }
@@ -11829,6 +13133,7 @@ exports[`layout patterns golden > vegan > html 1`] = `
     .bannerHero {
       position: relative;
       min-height: 430px;
+      
       display: flex;
       align-items: center;
       background: #111827;
@@ -12075,6 +13380,8 @@ exports[`layout patterns golden > vegan > html 1`] = `
 <body class="page-common-home common-home theme-_lime">
   <div class="overlineModule">Frete Grátis em compras selecionadas • 5% OFF no PIX • Parcele em até 6x sem juros</div>
 
+  <div class="irb-account-backdrop" id="irb-account-backdrop" aria-hidden="true"></div>
+
   <header class="irb-header ">
     <div class="container">
       <div class="headerContent headerContent--layout-1">
@@ -12094,9 +13401,21 @@ exports[`layout patterns golden > vegan > html 1`] = `
           <button type="button" class="headerIconBtn" id="irb-toggle-search" aria-label="Pesquisar" title="Pesquisar">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           </button>
-          <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" title="Entrar">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </button>
+          <div class="headerAccountWrap" id="irb-account-wrap">
+            <button type="button" class="headerIconBtn" id="irb-open-account" aria-label="Minha Conta" aria-expanded="false" aria-haspopup="menu" title="Minha Conta">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </button>
+            <div class="irb-account-dropdown" id="irb-account-dropdown" role="menu" aria-label="Opções da conta">
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--primary" data-account-action="login" role="menuitem">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <span>Entrar</span>
+              </button>
+              <button type="button" class="irb-account-dropdown__item irb-account-dropdown__item--secondary" data-account-action="register" role="menuitem">
+                <span class="irb-account-dropdown__plus">+</span>
+                <span>Criar conta</span>
+              </button>
+            </div>
+          </div>
           <button type="button" class="headerIconBtn" id="irb-open-cart" aria-label="Sacola" title="Sacola">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
             <span class="cartCountBadge" id="irb-cart-count">0</span>
@@ -12194,8 +13513,8 @@ exports[`layout patterns golden > vegan > html 1`] = `
   </div>
 </div></div>
       </section>
-      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#02511E;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;">
-  <div style="max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+      <section class="bannerModule bannerModule--slim" id="banner-slim" data-irb-section="slimBanner"><div class="container"><div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:#02511E;color:#FFFFFF;padding:18px 20px;box-sizing:border-box;display:flex;align-items:center;">
+  <div style="width:100%;max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
       <span style="background:#026526;color:#FFFFFF;font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:12px;">OFERTA ESPECIAL</span>
       <span style="font-size:16px;font-weight:600;">5% OFF no PIX + Parcele em até 6x sem juros na Veggie Shoes</span>
@@ -12303,7 +13622,7 @@ exports[`layout patterns golden > vegan > html 1`] = `
         <a href="#vitrines" class="btnSecondaryCustom">Explorar Coleção</a>
       </div>
       <div class="secondaryEditorial__media">
-        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" />
+        <img src="https://cdn.example.com/p3.jpg" alt="Autenticidade e estilo em cada detalhe" style="object-fit:cover;" />
       </div>
     </div>
   </div>
@@ -12640,22 +13959,23 @@ exports[`layout patterns golden > vegan > html 1`] = `
     </div>
   </div>
 
-  <!-- Account Modal (Demo) -->
+  <!-- Account Modal (Demo: Entrar & Criar conta) -->
   <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
     <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
       <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        <h3 style="margin:0;font-size:19px;">Minha Conta</h3>
+        <h3 id="irb-account-modal-title" style="margin:0;font-size:19px;">Entrar na sua conta</h3>
       </div>
-      <p style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
-      <form onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <form id="irb-account-form" onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
+        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
         <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
-        <button type="submit" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
+        <button type="submit" id="irb-account-submit-btn" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
       </form>
       <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
-        Login de demonstração validado com sucesso!
+        Ação de demonstração validada com sucesso!
       </div>
     </div>
   </div>
@@ -12695,10 +14015,56 @@ exports[`layout patterns golden > vegan > html 1`] = `
 
       const formatCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+      function syncHeaderHeight() {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) {
+          document.documentElement.style.setProperty('--irb-header-height', hdr.offsetHeight + 'px');
+        }
+      }
+      syncHeaderHeight();
+      if (typeof ResizeObserver !== 'undefined') {
+        const hdr = document.querySelector('header.irb-header');
+        if (hdr) new ResizeObserver(syncHeaderHeight).observe(hdr);
+      }
+      window.addEventListener('resize', syncHeaderHeight, { passive: true });
+
+      // Barra de Aviso Superior — Rolagem automática mensagem por mensagem
+      const overlineTicker = document.getElementById('irb-overline-ticker');
+      if (overlineTicker) {
+        const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
+        const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        let overlineIdx = 0;
+        let overlinePaused = false;
+        overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
+        overlineTicker.addEventListener('mouseleave', () => { overlinePaused = false; });
+
+        if (overlineSlides.length > 1) {
+          setInterval(() => {
+            if (overlinePaused) return;
+            const prevSlide = overlineSlides[overlineIdx];
+            overlineIdx = (overlineIdx + 1) % overlineSlides.length;
+            const nextSlide = overlineSlides[overlineIdx];
+
+            if (prevSlide && prevSlide !== nextSlide) {
+              prevSlide.classList.remove('is-active');
+              prevSlide.classList.add('is-leaving');
+              setTimeout(() => {
+                prevSlide.classList.remove('is-leaving');
+              }, 520);
+            }
+            if (nextSlide) {
+              nextSlide.classList.remove('is-leaving');
+              nextSlide.classList.add('is-active');
+            }
+          }, intervalMs);
+        }
+      }
+
       function switchView(viewName) {
         document.getElementById('irb-view-home').classList.toggle('active', viewName === 'home');
         document.getElementById('irb-view-category').classList.toggle('active', viewName === 'category');
         document.getElementById('irb-view-product').classList.toggle('active', viewName === 'product');
+        document.body.classList.toggle('irb-subview-active', viewName !== 'home');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -13046,6 +14412,7 @@ exports[`layout patterns golden > vegan > html 1`] = `
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
           setSearchOpen(false);
+          setAccountDropdownOpen(false);
           const accountModal = document.getElementById('irb-account-modal');
           const cartDrawer = document.getElementById('irb-cart-drawer');
           const mobileDrawer = document.getElementById('irb-mobile-drawer');
@@ -13183,8 +14550,76 @@ exports[`layout patterns golden > vegan > html 1`] = `
         document.getElementById('irb-mobile-drawer').classList.remove('open');
       });
       const accountModalEl = document.getElementById('irb-account-modal');
-      document.getElementById('irb-open-account').addEventListener('click', () => {
-        if (accountModalEl) accountModalEl.classList.add('open');
+      const accountDropdownEl = document.getElementById('irb-account-dropdown');
+      const accountBackdropEl = document.getElementById('irb-account-backdrop');
+      const accountToggleBtn = document.getElementById('irb-open-account');
+      const accountWrapEl = document.getElementById('irb-account-wrap');
+
+      function setAccountDropdownOpen(open) {
+        if (accountDropdownEl) accountDropdownEl.classList.toggle('open', open);
+        if (accountBackdropEl) {
+          accountBackdropEl.classList.toggle('open', open);
+          accountBackdropEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+        if (accountToggleBtn) {
+          accountToggleBtn.classList.toggle('is-active', open);
+          accountToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+      }
+
+      function openAccountModalInMode(mode) {
+        setAccountDropdownOpen(false);
+        if (!accountModalEl) return;
+        const titleEl = document.getElementById('irb-account-modal-title');
+        const descEl = document.getElementById('irb-account-modal-desc');
+        const nameField = document.getElementById('irb-account-name-field');
+        const submitBtn = document.getElementById('irb-account-submit-btn');
+        const msgEl = document.getElementById('irb-account-msg');
+        if (msgEl) msgEl.style.display = 'none';
+        if (mode === 'register') {
+          if (titleEl) titleEl.textContent = 'Criar conta';
+          if (descEl) descEl.textContent = 'Cadastre-se rapidamente para acompanhar pedidos e aproveitar ofertas exclusivas.';
+          if (nameField) {
+            nameField.style.display = 'block';
+            nameField.required = true;
+          }
+          if (submitBtn) submitBtn.textContent = 'Criar Minha Conta (Demo)';
+        } else {
+          if (titleEl) titleEl.textContent = 'Entrar na sua conta';
+          if (descEl) descEl.textContent = 'Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.';
+          if (nameField) {
+            nameField.style.display = 'none';
+            nameField.required = false;
+          }
+          if (submitBtn) submitBtn.textContent = 'Entrar na Conta (Demo)';
+        }
+        accountModalEl.classList.add('open');
+      }
+
+      if (accountToggleBtn) {
+        accountToggleBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = accountDropdownEl && accountDropdownEl.classList.contains('open');
+          setAccountDropdownOpen(!isOpen);
+        });
+      }
+      if (accountBackdropEl) {
+        accountBackdropEl.addEventListener('click', () => setAccountDropdownOpen(false));
+      }
+      document.addEventListener('click', (e) => {
+        if (
+          accountDropdownEl &&
+          accountDropdownEl.classList.contains('open') &&
+          accountWrapEl &&
+          !accountWrapEl.contains(e.target)
+        ) {
+          setAccountDropdownOpen(false);
+        }
+      });
+      document.querySelectorAll('[data-account-action]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openAccountModalInMode(btn.getAttribute('data-account-action') || 'login');
+        });
       });
       document.getElementById('irb-account-close').addEventListener('click', () => {
         if (accountModalEl) accountModalEl.classList.remove('open');

@@ -37,6 +37,8 @@ export const ExtractedStoreDataSchema = z.object({
   faviconUrl: z.string().max(4000000).optional(),
   screenshotPath: z.string().max(5000).optional(),
   fullScreenshotPath: z.string().max(5000).optional(),
+  mobileScreenshotPath: z.string().max(5000).optional(),
+  mobileFullScreenshotPath: z.string().max(5000).optional(),
   tokens: z.object({
     bodyBackground: z.string().max(5000).optional(),
     bodyForeground: z.string().max(5000).optional(),
@@ -218,6 +220,10 @@ export const StoreBlueprintSchema = z.object({
       .object({
         background: z.string().max(5000),
         foreground: z.string().max(5000),
+        messages: z.array(z.string().max(5000)).optional(),
+        rollingEnabled: z.boolean().optional(),
+        intervalSeconds: z.number().min(1).max(30).optional(),
+        transitionMode: z.enum(["slide-up", "slide-horizontal", "fade"]).optional(),
       })
       .default({ background: "#111827", foreground: "#FFFFFF" }),
     header: z.object({
@@ -230,9 +236,16 @@ export const StoreBlueprintSchema = z.object({
       blurPx: z.number().min(0).max(100),
       highContrastLogoOnHover: z.boolean(),
       categoryCase: z.enum(["normal", "uppercase", "lowercase", "capitalize"]),
+      logoHeightPx: z.number().min(20).max(140).optional(),
+      linkHoverColor: z.string().max(5000).optional(),
+      linkHoverStyle: z.enum(["underline", "bottom-bar", "pill", "color-only"]).optional(),
+      linkHoverBackground: z.string().max(5000).optional(),
     }),
     banner: z.object({
       width: z.enum(["full", "container"]),
+      customWidthPx: z.number().min(280).max(2560).optional(),
+      heightPx: z.number().min(120).max(1200).optional(),
+      objectFit: z.enum(["cover", "contain", "fill"]).optional(),
     }),
     productCard: z.object({
       listWidth: z.enum(["container", "full"]),
@@ -282,8 +295,8 @@ export const StoreBlueprintSchema = z.object({
         textColor: z.string().max(5000).default("#111827"),
         siteImageUrls: z.array(z.string().max(4000000)).default([]),
         customImageUrl: z.string().max(4000000).optional(),
-        maxHeightPx: z.number().min(36).max(260).optional(),
-        maxWidthPx: z.number().min(600).max(1920).optional(),
+        maxHeightPx: z.number().min(36).max(400).optional(),
+        maxWidthPx: z.number().min(280).max(1920).optional(),
         fullWidth: z.boolean().optional(),
         paddingY: z.number().min(0).max(48).optional(),
       })
@@ -298,9 +311,13 @@ export const StoreBlueprintSchema = z.object({
         ctaText: z.string().max(5000).default("Aproveitar"),
         backgroundColor: z.string().max(5000).default("#111827"),
         textColor: z.string().max(5000).default("#FFFFFF"),
+        heightPx: z.number().min(40).max(600).optional(),
+        widthPx: z.number().min(280).max(2560).optional(),
+        objectFit: z.enum(["cover", "contain", "fill"]).optional(),
       })
       .optional(),
     moodSectionTitle: z.string().max(5000).default("Navegue por Estilo & Categorias"),
+    moodCardHeightPx: z.number().min(180).max(900).optional(),
     moodBanners: z.array(MoodBannerSchema).default([]),
     secondaryBanner: z
       .object({
@@ -312,6 +329,9 @@ export const StoreBlueprintSchema = z.object({
         ctaText: z.string().max(5000).default("Explorar Coleção"),
         backgroundColor: z.string().max(5000).default("#111827"),
         textColor: z.string().max(5000).default("#FFFFFF"),
+        heightPx: z.number().min(120).max(1000).optional(),
+        widthPx: z.number().min(280).max(2560).optional(),
+        objectFit: z.enum(["cover", "contain", "fill"]).optional(),
       })
       .optional(),
     promoStripText: z.string().max(5000),
@@ -349,6 +369,14 @@ export const StoreBlueprintSchema = z.object({
         insetImageUrl: z.string().max(4000000).default(""),
       })
       .optional(),
+    newsletter: z
+      .object({
+        headline: z.string().max(5000).optional(),
+        subheadline: z.string().max(5000).optional(),
+        placeholder: z.string().max(5000).optional(),
+        ctaText: z.string().max(5000).optional(),
+      })
+      .optional(),
     layout: z.array(SectionConfigSchema).optional(),
   }),
   products: z.array(
@@ -371,6 +399,7 @@ export const StoreBlueprintSchema = z.object({
     whatsapp: z.string().max(5000).optional(),
     instagram: z.string().max(5000).optional(),
     email: z.string().max(5000).optional(),
+    legalText: z.string().max(5000).optional(),
   }),
   designInsights: z.array(DesignInsightSchema).default([]),
 });
