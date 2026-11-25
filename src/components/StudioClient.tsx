@@ -44,6 +44,7 @@ import {
   type StoreBlueprint,
 } from "@/lib/types/blueprint";
 import StoreCompareView from "./StoreCompareView";
+import { IrrobaLogo } from "./ui/IrrobaLogo";
 import { AiImageSlot } from "./studio/AiImageSlot";
 import { AnnouncementBarControls } from "./studio/AnnouncementBarControls";
 import { BannerDimensionsControl } from "./studio/BannerDimensionsControl";
@@ -414,9 +415,9 @@ export default function StudioClient({
   };
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
-      {/* Top Bar */}
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 lg:gap-3 lg:px-5 lg:py-3">
+    <div className="flex h-screen flex-col bg-irroba-surface">
+      {/* Top Bar — Irroba BrandBook 2026 */}
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 py-2 lg:gap-3 lg:px-5 lg:py-3">
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -429,48 +430,49 @@ export default function StudioClient({
               }
               router.push("/");
             }}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition hover:border-brand-200 hover:bg-brand-50/50 hover:text-brand-700"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Voltar
           </button>
+          <IrrobaLogo variant="symbol" theme="light" className="hidden h-7 w-auto sm:block" />
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold text-slate-900">{bp.brand.name}</h1>
-              <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+              <h1 className="font-heading text-sm font-bold text-irroba-ink">{bp.brand.name}</h1>
+              <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
                 Origem: {detectedPlatform}
               </span>
               <span
-                className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold ${
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ${
                   currentMode === "gemini"
-                    ? "bg-emerald-50 text-emerald-700"
-                    : "bg-slate-100 text-slate-700"
+                    ? "bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200/70"
+                    : "bg-zinc-100 text-zinc-700"
                 }`}
               >
                 <Sparkles className="h-3 w-3" />
                 {currentMode === "gemini" ? "Analisado com IA" : "Modo heurístico"}
               </span>
               {hasUnsavedChanges && (
-                <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
                   Alterações não salvas
                 </span>
               )}
             </div>
-            <p className="hidden max-w-md truncate text-xs text-slate-500 sm:block">{sourceUrl}</p>
+            <p className="hidden max-w-md truncate text-xs text-zinc-500 sm:block">{sourceUrl}</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Modo do estúdio" className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          <div role="tablist" aria-label="Modo do estúdio" className="flex rounded-xl border border-zinc-200 bg-irroba-surface p-0.5">
             <button
               type="button"
               onClick={() => setActiveTab("preview")}
               role="tab"
               aria-selected={activeTab === "preview"}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 activeTab === "preview"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white text-brand-600 shadow-sm"
+                  : "text-zinc-600 hover:text-irroba-ink"
               }`}
             >
               <Eye className="h-3.5 w-3.5" />
@@ -481,10 +483,10 @@ export default function StudioClient({
               onClick={() => setActiveTab("compare")}
               role="tab"
               aria-selected={activeTab === "compare"}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 activeTab === "compare"
-                  ? "bg-white text-indigo-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white text-brand-600 shadow-sm"
+                  : "text-zinc-600 hover:text-irroba-ink"
               }`}
             >
               <Columns2 className="h-3.5 w-3.5" />
@@ -495,10 +497,10 @@ export default function StudioClient({
               onClick={() => setActiveTab("export")}
               role="tab"
               aria-selected={activeTab === "export"}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold ${
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 activeTab === "export"
-                  ? "bg-white text-emerald-700 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-white text-brand-600 shadow-sm"
+                  : "text-zinc-600 hover:text-irroba-ink"
               }`}
             >
               <Code2 className="h-3.5 w-3.5" />
@@ -510,32 +512,32 @@ export default function StudioClient({
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className={`flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white transition disabled:opacity-60 ${
+            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 font-heading text-xs font-semibold text-white transition disabled:opacity-60 ${
               hasUnsavedChanges
-                ? "bg-amber-600 hover:bg-amber-500"
-                : "bg-slate-900 hover:bg-slate-800"
+                ? "bg-brand-600 hover:bg-brand-700"
+                : "bg-irroba-ink hover:bg-zinc-800"
             }`}
           >
-            {savedNotice ? <Check className="h-3.5 w-3.5 text-emerald-300" /> : <Save className="h-3.5 w-3.5" />}
+            {savedNotice ? <Check className="h-3.5 w-3.5 text-brand-200" /> : <Save className="h-3.5 w-3.5" />}
             {isSaving ? "Salvando..." : savedNotice ? "Salvo!" : "Salvar Alterações"}
           </button>
 
           <details className="relative lg:hidden">
-            <summary className="flex min-h-[36px] cursor-pointer list-none items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700">
+            <summary className="flex min-h-[36px] cursor-pointer list-none items-center rounded-xl border border-zinc-200 px-3 text-xs font-semibold text-zinc-700">
               Mais
             </summary>
-            <div className="absolute right-0 z-30 mt-1 flex w-56 flex-col gap-1 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+            <div className="absolute right-0 z-30 mt-1 flex w-56 flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg">
               <button
                 type="button"
                 onClick={() => copyText("client-link", `${window.location.origin}/preview/${slug}`)}
-                className="rounded-lg px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-xl px-3 py-2 text-left text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
               >
                 {copiedKey === "client-link" ? "Link copiado!" : "Copiar link do cliente"}
               </button>
               <Link
                 href={`/preview/${slug}`}
                 target="_blank"
-                className="rounded-lg px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-xl px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
               >
                 Abrir prévia do cliente
               </Link>
@@ -545,7 +547,7 @@ export default function StudioClient({
           <button
             type="button"
             onClick={() => copyText("client-link", `${window.location.origin}/preview/${slug}`)}
-            className="hidden lg:flex items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+            className="hidden lg:flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 font-heading text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
           >
             {copiedKey === "client-link" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copiedKey === "client-link" ? "Link Copiado!" : "Copiar Link do Cliente"}
@@ -554,7 +556,7 @@ export default function StudioClient({
           <Link
             href={`/preview/${slug}`}
             target="_blank"
-            className="hidden lg:flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+            className="hidden lg:flex items-center gap-1.5 rounded-xl bg-brand-500 px-3.5 py-2 font-heading text-xs font-bold text-white shadow-sm transition hover:bg-brand-600 active:bg-brand-800"
           >
             Abrir prévia do cliente
             <ExternalLink className="h-3.5 w-3.5" />
@@ -569,7 +571,7 @@ export default function StudioClient({
 
       {/* Abaixo de 1024px: alterna entre editar e visualizar */}
       {activeTab === "preview" && (
-        <div role="tablist" aria-label="Painel" className="grid grid-cols-2 border-b border-slate-200 bg-white text-xs font-semibold lg:hidden">
+        <div role="tablist" aria-label="Painel" className="grid grid-cols-2 border-b border-zinc-200 bg-white text-xs font-semibold lg:hidden">
           {(["edit", "view"] as const).map((pane) => (
             <button
               key={pane}
@@ -577,7 +579,7 @@ export default function StudioClient({
               role="tab"
               aria-selected={mobilePane === pane}
               onClick={() => setMobilePane(pane)}
-              className={`min-h-[44px] ${mobilePane === pane ? "border-b-2 border-emerald-600 text-emerald-700" : "text-slate-500"}`}
+              className={`min-h-[44px] ${mobilePane === pane ? "border-b-2 border-brand-500 text-brand-600" : "text-zinc-500"}`}
             >
               {pane === "edit" ? "Editar" : "Visualizar"}
             </button>
@@ -591,10 +593,10 @@ export default function StudioClient({
         <aside
           className={`${
             activeTab !== "preview" ? "hidden" : mobilePane === "edit" ? "flex" : "hidden lg:flex"
-          } w-full shrink-0 flex-col border-r border-slate-200 bg-white lg:w-96`}
+          } w-full shrink-0 flex-col border-r border-zinc-200 bg-white lg:w-96`}
         >
           {/* Sub-tab navigation */}
-          <div role="tablist" aria-label="Seções do editor" className="grid grid-cols-4 border-b border-slate-200 bg-slate-50 text-xs font-semibold">
+          <div role="tablist" aria-label="Seções do editor" className="grid grid-cols-4 border-b border-zinc-200 bg-irroba-surface text-xs font-semibold">
             <button
               type="button"
               onClick={() => {
@@ -603,10 +605,10 @@ export default function StudioClient({
               }}
               role="tab"
               aria-selected={!selectedElement && editorTab === "insights"}
-              className={`relative flex flex-col items-center gap-1 py-2.5 ${
+              className={`relative flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "insights"
-                  ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "border-b-2 border-brand-500 bg-white text-brand-600"
+                  : "text-zinc-500 hover:text-irroba-ink"
               }`}
             >
               <Sparkles className="h-3.5 w-3.5" />
@@ -629,10 +631,10 @@ export default function StudioClient({
               }}
               role="tab"
               aria-selected={!selectedElement && editorTab === "colors"}
-              className={`flex flex-col items-center gap-1 py-2.5 ${
+              className={`flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "colors"
-                  ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "border-b-2 border-brand-500 bg-white text-brand-600"
+                  : "text-zinc-500 hover:text-irroba-ink"
               }`}
             >
               <Palette className="h-3.5 w-3.5" />
@@ -646,10 +648,10 @@ export default function StudioClient({
               }}
               role="tab"
               aria-selected={!selectedElement && editorTab === "banners"}
-              className={`flex flex-col items-center gap-1 py-2.5 ${
+              className={`flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "banners"
-                  ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "border-b-2 border-brand-500 bg-white text-brand-600"
+                  : "text-zinc-500 hover:text-irroba-ink"
               }`}
             >
               <ImageIcon className="h-3.5 w-3.5" />
@@ -663,10 +665,10 @@ export default function StudioClient({
               }}
               role="tab"
               aria-selected={!selectedElement && editorTab === "structure"}
-              className={`flex flex-col items-center gap-1 py-2.5 ${
+              className={`flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "structure"
-                  ? "border-b-2 border-emerald-600 bg-white text-emerald-700"
-                  : "text-slate-500 hover:text-slate-800"
+                  ? "border-b-2 border-brand-500 bg-white text-brand-600"
+                  : "text-zinc-500 hover:text-irroba-ink"
               }`}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -722,7 +724,7 @@ export default function StudioClient({
                     type="button"
                     onClick={handleReanalyzeWithGemini}
                     disabled={isReanalyzing}
-                    className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+                    className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-3 py-2 font-heading text-xs font-bold text-white shadow-sm transition hover:bg-brand-600 active:bg-brand-800 disabled:opacity-60"
                   >
                     {isReanalyzing ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -738,17 +740,17 @@ export default function StudioClient({
                     <div
                       role="alertdialog"
                       aria-label="Resultado da reanálise"
-                      className="mb-3 rounded-lg border border-emerald-300 bg-emerald-50 p-2.5 text-xs text-emerald-900"
+                      className="mb-3 rounded-xl border border-brand-200 bg-brand-50 p-2.5 text-xs text-brand-900"
                     >
                       <p className="font-semibold">Reanálise pronta. Como aplicar?</p>
-                      <p className="mt-0.5 text-emerald-800">
+                      <p className="mt-0.5 text-brand-800">
                         Nada é salvo até você clicar em Salvar. &quot;Substituir tudo&quot; descarta suas edições atuais.
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <button
                           type="button"
                           onClick={() => acceptReanalysis("palette")}
-                          className="rounded-md bg-emerald-600 px-2 py-1 font-bold text-white hover:bg-emerald-500"
+                          className="rounded-lg bg-brand-500 px-2.5 py-1 font-bold text-white hover:bg-brand-600"
                         >
                           Aplicar só a paleta
                         </button>
@@ -759,14 +761,14 @@ export default function StudioClient({
                               acceptReanalysis("all");
                             }
                           }}
-                          className="rounded-md border border-emerald-600 px-2 py-1 font-bold text-emerald-800 hover:bg-emerald-100"
+                          className="rounded-lg border border-brand-500 px-2.5 py-1 font-bold text-brand-700 hover:bg-brand-100"
                         >
                           Substituir tudo
                         </button>
                         <button
                           type="button"
                           onClick={() => setPendingReanalysis(null)}
-                          className="rounded-md px-2 py-1 font-semibold text-slate-600 hover:bg-white"
+                          className="rounded-lg px-2 py-1 font-semibold text-zinc-600 hover:bg-white"
                         >
                           Descartar
                         </button>
@@ -783,10 +785,10 @@ export default function StudioClient({
                       {bp.designInsights.map((insight) => (
                         <div
                           key={insight.id}
-                          className={`rounded-lg border p-2.5 ${
+                          className={`rounded-xl border p-2.5 ${
                             insight.severity === "suggestion"
                               ? "border-amber-200 bg-amber-50/70"
-                              : "border-emerald-200 bg-emerald-50/60"
+                              : "border-zinc-200 bg-white"
                           }`}
                         >
                           <div className="flex items-start gap-2">
@@ -794,7 +796,7 @@ export default function StudioClient({
                               className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${
                                 insight.severity === "suggestion"
                                   ? "text-amber-600"
-                                  : "text-emerald-600"
+                                  : "text-brand-500"
                               }`}
                             />
                             <div className="space-y-1">
@@ -804,9 +806,9 @@ export default function StudioClient({
                                 <button
                                   type="button"
                                   onClick={() => applyInsightSuggestion(insight)}
-                                  className="mt-1 inline-flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800"
+                                  className="mt-1 inline-flex items-center gap-1 rounded-lg bg-irroba-ink px-2.5 py-1 text-xs font-semibold text-white hover:bg-zinc-800"
                                 >
-                                  <Sparkles className="h-3 w-3 text-emerald-400" />
+                                  <Sparkles className="h-3 w-3 text-brand-200" />
                                   {insight.actionLabel}
                                 </button>
                               )}
@@ -1292,7 +1294,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-50"
+                          className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-brand-600 hover:bg-brand-50"
                         >
                           100% Transparente
                         </button>
@@ -1319,7 +1321,7 @@ export default function StudioClient({
                           },
                         }))
                       }
-                      className="w-full accent-emerald-600"
+                      className="w-full accent-brand-500"
                     />
                   </div>
 
@@ -1583,7 +1585,7 @@ export default function StudioClient({
                     <button
                       type="button"
                       onClick={handleDownloadBenefitsPng}
-                      className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white hover:bg-emerald-500"
+                      className="inline-flex items-center gap-1 rounded-lg bg-brand-500 px-2 py-1 text-xs font-bold text-white hover:bg-brand-600"
                     >
                       <Download className="h-3 w-3" />
                       Baixar PNG
@@ -1690,7 +1692,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full accent-emerald-600"
+                        className="w-full accent-brand-500"
                       />
                     </div>
 
@@ -1728,7 +1730,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="w-full accent-emerald-600"
+                          className="w-full accent-brand-500"
                         />
                       </div>
                     )}
@@ -1766,7 +1768,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full accent-emerald-600"
+                        className="w-full accent-brand-500"
                       />
                     </div>
                   </div>
@@ -2185,7 +2187,7 @@ export default function StudioClient({
                 <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800">Galeria Editorial (Mood / Coleções)</span>
-                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
+                    <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
                       Conteúdo HTML
                     </span>
                   </div>
@@ -2303,10 +2305,10 @@ export default function StudioClient({
                         onClick={() =>
                           selectAndFocusElement({ targetId: item.id, label: item.label }, true)
                         }
-                        className="flex flex-col items-start rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-left transition hover:border-emerald-400 hover:bg-emerald-50/50"
+                        className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-left transition hover:border-brand-300 hover:bg-brand-50/50"
                       >
-                        <span className="font-semibold text-slate-800">{item.label}</span>
-                        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        <span className="font-semibold text-irroba-ink">{item.label}</span>
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-zinc-400">
                           {item.sub}
                         </span>
                       </button>
@@ -2315,7 +2317,7 @@ export default function StudioClient({
                 </div>
 
                 {/* 1. Manipulador de Seções da Página Inicial */}
-                <div className="space-y-2.5 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3">
+                <div className="space-y-2.5 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-bold text-slate-900">Seções da Página Inicial</div>
@@ -2385,17 +2387,17 @@ export default function StudioClient({
                           setDragSectionIdx(null);
                           setDragOverIdx(null);
                         }}
-                        className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 transition ${
-                          sec.enabled ? "text-slate-800" : "text-slate-400"
+                        className={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 transition ${
+                          sec.enabled ? "text-irroba-ink" : "text-zinc-400"
                         } ${
                           dragOverIdx === idx && dragSectionIdx !== idx
-                            ? "border-emerald-500 bg-emerald-50"
+                            ? "border-brand-500 bg-brand-50"
                             : sec.enabled
-                              ? "border-slate-200 bg-white hover:border-emerald-400"
-                              : "border-dashed border-slate-200 bg-slate-100/80"
-                        } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-emerald-400" : ""}`}
+                              ? "border-zinc-200 bg-white hover:border-brand-300"
+                              : "border-dashed border-zinc-200 bg-zinc-100/80"
+                        } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-brand-400" : ""}`}
                       >
-                        <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-slate-400" />
+                        <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-zinc-400" />
                         <button
                           type="button"
                           draggable={false}
@@ -2405,10 +2407,10 @@ export default function StudioClient({
                           className="min-w-0 flex-1 text-left"
                           title={`Editar ${sec.label}`}
                         >
-                          <div className="truncate font-semibold leading-tight hover:text-emerald-700">
+                          <div className="truncate font-semibold leading-tight hover:text-brand-600">
                             {sec.label}
                           </div>
-                          <div className="truncate text-xs font-medium uppercase tracking-wide text-slate-400">
+                          <div className="truncate text-xs font-medium uppercase tracking-wide text-zinc-400">
                             {sec.irrobaModule}
                           </div>
                         </button>
@@ -2420,7 +2422,7 @@ export default function StudioClient({
                               selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
                             }
                             title={`Editar ${sec.label}`}
-                            className="rounded p-1 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"
+                            className="rounded-lg p-1 text-zinc-500 hover:bg-brand-50 hover:text-brand-600"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -2430,7 +2432,7 @@ export default function StudioClient({
                             disabled={idx === 0}
                             onClick={() => moveSection(idx, idx - 1)}
                             title="Mover para cima"
-                            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+                            className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
                           >
                             <ArrowUp className="h-3.5 w-3.5" />
                           </button>
@@ -2440,7 +2442,7 @@ export default function StudioClient({
                             disabled={idx === sectionLayout.length - 1}
                             onClick={() => moveSection(idx, idx + 1)}
                             title="Mover para baixo"
-                            className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-30"
+                            className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
                           >
                             <ArrowDown className="h-3.5 w-3.5" />
                           </button>
@@ -2449,10 +2451,10 @@ export default function StudioClient({
                             draggable={false}
                             onClick={() => toggleSection(sec.id)}
                             title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
-                            className={`rounded p-1 ${
+                            className={`rounded-lg p-1 ${
                               sec.enabled
-                                ? "text-emerald-600 hover:bg-emerald-50"
-                                : "text-slate-400 hover:bg-slate-200"
+                                ? "text-brand-500 hover:bg-brand-50"
+                                : "text-zinc-400 hover:bg-zinc-200"
                             }`}
                           >
                             {sec.enabled ? (
@@ -2471,7 +2473,7 @@ export default function StudioClient({
                 <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800">Lookbook &amp; Manifesto</span>
-                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
+                    <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
                       Conteúdo HTML
                     </span>
                   </div>
@@ -2870,7 +2872,7 @@ export default function StudioClient({
                               true
                             )
                           }
-                          className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                          className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-zinc-700 hover:bg-brand-50 hover:text-brand-700"
                         >
                           <Pencil className="h-2.5 w-2.5" />
                           Editar
@@ -2892,17 +2894,17 @@ export default function StudioClient({
                 <div
                   role="group"
                   aria-label="Modo de interação da prévia"
-                  className="flex items-center gap-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-sm"
+                  className="flex items-center gap-0.5 rounded-xl border border-zinc-200 bg-white p-1 shadow-sm"
                 >
                   <button
                     type="button"
                     onClick={() => setInspectMode(true)}
                     aria-pressed={inspectMode}
                     title="Passe o cursor nos elementos do layout para ver o nome e clique para editar"
-                    className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition ${
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       inspectMode
-                        ? "bg-emerald-600 text-white"
-                        : "text-slate-600 hover:text-slate-900"
+                        ? "bg-brand-500 text-white shadow-sm"
+                        : "text-zinc-600 hover:text-irroba-ink"
                     }`}
                   >
                     <MousePointerClick className="h-3.5 w-3.5" />
@@ -2913,10 +2915,10 @@ export default function StudioClient({
                     onClick={() => setInspectMode(false)}
                     aria-pressed={!inspectMode}
                     title="Teste livremente menus, busca, sacola e página de produto"
-                    className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition ${
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       !inspectMode
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-600 hover:text-slate-900"
+                        ? "bg-irroba-ink text-white"
+                        : "text-zinc-600 hover:text-irroba-ink"
                     }`}
                   >
                     <Hand className="h-3.5 w-3.5" />
@@ -2925,24 +2927,24 @@ export default function StudioClient({
                 </div>
 
                 {inspectMode && hoveredPreviewLabel ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
                     {hoveredPreviewLabel} — clique para editar
                   </span>
                 ) : selectedElement ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-800">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800">
                     Editando: {selectedElement.label || INSPECTOR_META[selectedElement.targetId].title}
                     <button
                       type="button"
                       onClick={() => selectAndFocusElement(null)}
                       aria-label="Fechar seleção do elemento"
-                      className="ml-0.5 rounded-full p-0.5 text-indigo-600 hover:bg-indigo-100"
+                      className="ml-0.5 rounded-full p-0.5 text-brand-600 hover:bg-brand-100"
                     >
                       <X className="h-3 w-3" />
                     </button>
                   </span>
                 ) : (
-                  <span className="hidden text-xs font-medium text-slate-500 xl:inline">
+                  <span className="hidden text-xs font-medium text-zinc-500 xl:inline">
                     {inspectMode
                       ? "Passe o cursor sobre qualquer elemento do layout para ver o nome e clique para editá-lo"
                       : "Modo navegação ativo — clique em produtos, menu ou sacola para testar"}
@@ -2950,12 +2952,12 @@ export default function StudioClient({
                 )}
               </div>
 
-              <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+              <div className="flex items-center gap-1 rounded-xl border border-zinc-200 bg-white p-1 shadow-sm">
                 <button
                   type="button"
                   onClick={() => setDevice("desktop")}
-                  className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold ${
-                    device === "desktop" ? "bg-slate-900 text-white" : "text-slate-600"
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    device === "desktop" ? "bg-irroba-ink text-white" : "text-zinc-600 hover:text-irroba-ink"
                   }`}
                 >
                   <Monitor className="h-3.5 w-3.5" />
@@ -2964,8 +2966,8 @@ export default function StudioClient({
                 <button
                   type="button"
                   onClick={() => setDevice("mobile")}
-                  className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-semibold ${
-                    device === "mobile" ? "bg-slate-900 text-white" : "text-slate-600"
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                    device === "mobile" ? "bg-irroba-ink text-white" : "text-zinc-600 hover:text-irroba-ink"
                   }`}
                 >
                   <Smartphone className="h-3.5 w-3.5" />
@@ -2974,7 +2976,7 @@ export default function StudioClient({
               </div>
             </div>
 
-            <div className="flex flex-1 items-start justify-center overflow-auto rounded-xl border border-slate-200 bg-slate-200/70 p-3">
+            <div className="flex flex-1 items-start justify-center overflow-auto rounded-2xl border border-zinc-200 bg-zinc-200/60 p-3">
               <iframe
                 ref={previewIframeRef}
                 srcDoc={liveHtml}
@@ -2987,8 +2989,8 @@ export default function StudioClient({
                   });
                 }}
                 title="Preview Irroba LIME"
-                className={`h-full rounded-lg bg-white shadow-xl transition-all duration-300 ${
-                  device === "mobile" ? "w-[390px] border-8 border-slate-800" : "w-full"
+                className={`h-full rounded-xl bg-white shadow-xl transition-all duration-300 ${
+                  device === "mobile" ? "w-[390px] rounded-[28px] border-8 border-irroba-ink" : "w-full"
                 }`}
               />
             </div>

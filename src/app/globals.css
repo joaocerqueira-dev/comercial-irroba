@@ -3,9 +3,39 @@
 @tailwind utilities;
 
 @layer base {
-  /* Anel de foco visível para navegação por teclado */
+  :root {
+    --irroba-red: #EA191F;
+    --irroba-red-soft: #F6A0A2;
+    --irroba-red-mid: #CC0E11;
+    --irroba-red-deep: #AE0203;
+    --irroba-red-crimson: #980101;
+    --irroba-red-maroon: #830000;
+    --irroba-surface: #F7F7F8;
+    --irroba-ink: #1F1F23;
+  }
+
+  body {
+    font-family: "Inter", "Neue Haas Grotesk Display Pro", system-ui, -apple-system, sans-serif;
+    background-color: var(--irroba-surface);
+    color: var(--irroba-ink);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: "Montserrat", "Inter", system-ui, -apple-system, sans-serif;
+  }
+
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"] {
+    accent-color: #EA191F;
+  }
+
+  /* Anel de foco visível para navegação por teclado no padrão Irroba (#EA191F) */
   :focus-visible {
-    outline: 2px solid #10b981;
+    outline: 2px solid #EA191F;
     outline-offset: 2px;
   }
 }

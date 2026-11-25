@@ -252,12 +252,12 @@ export function ElementInspectorPanel({
   return (
     <div className="space-y-3.5">
       {/* Sticky Element Context Header */}
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/75 p-3">
+      <div className="rounded-xl border border-brand-200 bg-brand-50/80 p-3">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => onSelect(null)}
-            className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-irroba-ink hover:bg-brand-50"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Todos os elementos
@@ -270,7 +270,7 @@ export function ElementInspectorPanel({
                 disabled={sectionIdx <= 0}
                 onClick={() => onMoveSection(sectionIdx, sectionIdx - 1)}
                 title="Subir seção na página"
-                className="rounded border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50 disabled:opacity-35"
+                className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-600 hover:bg-zinc-50 disabled:opacity-35"
               >
                 <ArrowUp className="h-3.5 w-3.5" />
               </button>
@@ -279,17 +279,17 @@ export function ElementInspectorPanel({
                 disabled={sectionIdx < 0 || sectionIdx >= sectionLayout.length - 1}
                 onClick={() => onMoveSection(sectionIdx, sectionIdx + 1)}
                 title="Descer seção na página"
-                className="rounded border border-slate-200 bg-white p-1 text-slate-600 hover:bg-slate-50 disabled:opacity-35"
+                className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-600 hover:bg-zinc-50 disabled:opacity-35"
               >
                 <ArrowDown className="h-3.5 w-3.5" />
               </button>
               <button
                 type="button"
                 onClick={() => onToggleSection(meta.sectionKey!)}
-                className={`inline-flex items-center gap-1 rounded border px-2 py-1 text-xs font-semibold ${
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold ${
                   sectionEntry.enabled
-                    ? "border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50"
-                    : "border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    ? "border-brand-300 bg-white text-brand-700 hover:bg-brand-50"
+                    : "border-zinc-300 bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                 }`}
               >
                 {sectionEntry.enabled ? (
@@ -309,10 +309,10 @@ export function ElementInspectorPanel({
         </div>
 
         <div className="mt-2.5">
-          <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+          <div className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-600">
             {meta.irrobaRef}
           </div>
-          <div className="text-sm font-bold text-slate-900">
+          <div className="font-heading text-sm font-bold text-irroba-ink">
             {selection.label || meta.title}
           </div>
         </div>
@@ -384,7 +384,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full accent-emerald-600"
+              className="w-full accent-brand-500"
             />
             <p className="mt-1 text-[11px] text-slate-500">
               A logo é um elemento independente e mantém 100% de nitidez mesmo com a navbar transparente.
@@ -682,7 +682,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 hover:bg-emerald-50"
+                    className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-brand-600 hover:bg-brand-50"
                   >
                     100% Transparente
                   </button>
@@ -709,7 +709,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full accent-emerald-600"
+                className="w-full accent-brand-500"
               />
               <div className="pt-1">
                 <div className="mb-0.5 flex justify-between text-slate-600">
@@ -738,7 +738,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="w-full accent-emerald-600"
+                  className="w-full accent-brand-500"
                 />
               </div>
               <p className="text-[11px] text-slate-500">
@@ -873,7 +873,7 @@ export function ElementInspectorPanel({
               onClick={() => onShowSlide?.(idx)}
               className={`space-y-2 rounded-lg border p-2.5 transition ${
                 selection.subIndex === idx
-                  ? "border-emerald-400 bg-emerald-50/40"
+                  ? "border-brand-400 bg-brand-50/50"
                   : "border-slate-200 bg-slate-50"
               }`}
             >
@@ -1041,7 +1041,7 @@ export function ElementInspectorPanel({
             <button
               type="button"
               onClick={onDownloadBenefitsPng}
-              className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white hover:bg-emerald-500"
+              className="inline-flex items-center gap-1 rounded-md bg-brand-500 px-2 py-1 text-xs font-bold text-white hover:bg-brand-600"
             >
               <Download className="h-3 w-3" />
               Baixar PNG
@@ -1234,7 +1234,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full accent-emerald-600"
+                className="w-full accent-brand-500"
               />
             </div>
           </div>
@@ -1396,7 +1396,7 @@ export function ElementInspectorPanel({
               key={m.id}
               className={`space-y-1.5 rounded-lg border p-2.5 ${
                 selection.subIndex === idx
-                  ? "border-emerald-400 bg-emerald-50/40"
+                  ? "border-brand-400 bg-brand-50/50"
                   : "border-slate-200 bg-slate-50"
               }`}
             >
@@ -1870,7 +1870,7 @@ export function ElementInspectorPanel({
                 key={idx}
                 className={`space-y-1.5 rounded-lg border p-2 ${
                   idx === activeShowcaseIdx
-                    ? "border-emerald-400 bg-emerald-50/40"
+                    ? "border-brand-400 bg-brand-50/50"
                     : "border-slate-200 bg-slate-50"
                 }`}
               >
@@ -1972,7 +1972,7 @@ export function ElementInspectorPanel({
                     label: "Produto: Novo Produto",
                   });
                 }}
-                className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white hover:bg-emerald-500"
+                className="inline-flex items-center gap-1 rounded-md bg-brand-500 px-2 py-1 text-xs font-bold text-white hover:bg-brand-600"
               >
                 <Plus className="h-3 w-3" /> Produto
               </button>
@@ -2006,7 +2006,7 @@ export function ElementInspectorPanel({
                         label: `Produto: ${prod.title.slice(0, 26)}`,
                       })
                     }
-                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"
                   >
                     <Pencil className="h-2.5 w-2.5" />
                     Editar
@@ -2433,7 +2433,7 @@ export function ElementInspectorPanel({
               key={idx}
               className={`space-y-1.5 rounded-lg border p-2.5 ${
                 selection.subIndex === idx
-                  ? "border-emerald-400 bg-emerald-50/40"
+                  ? "border-brand-400 bg-brand-50/50"
                   : "border-slate-200 bg-slate-50"
               }`}
             >
