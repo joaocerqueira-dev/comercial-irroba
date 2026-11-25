@@ -64,9 +64,10 @@ describe("StoreCompareView", () => {
     expect(screen.getByText(/Mobile 390px/)).toBeTruthy();
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith("/api/captures/mobile/loja-x-123456", {
-        method: "POST",
-      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/captures/mobile/loja-x-123456",
+        expect.objectContaining({ method: "POST", signal: expect.any(AbortSignal) })
+      );
       const mobileImg = screen.getByAltText(/Página mobile atual de Loja X/) as HTMLImageElement;
       expect(mobileImg.getAttribute("src")).toBe("/api/captures/loja-x-mobile-full.jpg");
     });
