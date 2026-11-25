@@ -77,9 +77,20 @@ export function formatBrl(value: number): string {
   }).format(value);
 }
 
+/** Primeiro caractere que faz Excel/Planilhas interpretarem a célula como fórmula. */
+const CSV_FORMULA_PREFIX_RE = /^[=+\-@\t\r]/;
+
 export function escapeCsvCell(value: string | number | undefined | null): string {
-  const str = String(value ?? "");
-  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes(";")) {
+  let str = String(value ?? "");
+  // CSV injection: texto que começa como fórmula ganha um apóstrofo (números ficam como estão)
+  if (typeof value === "string" && CSV_FORMULA_PREFIX_RE.test(str)) str = `'${str}`;
+  if (
+    str.includes(",") ||
+    str.includes('"') ||
+    str.includes("\n") ||
+    str.includes("\r") ||
+    str.includes(";")
+  ) {
     return `"${str.replaceAll('"', '""')}"`;
   }
   return str;
