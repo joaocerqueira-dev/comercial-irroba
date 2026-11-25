@@ -86,7 +86,8 @@ describe("GET /render/[slug]", () => {
     const csp = res.headers.get("content-security-policy") ?? "";
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("script-src 'unsafe-inline'");
-    expect(csp).toContain("img-src 'self' https: data: blob:");
+    // http: por compatibilidade com lojas antigas (resolveAssetUrl aceita http://)
+    expect(csp).toContain("img-src 'self' https: http: data: blob:");
     expect(csp).toContain("frame-ancestors 'self'");
     expect(csp).toMatch(/sandbox allow-scripts/);
     expect(csp).not.toContain("allow-same-origin");

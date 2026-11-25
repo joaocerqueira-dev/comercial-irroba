@@ -30,10 +30,14 @@ export const PREVIEW_IFRAME_SANDBOX = PREVIEW_SANDBOX_FLAGS.join(" ");
  *
  * `img-src` tem `'self'` porque as imagens espelhadas vêm de /api/captures no host do app;
  * `blob:`/`data:` cobrem imagens inline. Fontes vêm do Google Fonts.
+ *
+ * `http:` em img-src é decisão de compatibilidade: resolveAssetUrl aceita imagens http:// de
+ * lojas antigas sem HTTPS, e nem toda imagem é espelhada em /api/captures (o espelhamento tem
+ * teto e pode falhar). Imagem não executa código, então o custo é só conteúdo misto passivo.
  */
 export const RENDER_CSP = [
   "default-src 'none'",
-  "img-src 'self' https: data: blob:",
+  "img-src 'self' https: http: data: blob:",
   "style-src 'unsafe-inline' https://fonts.googleapis.com",
   "font-src https://fonts.gstatic.com",
   "script-src 'unsafe-inline'",
