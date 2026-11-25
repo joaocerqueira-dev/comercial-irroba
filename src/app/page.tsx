@@ -5,8 +5,7 @@ import { IrrobaLogo } from "@/components/ui/IrrobaLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatWhatsapp, hostnameOf, isValidWhatsapp, normalizeStoreUrl, pluralize } from "@/lib/format/inputs";
 import { readEventStream } from "@/lib/sse/readEventStream";
-import { copyToClipboard } from "@/lib/client/clipboard";
-import { useTimeout } from "@/lib/client/useTimeout";
+import { useCopyToClipboard } from "@/components/ui/useCopyToClipboard";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -57,9 +56,8 @@ export default function HomePage() {
     }
     return [...map.values()];
   }, [previews]);
-  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const { copiedKey: copiedSlug, copy } = useCopyToClipboard(2000);
   const abortRef = useRef<AbortController | null>(null);
-  const copiedTimeout = useTimeout();
   const urlId = useId();
   const waId = useId();
 
@@ -144,12 +142,9 @@ export default function HomePage() {
 
   const handleCopyClientLink = async (slug: string) => {
     const shareUrl = `${window.location.origin}/preview/${slug}`;
-    if (!(await copyToClipboard(shareUrl))) {
+    if (!(await copy(slug, shareUrl))) {
       window.prompt("Copie o link do cliente:", shareUrl);
-      return;
     }
-    setCopiedSlug(slug);
-    copiedTimeout.schedule(() => setCopiedSlug(null), 2000);
   };
 
   const handleDelete = async (id: string) => {

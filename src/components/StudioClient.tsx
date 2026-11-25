@@ -2,7 +2,6 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { copyToClipboard } from "@/lib/client/clipboard";
 import { computeUnsaved, type StudioSaveSnapshot } from "@/lib/client/unsavedChanges";
 import { useLatest } from "@/lib/client/useLatest";
 import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
@@ -64,6 +63,7 @@ import {
 } from "./studio/inspectorTargets";
 import { Field } from "@/components/ui/Field";
 import { useTabs } from "@/components/ui/useTabs";
+import { useCopyToClipboard } from "@/components/ui/useCopyToClipboard";
 
 interface StudioClientProps {
   id: string;
@@ -124,7 +124,7 @@ export default function StudioClient({
   const [actionError, setActionError] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const { copiedKey, copy } = useCopyToClipboard(2000);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -133,7 +133,6 @@ export default function StudioClient({
   const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
   // Estado atual lido após o await do save (edições feitas durante a requisição)
   const latestSnapshotRef = useLatest<StudioSaveSnapshot>({ bp, sellerWhatsapp, currentMode });
-  const copiedTimeout = useTimeout();
   const savedNoticeTimeout = useTimeout();
 
   // Estado da prévia que sobrevive à recompilação do srcDoc (antes ficava em window.name).
@@ -308,12 +307,9 @@ export default function StudioClient({
   };
 
   const copyText = async (key: string, text: string) => {
-    if (!(await copyToClipboard(text))) {
+    if (!(await copy(key, text))) {
       setActionError("Não foi possível copiar automaticamente. Selecione o texto e copie manualmente.");
-      return;
     }
-    setCopiedKey(key);
-    copiedTimeout.schedule(() => setCopiedKey(null), 2000);
   };
 
   const handleSave = async () => {

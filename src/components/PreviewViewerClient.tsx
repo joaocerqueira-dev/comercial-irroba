@@ -110,12 +110,8 @@ export default function PreviewViewerClient({
           {!showCompare && (fullScreenshotPath || screenshotPath) && (
             <button
               type="button"
-              onClick={() => setShowCompare((prev) => !prev)}
-              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-heading text-xs font-semibold transition ${
-                showCompare
-                  ? "border-brand-300 bg-brand-50 text-brand-700"
-                  : "border-zinc-200 bg-white text-irroba-ink hover:border-brand-200 hover:bg-brand-50/50"
-              }`}
+              onClick={() => setShowCompare(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 font-heading text-xs font-semibold text-irroba-ink transition hover:border-brand-200 hover:bg-brand-50/50"
             >
               <Columns2 className="h-3.5 w-3.5 text-brand-500" />
               Comparar Atual vs. Irroba
