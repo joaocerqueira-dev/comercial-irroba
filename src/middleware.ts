@@ -2,14 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Basic auth para a área interna (home, estúdio e API).
- * Públicos: /preview/[slug], /render/[slug] e /api/captures/*.
+ * Públicos: /preview/[slug], /render/[slug], /api/captures/* e /api/health.
  * Sem ADMIN_USER/ADMIN_PASS: libera em desenvolvimento e bloqueia em produção.
  */
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname.startsWith("/preview/") ||
     pathname.startsWith("/render/") ||
-    pathname.startsWith("/api/captures/")
+    pathname.startsWith("/api/captures/") ||
+    pathname === "/api/health"
   );
 }
 
