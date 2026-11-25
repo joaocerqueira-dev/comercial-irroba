@@ -3,12 +3,20 @@ import { getSafeDispatcher } from "./safe-dispatcher";
 
 export const MAX_REDIRECTS = 5;
 
-const isRedirect = (status: number) => status >= 300 && status < 400;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/**
+ * Só 301/302/303/307/308 com Location são redirect. 304 (Not Modified), 300 e afins
+ * são respostas finais: tratá-los como salto faria o fetch devolver null sem motivo.
+ */
+export function isRedirect(status: number, location: string | null | undefined): location is string {
+  return REDIRECT_STATUSES.has(status) && Boolean(location);
+}
 
 /**
  * fetch com redirect: "manual": cada salto é revalidado com isPublicHttpUrl
- * (no máximo MAX_REDIRECTS). Retorna null se algum destino for interno,
- * se houver saltos demais ou se o redirecionamento não tiver Location.
+ * (no máximo MAX_REDIRECTS). Retorna null se algum destino for interno
+ * ou se houver saltos demais. 3xx sem Location é resposta final.
  *
  * O `dispatcher` revalida o IP resolvido no momento da conexão (DNS rebinding);
  * veja safe-dispatcher.ts. O `fetch` global aceita um Agent do pacote `undici`
@@ -27,10 +35,9 @@ export async function fetchPublic(
       redirect: "manual",
       dispatcher: getSafeDispatcher(),
     } as RequestInit);
-    if (!isRedirect(res.status)) return res;
     const location = res.headers.get("location");
+    if (!isRedirect(res.status, location)) return res;
     await res.body?.cancel().catch(() => undefined);
-    if (!location) return null;
     current = new URL(location, current).toString();
   }
   return null;
@@ -48,8 +55,7 @@ export async function followPublicRedirects<R>(
     if (!(await isPublicHttpUrl(current))) return null;
     const res = await request(current);
     const { status, location } = getRedirect(res);
-    if (!isRedirect(status)) return res;
-    if (!location) return null;
+    if (!isRedirect(status, location)) return res;
     current = new URL(location, current).toString();
   }
   return null;

@@ -1,5 +1,5 @@
 import type { Page, Request as PwRequest, Response as PwResponse } from "playwright";
-import { MAX_REDIRECTS } from "@/lib/net/safe-fetch";
+import { isRedirect, MAX_REDIRECTS } from "@/lib/net/safe-fetch";
 import { assertPublicHttpUrl, isPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 
 export const BLOCKED_TRACKER_PATTERNS = [
@@ -17,7 +17,6 @@ export const BLOCKED_TRACKER_PATTERNS = [
   "googlesyndication.com",
 ];
 
-const isRedirect = (status: number) => status >= 300 && status < 400;
 
 /**
  * Bloqueia requisições do navegador para a rede interna (SSRF).
@@ -48,10 +47,10 @@ export async function installSsrfGuard(page: Page, { timeoutMs = 20_000 } = {}):
     try {
       let current = rawUrl;
       let res = await route.fetch({ maxRedirects: 0, timeout: timeoutMs });
-      for (let hop = 0; isRedirect(res.status()); hop++) {
-        const location = res.headers()["location"];
+      for (let hop = 0; isRedirect(res.status(), res.headers()["location"]); hop++) {
+        const location = res.headers()["location"]!;
         await res.dispose().catch(() => undefined);
-        if (!location || hop >= MAX_REDIRECTS) return route.abort("blockedbyclient");
+        if (hop >= MAX_REDIRECTS) return route.abort("blockedbyclient");
         const next = new URL(location, current).toString();
         if (!(await isPublicHttpUrl(next))) return route.abort("blockedbyclient");
         current = next;
