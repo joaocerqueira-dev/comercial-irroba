@@ -20,15 +20,34 @@ const EXT_BY_SHARP_FORMAT: Record<string, string> = {
   avif: ".avif",
 };
 
-function isSafeSvgBuffer(buf: Buffer): boolean {
-  const text = buf.toString("utf8");
-  const trimmed = text.trim();
-  if (!/<svg[\s>]/i.test(trimmed)) return false;
-  if (/<script[\s>]/i.test(trimmed)) return false;
-  if (/<foreignobject[\s>]/i.test(trimmed)) return false;
-  if (/\bon[a-z]+\s*=/i.test(trimmed)) return false;
-  if (/(?:javascript|vbscript|data\s*:\s*text\/html)\s*:/i.test(trimmed)) return false;
-  return true;
+/** Lado maior alvo do PNG gerado a partir de SVG (nítido para logos e banners). */
+const SVG_RASTER_TARGET_PX = 2048;
+/** Densidade máxima (DPI) usada ao rasterizar SVG: evita ampliar um SVG minúsculo sem limite. */
+const SVG_MAX_DENSITY = 72 * 16;
+/** Teto de pixels ao rasterizar SVG (width/height gigantes viram erro, não uma alocação enorme). */
+const MAX_INPUT_PIXELS = 64_000_000;
+
+/**
+ * SVG nunca é salvo como SVG: é rasterizado para PNG. Isso elimina a classe inteira de XSS em
+ * SVG (script, handlers, foreignObject, xlink:href javascript:...), em vez de filtrar por regex.
+ */
+async function rasterizeSvg(buf: Buffer): Promise<{ data: Buffer; width: number; height: number }> {
+  const meta = await sharp(buf, { density: 72, limitInputPixels: MAX_INPUT_PIXELS }).metadata();
+  if (meta.format !== "svg" || !meta.width || !meta.height) {
+    throw new Error("SVG inválido");
+  }
+  const longest = Math.max(meta.width, meta.height);
+  const density = Math.min(SVG_MAX_DENSITY, Math.max(1, (72 * SVG_RASTER_TARGET_PX) / longest));
+  const { data, info } = await sharp(buf, { density, limitInputPixels: MAX_INPUT_PIXELS })
+    .resize({
+      width: MAX_DIMENSION_PX,
+      height: MAX_DIMENSION_PX,
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  return { data, width: info.width, height: info.height };
 }
 
 export async function POST(
@@ -86,26 +105,31 @@ export async function POST(
     entry.name.toLowerCase().endsWith(".svg");
 
   if (looksLikeSvg) {
-    if (!isSafeSvgBuffer(rawBuffer)) {
+    try {
+      const { data, width, height } = await rasterizeSvg(rawBuffer);
+      const filename = `${basePrefix}.png`;
+      await fs.writeFile(path.join(CAPTURES_DIR, filename), data);
+      return NextResponse.json({ imageUrl: `/api/captures/${filename}`, width, height, filename });
+    } catch {
       return NextResponse.json(
-        { error: "Arquivo SVG inválido ou contém elementos não permitidos." },
+        { error: "Arquivo SVG inválido ou grande demais para converter em imagem." },
         { status: 400 }
       );
     }
-    const filename = `${basePrefix}.svg`;
-    await fs.writeFile(path.join(CAPTURES_DIR, filename), rawBuffer);
-    return NextResponse.json({
-      imageUrl: `/api/captures/${filename}`,
-      width: null,
-      height: null,
-      filename,
-    });
   }
 
   try {
     const image = sharp(rawBuffer, { animated: true });
     const meta = await image.metadata();
     const fmt = meta.format?.toLowerCase() ?? "";
+
+    // Conteúdo SVG enviado com outro nome/MIME também é rasterizado
+    if (fmt === "svg") {
+      const { data, width, height } = await rasterizeSvg(rawBuffer);
+      const filename = `${basePrefix}.png`;
+      await fs.writeFile(path.join(CAPTURES_DIR, filename), data);
+      return NextResponse.json({ imageUrl: `/api/captures/${filename}`, width, height, filename });
+    }
     const ext = EXT_BY_SHARP_FORMAT[fmt];
 
     if (!ext || !meta.width || !meta.height) {
