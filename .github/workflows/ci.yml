@@ -17,6 +17,9 @@ jobs:
     env:
       DATABASE_URL: file:./ci.db
       NEXT_TELEMETRY_DISABLED: "1"
+      # Os testes cobrem SSRF/redirects, não o sandbox: sem isto, um runner com user
+      # namespaces restritos faria os testes de navegador serem pulados em silêncio.
+      PLAYWRIGHT_NO_SANDBOX: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
