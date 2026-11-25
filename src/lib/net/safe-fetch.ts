@@ -1,4 +1,5 @@
 import { isPublicHttpUrl } from "./safe-url";
+import { getSafeDispatcher } from "./safe-dispatcher";
 
 export const MAX_REDIRECTS = 5;
 
@@ -8,6 +9,10 @@ const isRedirect = (status: number) => status >= 300 && status < 400;
  * fetch com redirect: "manual": cada salto é revalidado com isPublicHttpUrl
  * (no máximo MAX_REDIRECTS). Retorna null se algum destino for interno,
  * se houver saltos demais ou se o redirecionamento não tiver Location.
+ *
+ * O `dispatcher` revalida o IP resolvido no momento da conexão (DNS rebinding);
+ * veja safe-dispatcher.ts. O `fetch` global aceita um Agent do pacote `undici`
+ * (testado com o undici interno do Node 22 e do Node 24).
  */
 export async function fetchPublic(
   url: string,
@@ -17,7 +22,11 @@ export async function fetchPublic(
   let current = url;
   for (let hop = 0; hop <= maxRedirects; hop++) {
     if (!(await isPublicHttpUrl(current))) return null;
-    const res = await fetch(current, { ...init, redirect: "manual" });
+    const res = await fetch(current, {
+      ...init,
+      redirect: "manual",
+      dispatcher: getSafeDispatcher(),
+    } as RequestInit);
     if (!isRedirect(res.status)) return res;
     const location = res.headers.get("location");
     await res.body?.cancel().catch(() => undefined);
