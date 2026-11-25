@@ -155,6 +155,7 @@ export function AiImageSlot({
       </div>
 
       <input
+        aria-label="Enviar imagem do computador"
         ref={fileInputRef}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/svg+xml"
@@ -241,6 +242,7 @@ export function AiImageSlot({
 
       <div className="flex flex-wrap gap-1.5">
         <input
+          aria-label="URL da imagem"
           type="text"
           value={value}
           placeholder="https://... ou envie do computador"
@@ -314,6 +316,7 @@ export function AiImageSlot({
               Ajuste / Recriação de Imagem por IA
             </span>
             <select
+              aria-label="Proporção da imagem gerada"
               value={ratio}
               onChange={(e) => setRatio(e.target.value as AiRatio)}
               className="rounded-lg border border-brand-200 bg-white px-1.5 py-0.5 text-xs font-semibold text-zinc-700"
@@ -325,6 +328,7 @@ export function AiImageSlot({
             </select>
           </div>
           <textarea
+            aria-label="Instruções para a IA"
             rows={2}
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}

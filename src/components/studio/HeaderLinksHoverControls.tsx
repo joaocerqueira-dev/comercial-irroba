@@ -3,6 +3,7 @@
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 import { PALETTE } from "@/lib/layout-patterns/palette";
 import { ColorField } from "./ColorField";
+import { Field } from "@/components/ui/Field";
 
 interface HeaderLinksHoverControlsProps {
   bp: StoreBlueprint;
@@ -36,7 +37,7 @@ export function HeaderLinksHoverControls({ bp, onUpdateBp }: HeaderLinksHoverCon
         />
 
         <div>
-          <label className="mb-1 block font-medium text-zinc-600">Efeito no Hover</label>
+          <Field label="Efeito no Hover" labelClassName="mb-1 block font-medium text-zinc-600">
           <select
             value={hoverStyle}
             onChange={(e) =>
@@ -62,6 +63,7 @@ export function HeaderLinksHoverControls({ bp, onUpdateBp }: HeaderLinksHoverCon
             <option value="pill">Pílula com Fundo</option>
             <option value="color-only">Apenas Cor</option>
           </select>
+          </Field>
         </div>
       </div>
 

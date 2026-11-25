@@ -62,6 +62,8 @@ import {
   type InspectorSelection,
   type InspectorTargetId,
 } from "./studio/inspectorTargets";
+import { Field } from "@/components/ui/Field";
+import { useTabs } from "@/components/ui/useTabs";
 
 interface StudioClientProps {
   id: string;
@@ -82,6 +84,9 @@ interface StudioClientProps {
 }
 
 type EditorSubTab = "insights" | "colors" | "banners" | "structure";
+const STUDIO_TABS = ["preview", "compare", "export"] as const;
+const MOBILE_PANES = ["edit", "view"] as const;
+const EDITOR_TABS: readonly EditorSubTab[] = ["insights", "colors", "banners", "structure"];
 
 
 export default function StudioClient({
@@ -156,6 +161,21 @@ export default function StudioClient({
     },
     [postToPreview]
   );
+
+  const studioTabs = useTabs({ tabs: STUDIO_TABS, selected: activeTab, onSelect: setActiveTab });
+  const mobileTabs = useTabs({ tabs: MOBILE_PANES, selected: mobilePane, onSelect: setMobilePane });
+  const editorTabs = useTabs({
+    tabs: EDITOR_TABS,
+    selected: selectedElement ? null : editorTab,
+    onSelect: (tab) => {
+      selectAndFocusElement(null);
+      setEditorTab(tab);
+    },
+  });
+  const workspacePanelId = studioTabs.panelId("preview");
+  const editorAsideId = mobileTabs.panelId("edit");
+  const previewMainId = mobileTabs.panelId("view");
+  const editorPanelId = editorTabs.panelId("insights");
 
   const hoverSidebarTarget = useCallback(
     (targetId: InspectorTargetId | null) => {
@@ -500,12 +520,11 @@ export default function StudioClient({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Modo do estúdio" className="flex rounded-xl border border-zinc-200 bg-irroba-surface p-0.5">
+          <div {...studioTabs.getTabListProps("Modo do estúdio")} className="flex rounded-xl border border-zinc-200 bg-irroba-surface p-0.5">
             <button
               type="button"
               onClick={() => setActiveTab("preview")}
-              role="tab"
-              aria-selected={activeTab === "preview"}
+              {...studioTabs.getTabProps("preview", workspacePanelId)}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 activeTab === "preview"
                   ? "bg-white text-brand-600 shadow-sm"
@@ -518,8 +537,7 @@ export default function StudioClient({
             <button
               type="button"
               onClick={() => setActiveTab("compare")}
-              role="tab"
-              aria-selected={activeTab === "compare"}
+              {...studioTabs.getTabProps("compare", workspacePanelId)}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 activeTab === "compare"
                   ? "bg-white text-brand-600 shadow-sm"
@@ -532,8 +550,7 @@ export default function StudioClient({
             <button
               type="button"
               onClick={() => setActiveTab("export")}
-              role="tab"
-              aria-selected={activeTab === "export"}
+              {...studioTabs.getTabProps("export", workspacePanelId)}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
                 activeTab === "export"
                   ? "bg-white text-brand-600 shadow-sm"
@@ -608,13 +625,12 @@ export default function StudioClient({
 
       {/* Abaixo de 1024px: alterna entre editar e visualizar */}
       {activeTab === "preview" && (
-        <div role="tablist" aria-label="Painel" className="grid grid-cols-2 border-b border-zinc-200 bg-white text-xs font-semibold lg:hidden">
+        <div {...mobileTabs.getTabListProps("Painel")} className="grid grid-cols-2 border-b border-zinc-200 bg-white text-xs font-semibold lg:hidden">
           {(["edit", "view"] as const).map((pane) => (
             <button
               key={pane}
               type="button"
-              role="tab"
-              aria-selected={mobilePane === pane}
+              {...mobileTabs.getTabProps(pane, pane === "edit" ? editorAsideId : previewMainId)}
               onClick={() => setMobilePane(pane)}
               className={`min-h-[44px] ${mobilePane === pane ? "border-b-2 border-brand-500 text-brand-600" : "text-zinc-500"}`}
             >
@@ -624,24 +640,24 @@ export default function StudioClient({
         </div>
       )}
 
-      {/* Main Workspace */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* Main Workspace (painel das abas "Modo do estúdio") */}
+      <div {...studioTabs.getPanelProps(activeTab, workspacePanelId)} className="flex flex-1 overflow-hidden">
         {/* Left Sidebar: Full Freedom Editor (recolhida em Comparar/Exportar) */}
         <aside
+          id={editorAsideId}
           className={`${
             activeTab !== "preview" ? "hidden" : mobilePane === "edit" ? "flex" : "hidden lg:flex"
           } w-full shrink-0 flex-col border-r border-zinc-200 bg-white lg:w-96`}
         >
           {/* Sub-tab navigation */}
-          <div role="tablist" aria-label="Seções do editor" className="grid grid-cols-4 border-b border-zinc-200 bg-irroba-surface text-xs font-semibold">
+          <div {...editorTabs.getTabListProps("Seções do editor")} className="grid grid-cols-4 border-b border-zinc-200 bg-irroba-surface text-xs font-semibold">
             <button
               type="button"
               onClick={() => {
                 selectAndFocusElement(null);
                 setEditorTab("insights");
               }}
-              role="tab"
-              aria-selected={!selectedElement && editorTab === "insights"}
+              {...editorTabs.getTabProps("insights", editorPanelId)}
               className={`relative flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "insights"
                   ? "border-b-2 border-brand-500 bg-white text-brand-600"
@@ -666,8 +682,7 @@ export default function StudioClient({
                 selectAndFocusElement(null);
                 setEditorTab("colors");
               }}
-              role="tab"
-              aria-selected={!selectedElement && editorTab === "colors"}
+              {...editorTabs.getTabProps("colors", editorPanelId)}
               className={`flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "colors"
                   ? "border-b-2 border-brand-500 bg-white text-brand-600"
@@ -683,8 +698,7 @@ export default function StudioClient({
                 selectAndFocusElement(null);
                 setEditorTab("banners");
               }}
-              role="tab"
-              aria-selected={!selectedElement && editorTab === "banners"}
+              {...editorTabs.getTabProps("banners", editorPanelId)}
               className={`flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "banners"
                   ? "border-b-2 border-brand-500 bg-white text-brand-600"
@@ -700,8 +714,7 @@ export default function StudioClient({
                 selectAndFocusElement(null);
                 setEditorTab("structure");
               }}
-              role="tab"
-              aria-selected={!selectedElement && editorTab === "structure"}
+              {...editorTabs.getTabProps("structure", editorPanelId)}
               className={`flex flex-col items-center gap-1 py-2.5 transition ${
                 !selectedElement && editorTab === "structure"
                   ? "border-b-2 border-brand-500 bg-white text-brand-600"
@@ -713,7 +726,13 @@ export default function StudioClient({
             </button>
           </div>
 
-          <div ref={sidebarScrollRef} className="flex-1 overflow-y-auto p-4 text-xs">
+          <div
+            ref={sidebarScrollRef}
+            {...(selectedElement
+              ? { id: editorPanelId, "aria-label": "Inspetor do elemento selecionado" }
+              : editorTabs.getPanelProps(editorTab, editorPanelId))}
+            className="flex-1 overflow-y-auto p-4 text-xs"
+          >
             {actionError && (
               <div
                 role="alert"
@@ -860,7 +879,7 @@ export default function StudioClient({
                 <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
                   <div className="font-bold text-zinc-800">Identidade da Marca</div>
                   <div>
-                    <label className="mb-1 block text-zinc-500">Nome da Loja</label>
+                    <Field label="Nome da Loja" labelClassName="mb-1 block text-zinc-500">
                     <input
                       type="text"
                       value={bp.brand.name}
@@ -872,6 +891,7 @@ export default function StudioClient({
                       }
                       className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                     />
+                    </Field>
                   </div>
                   <AiImageSlot
                     previewId={id}
@@ -889,7 +909,7 @@ export default function StudioClient({
                     }
                   />
                   <div>
-                    <label className="mb-1 block text-zinc-500">Nicho / Segmento</label>
+                    <Field label="Nicho / Segmento" labelClassName="mb-1 block text-zinc-500">
                     <input
                       type="text"
                       value={bp.brand.niche}
@@ -901,9 +921,10 @@ export default function StudioClient({
                       }
                       className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                     />
+                    </Field>
                   </div>
                   <div>
-                    <label className="mb-1 block text-zinc-500">WhatsApp do Consultor (CTA)</label>
+                    <Field label="WhatsApp do Consultor (CTA)" labelClassName="mb-1 block text-zinc-500">
                     <input
                       type="text"
                       value={sellerWhatsapp}
@@ -914,6 +935,7 @@ export default function StudioClient({
                       placeholder="5511999999999"
                       className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                     />
+                    </Field>
                   </div>
                   <AnnouncementBarControls bp={bp} onUpdateBp={updateBp} showColors={false} />
                 </div>
@@ -1081,7 +1103,7 @@ export default function StudioClient({
                   <div className="border-t border-zinc-100 pt-2.5">
                     <div className="mb-2 font-semibold text-zinc-700">Botão Comprar dos Produtos</div>
                     <div className="mb-2">
-                      <label className="mb-1 block text-zinc-500">Texto do Botão</label>
+                      <Field label="Texto do Botão" labelClassName="mb-1 block text-zinc-500">
                       <input
                         type="text"
                         value={bp.visualOverrides.pageProduct.buyButtonText}
@@ -1099,6 +1121,7 @@ export default function StudioClient({
                         }
                         className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                       />
+                      </Field>
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
                       <ColorField
@@ -1341,6 +1364,7 @@ export default function StudioClient({
                       </div>
                     </div>
                     <input
+                      aria-label="Opacidade do fundo do cabeçalho"
                       type="range"
                       min={0}
                       max={1}
@@ -1491,6 +1515,7 @@ export default function StudioClient({
                         {bp.sections.heroSlides.length > 1 && (
                           <button
                             type="button"
+                            aria-label="Remover slide"
                             onClick={() =>
                               updateBp((prev) => ({
                                 ...prev,
@@ -1508,7 +1533,7 @@ export default function StudioClient({
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-xs text-zinc-500">Modo do Banner</label>
+                        <Field label="Modo do Banner" labelClassName="mb-1 block text-xs text-zinc-500">
                         <select
                           value={slide.mode}
                           onChange={(e) =>
@@ -1529,6 +1554,7 @@ export default function StudioClient({
                           <option value="artwork">Arte Original (sem texto por cima)</option>
                           <option value="editorial">Editorial (título + botão CTA)</option>
                         </select>
+                        </Field>
                       </div>
 
                       <AiImageSlot
@@ -1554,6 +1580,7 @@ export default function StudioClient({
                       {slide.mode === "editorial" && (
                         <>
                           <input
+                            aria-label="Título do banner"
                             type="text"
                             value={slide.headline}
                             placeholder="Título do Banner"
@@ -1571,6 +1598,7 @@ export default function StudioClient({
                             className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                           />
                           <input
+                            aria-label="Subtítulo do banner"
                             type="text"
                             value={slide.subheadline}
                             placeholder="Subtítulo"
@@ -1588,6 +1616,7 @@ export default function StudioClient({
                             className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                           />
                           <input
+                            aria-label="Texto do botão do banner"
                             type="text"
                             value={slide.ctaText}
                             placeholder="Texto do Botão"
@@ -1629,6 +1658,7 @@ export default function StudioClient({
                     </button>
                   </div>
                   <select
+                    aria-label="Formato da tarja de benefícios"
                     value={bp.sections.benefitsBanner?.mode ?? "generated-art"}
                     onChange={(e) =>
                       updateBp((prev) => ({
@@ -1704,6 +1734,7 @@ export default function StudioClient({
                         </strong>
                       </div>
                       <input
+                        aria-label="Altura máxima da tarja (px)"
                         type="range"
                         min={36}
                         max={260}
@@ -1742,6 +1773,7 @@ export default function StudioClient({
                           </strong>
                         </div>
                         <input
+                          aria-label="Largura máxima da tarja (px)"
                           type="range"
                           min={640}
                           max={1600}
@@ -1780,6 +1812,7 @@ export default function StudioClient({
                         </strong>
                       </div>
                       <input
+                        aria-label="Espaçamento vertical da tarja (px)"
                         type="range"
                         min={0}
                         max={48}
@@ -1893,6 +1926,7 @@ export default function StudioClient({
                         {bp.sections.benefits.slice(0, 4).map((b, bIdx) => (
                           <div key={bIdx} className="grid grid-cols-2 gap-1.5">
                             <input
+                              aria-label={`Título do benefício ${bIdx + 1}`}
                               type="text"
                               value={b.title}
                               onChange={(e) =>
@@ -1909,6 +1943,7 @@ export default function StudioClient({
                               className="rounded border border-zinc-200 px-2 py-1 text-xs"
                             />
                             <input
+                              aria-label={`Subtítulo do benefício ${bIdx + 1}`}
                               type="text"
                               value={b.subtitle}
                               onChange={(e) =>
@@ -1984,6 +2019,7 @@ export default function StudioClient({
                       }
                     />
                     <select
+                      aria-label="Modo da faixa"
                       value={bp.sections.slimBanner.mode}
                       onChange={(e) =>
                         updateBp((prev) => ({
@@ -2026,6 +2062,7 @@ export default function StudioClient({
                     ) : (
                       <>
                         <input
+                          aria-label="Mensagem da faixa"
                           type="text"
                           value={bp.sections.slimBanner.headline}
                           onChange={(e) =>
@@ -2143,6 +2180,7 @@ export default function StudioClient({
                       }
                     />
                     <select
+                      aria-label="Modo do banner secundário"
                       value={bp.sections.secondaryBanner.mode}
                       onChange={(e) =>
                         updateBp((prev) => ({
@@ -2184,6 +2222,7 @@ export default function StudioClient({
                     {bp.sections.secondaryBanner.mode === "editorial" && (
                       <>
                         <input
+                          aria-label="Título do banner secundário"
                           type="text"
                           value={bp.sections.secondaryBanner.headline}
                           onChange={(e) =>
@@ -2200,6 +2239,7 @@ export default function StudioClient({
                           className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                         />
                         <input
+                          aria-label="Texto do botão do banner secundário"
                           type="text"
                           value={bp.sections.secondaryBanner.ctaText}
                           onChange={(e) =>
@@ -2229,6 +2269,7 @@ export default function StudioClient({
                     </span>
                   </div>
                   <input
+                    aria-label="Título da galeria editorial"
                     type="text"
                     value={bp.sections.moodSectionTitle}
                     onChange={(e) =>
@@ -2273,6 +2314,7 @@ export default function StudioClient({
                         />
                       </label>
                       <input
+                        aria-label={`Título da coleção ${idx + 1}`}
                         type="text"
                         value={m.title}
                         onChange={(e) =>
@@ -2458,6 +2500,7 @@ export default function StudioClient({
                             onClick={() =>
                               selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
                             }
+                            aria-label={`Editar ${sec.label}`}
                             title={`Editar ${sec.label}`}
                             className="rounded-lg p-1 text-zinc-500 hover:bg-brand-50 hover:text-brand-600"
                           >
@@ -2468,6 +2511,7 @@ export default function StudioClient({
                             draggable={false}
                             disabled={idx === 0}
                             onClick={() => moveSection(idx, idx - 1)}
+                            aria-label="Mover para cima"
                             title="Mover para cima"
                             className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
                           >
@@ -2478,6 +2522,7 @@ export default function StudioClient({
                             draggable={false}
                             disabled={idx === sectionLayout.length - 1}
                             onClick={() => moveSection(idx, idx + 1)}
+                            aria-label="Mover para baixo"
                             title="Mover para baixo"
                             className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
                           >
@@ -2487,6 +2532,7 @@ export default function StudioClient({
                             type="button"
                             draggable={false}
                             onClick={() => toggleSection(sec.id)}
+                            aria-label={sec.enabled ? "Ocultar seção" : "Exibir seção"}
                             title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
                             className={`rounded-lg p-1 ${
                               sec.enabled
@@ -2515,6 +2561,7 @@ export default function StudioClient({
                     </span>
                   </div>
                   <input
+                    aria-label="Etiqueta do manifesto"
                     type="text"
                     placeholder="Etiqueta (ex: 01 / Manifesto)"
                     value={bp.sections.lookbook?.eyebrow ?? "01 / Manifesto"}
@@ -2535,6 +2582,7 @@ export default function StudioClient({
                     className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                   />
                   <input
+                    aria-label="Título do manifesto"
                     type="text"
                     placeholder="Título do Manifesto"
                     value={bp.sections.lookbook?.headline ?? bp.sections.promoStripText}
@@ -2556,6 +2604,7 @@ export default function StudioClient({
                     className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                   />
                   <textarea
+                    aria-label="Narrativa da marca"
                     rows={2}
                     placeholder="Texto institucional / narrativa da marca"
                     value={bp.sections.lookbook?.description ?? bp.footer.aboutText}
@@ -2639,7 +2688,7 @@ export default function StudioClient({
                   <div className="font-bold text-zinc-800">Tipografia &amp; Arredondamento</div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-zinc-500">Fonte Títulos</label>
+                      <Field label="Fonte Títulos" labelClassName="mb-1 block text-zinc-500">
                       <select
                         value={bp.theme.headingFont}
                         onChange={(e) =>
@@ -2659,9 +2708,10 @@ export default function StudioClient({
                           </option>
                         ))}
                       </select>
+                      </Field>
                     </div>
                     <div>
-                      <label className="mb-1 block text-zinc-500">Fonte Corpo</label>
+                      <Field label="Fonte Corpo" labelClassName="mb-1 block text-zinc-500">
                       <select
                         value={bp.theme.bodyFont}
                         onChange={(e) =>
@@ -2681,12 +2731,13 @@ export default function StudioClient({
                           </option>
                         ))}
                       </select>
+                      </Field>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-zinc-500">Arredondamento</label>
+                      <Field label="Arredondamento" labelClassName="mb-1 block text-zinc-500">
                       <select
                         value={bp.theme.radius}
                         onChange={(e) =>
@@ -2705,9 +2756,10 @@ export default function StudioClient({
                         <option value="medium">Médio (12px)</option>
                         <option value="large">Grande (24px)</option>
                       </select>
+                      </Field>
                     </div>
                     <div>
-                      <label className="mb-1 block text-zinc-500">Cabeçalho Layout</label>
+                      <Field label="Cabeçalho Layout" labelClassName="mb-1 block text-zinc-500">
                       <select
                         value={bp.theme.headerLayout}
                         onChange={(e) =>
@@ -2725,12 +2777,13 @@ export default function StudioClient({
                         <option value="layout-2">Layout 2 (Centralizado)</option>
                         <option value="layout-3">Layout 3 (Compacto)</option>
                       </select>
+                      </Field>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-zinc-500">Cabeçalho Posição</label>
+                      <Field label="Cabeçalho Posição" labelClassName="mb-1 block text-zinc-500">
                       <select
                         value={bp.visualOverrides.header.position}
                         onChange={(e) =>
@@ -2751,9 +2804,10 @@ export default function StudioClient({
                         <option value="sticky">Fixo ao rolar</option>
                         <option value="overlay">Sobreposto ao Banner (Fixo)</option>
                       </select>
+                      </Field>
                     </div>
                     <div>
-                      <label className="mb-1 block text-zinc-500">Alinhamento Vitrines</label>
+                      <Field label="Alinhamento Vitrines" labelClassName="mb-1 block text-zinc-500">
                       <select
                         value={bp.visualOverrides.productCard.titleAlign}
                         onChange={(e) =>
@@ -2774,6 +2828,7 @@ export default function StudioClient({
                         <option value="center">Centro</option>
                         <option value="right">Direita</option>
                       </select>
+                      </Field>
                     </div>
                   </div>
                 </div>
@@ -2784,6 +2839,7 @@ export default function StudioClient({
                   <HeaderLinksHoverControls bp={bp} onUpdateBp={updateBp} />
                   <div className="flex gap-1.5">
                     <input
+                      aria-label="Nova categoria do menu"
                       type="text"
                       placeholder="Nova categoria..."
                       value={newCategoryName}
@@ -2792,6 +2848,7 @@ export default function StudioClient({
                     />
                     <button
                       type="button"
+                      aria-label="Adicionar categoria"
                       onClick={() => {
                         const label = newCategoryName.trim();
                         if (!label) return;
@@ -2816,6 +2873,7 @@ export default function StudioClient({
                     {bp.sections.categories.map((cat, idx) => (
                       <div key={idx} className="flex items-center gap-1.5">
                         <input
+                          aria-label={`Categoria ${idx + 1}`}
                           type="text"
                           value={cat.label}
                           onChange={(e) =>
@@ -2833,6 +2891,7 @@ export default function StudioClient({
                         />
                         <button
                           type="button"
+                          aria-label={`Remover categoria ${idx + 1}`}
                           onClick={() =>
                             updateBp((prev) => ({
                               ...prev,
@@ -2859,6 +2918,7 @@ export default function StudioClient({
                   </div>
                   {bp.sections.showcases.map((sc, idx) => (
                     <input
+                      aria-label={`Título da vitrine ${idx + 1}`}
                       key={idx}
                       type="text"
                       value={sc.title}
@@ -2883,6 +2943,7 @@ export default function StudioClient({
                         className="flex items-center gap-2 rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5"
                       >
                         <input
+                          aria-label={`Exibir ${prod.title}`}
                           type="checkbox"
                           checked={prod.visible !== false}
                           onChange={(e) =>
@@ -2925,7 +2986,7 @@ export default function StudioClient({
 
         {/* Center/Right Pane */}
         {activeTab === "preview" ? (
-          <main className={`${mobilePane === "view" ? "flex" : "hidden lg:flex"} flex-1 flex-col overflow-hidden p-2 lg:p-4`}>
+          <main id={previewMainId} className={`${mobilePane === "view" ? "flex" : "hidden lg:flex"} flex-1 flex-col overflow-hidden p-2 lg:p-4`}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <div

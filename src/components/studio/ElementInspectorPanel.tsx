@@ -22,6 +22,7 @@ import { HeaderLinksHoverControls } from "./HeaderLinksHoverControls";
 import { INSPECTOR_META, type InspectorSelection } from "./inspectorTargets";
 import { useLatest } from "@/lib/client/useLatest";
 import { PALETTE } from "@/lib/layout-patterns/palette";
+import { Field } from "@/components/ui/Field";
 
 interface ElementInspectorPanelProps {
   previewId: string;
@@ -78,7 +79,7 @@ export function ElementInspectorPanel({
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="mb-1 block text-zinc-500">Largura da Vitrine</label>
+          <Field label="Largura da Vitrine" labelClassName="mb-1 block text-zinc-500">
           <select
             value={bp.visualOverrides.productCard.listWidth}
             onChange={(e) =>
@@ -98,10 +99,11 @@ export function ElementInspectorPanel({
             <option value="container">Padrão (1280px)</option>
             <option value="full">Largura Total</option>
           </select>
+          </Field>
         </div>
 
         <div>
-          <label className="mb-1 block text-zinc-500">Alinhamento Título</label>
+          <Field label="Alinhamento Título" labelClassName="mb-1 block text-zinc-500">
           <select
             value={bp.visualOverrides.productCard.titleAlign}
             onChange={(e) =>
@@ -122,12 +124,13 @@ export function ElementInspectorPanel({
             <option value="center">Centro</option>
             <option value="right">Direita</option>
           </select>
+          </Field>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="mb-1 block text-zinc-500">Padding Lateral Card</label>
+          <Field label="Padding Lateral Card" labelClassName="mb-1 block text-zinc-500">
           <select
             value={bp.visualOverrides.productCard.paddingX}
             onChange={(e) =>
@@ -149,10 +152,11 @@ export function ElementInspectorPanel({
             <option value={24}>Amplo (24px)</option>
             <option value={40}>Editorial (40px)</option>
           </select>
+          </Field>
         </div>
 
         <div>
-          <label className="mb-1 block text-zinc-500">Texto do Botão</label>
+          <Field label="Texto do Botão" labelClassName="mb-1 block text-zinc-500">
           <input
             type="text"
             value={bp.visualOverrides.pageProduct.buyButtonText}
@@ -170,6 +174,7 @@ export function ElementInspectorPanel({
             }
             className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
           />
+          </Field>
         </div>
       </div>
 
@@ -277,6 +282,7 @@ export function ElementInspectorPanel({
                 type="button"
                 disabled={sectionIdx <= 0}
                 onClick={() => onMoveSection(sectionIdx, sectionIdx - 1)}
+                aria-label="Subir seção na página"
                 title="Subir seção na página"
                 className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-600 hover:bg-zinc-50 disabled:opacity-35"
               >
@@ -286,6 +292,7 @@ export function ElementInspectorPanel({
                 type="button"
                 disabled={sectionIdx < 0 || sectionIdx >= sectionLayout.length - 1}
                 onClick={() => onMoveSection(sectionIdx, sectionIdx + 1)}
+                aria-label="Descer seção na página"
                 title="Descer seção na página"
                 className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-600 hover:bg-zinc-50 disabled:opacity-35"
               >
@@ -337,7 +344,7 @@ export function ElementInspectorPanel({
       {selection.targetId === "header-logo" && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">Nome da Loja</label>
+            <Field label="Nome da Loja" labelClassName="mb-1 block font-semibold text-zinc-700">
             <input
               type="text"
               value={bp.brand.name}
@@ -349,6 +356,7 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
             />
+            </Field>
           </div>
 
           <AiImageSlot
@@ -375,6 +383,7 @@ export function ElementInspectorPanel({
               </strong>
             </div>
             <input
+              aria-label="Altura da logo (px)"
               type="range"
               min={24}
               max={120}
@@ -400,9 +409,7 @@ export function ElementInspectorPanel({
           </div>
 
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">
-              Posição da Logo no Cabeçalho
-            </label>
+            <Field label="Posição da Logo no Cabeçalho" labelClassName="mb-1 block font-semibold text-zinc-700">
             <select
               value={bp.theme.headerLayout}
               onChange={(e) =>
@@ -420,6 +427,7 @@ export function ElementInspectorPanel({
               <option value="layout-2">Layout 2 — Logo centralizada + Menu abaixo</option>
               <option value="layout-3">Layout 3 — Logo à esquerda + Menu em barra inferior</option>
             </select>
+            </Field>
           </div>
 
           <button
@@ -438,9 +446,7 @@ export function ElementInspectorPanel({
           <HeaderLinksHoverControls bp={bp} onUpdateBp={onUpdateBp} />
 
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">
-              Formato do Texto das Categorias
-            </label>
+            <Field label="Formato do Texto das Categorias" labelClassName="mb-1 block font-semibold text-zinc-700">
             <select
               value={bp.visualOverrides.header.categoryCase}
               onChange={(e) =>
@@ -466,14 +472,16 @@ export function ElementInspectorPanel({
               <option value="capitalize">Primeira Maiúscula</option>
               <option value="lowercase">minúsculas</option>
             </select>
+            </Field>
           </div>
 
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">
+            <div className="mb-1 block font-semibold text-zinc-700">
               Itens do Menu Principal
-            </label>
+            </div>
             <div className="mb-2 flex gap-1.5">
               <input
+                aria-label="Nova categoria do menu"
                 type="text"
                 placeholder="Adicionar categoria..."
                 value={newCategoryName}
@@ -526,6 +534,7 @@ export function ElementInspectorPanel({
               {bp.sections.categories.map((cat, idx) => (
                 <div key={idx} className="flex items-center gap-1">
                   <input
+                    aria-label={`Categoria ${idx + 1}`}
                     type="text"
                     value={cat.label}
                     onChange={(e) =>
@@ -543,6 +552,7 @@ export function ElementInspectorPanel({
                   />
                   <button
                     type="button"
+                    aria-label="Mover categoria para cima"
                     disabled={idx === 0}
                     onClick={() =>
                       onUpdateBp((prev) => {
@@ -559,6 +569,7 @@ export function ElementInspectorPanel({
                   </button>
                   <button
                     type="button"
+                    aria-label="Mover categoria para baixo"
                     disabled={idx === bp.sections.categories.length - 1}
                     onClick={() =>
                       onUpdateBp((prev) => {
@@ -575,6 +586,7 @@ export function ElementInspectorPanel({
                   </button>
                   <button
                     type="button"
+                    aria-label="Remover categoria"
                     onClick={() =>
                       onUpdateBp((prev) => ({
                         ...prev,
@@ -601,7 +613,7 @@ export function ElementInspectorPanel({
           <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-zinc-500">Estrutura</label>
+                <Field label="Estrutura" labelClassName="mb-1 block text-zinc-500">
                 <select
                   value={bp.theme.headerLayout}
                   onChange={(e) =>
@@ -619,9 +631,10 @@ export function ElementInspectorPanel({
                   <option value="layout-2">Layout 2 (Central)</option>
                   <option value="layout-3">Layout 3 (Duplo)</option>
                 </select>
+                </Field>
               </div>
               <div>
-                <label className="mb-1 block text-zinc-500">Posicionamento</label>
+                <Field label="Posicionamento" labelClassName="mb-1 block text-zinc-500">
                 <select
                   value={bp.visualOverrides.header.position}
                   onChange={(e) =>
@@ -642,6 +655,7 @@ export function ElementInspectorPanel({
                   <option value="sticky">Fixo ao rolar</option>
                   <option value="overlay">Sobreposto ao Banner (Fixo)</option>
                 </select>
+                </Field>
               </div>
             </div>
 
@@ -700,6 +714,7 @@ export function ElementInspectorPanel({
                 </div>
               </div>
               <input
+                aria-label="Opacidade do fundo do cabeçalho"
                 type="range"
                 min={0}
                 max={1}
@@ -729,6 +744,7 @@ export function ElementInspectorPanel({
                   </strong>
                 </div>
                 <input
+                  aria-label="Desfoque de vidro (blur)"
                   type="range"
                   min={0}
                   max={32}
@@ -907,6 +923,7 @@ export function ElementInspectorPanel({
                 {bp.sections.heroSlides.length > 1 && (
                   <button
                     type="button"
+                    aria-label="Remover slide"
                     onClick={() =>
                       onUpdateBp((prev) => ({
                         ...prev,
@@ -924,6 +941,7 @@ export function ElementInspectorPanel({
               </div>
 
               <select
+                aria-label="Modo do slide"
                 value={slide.mode}
                 onChange={(e) =>
                   onUpdateBp((prev) => ({
@@ -965,6 +983,7 @@ export function ElementInspectorPanel({
               {slide.mode === "editorial" && (
                 <div className="space-y-1.5">
                   <input
+                    aria-label="Título do banner"
                     type="text"
                     value={slide.headline}
                     placeholder="Título do Banner"
@@ -982,6 +1001,7 @@ export function ElementInspectorPanel({
                     className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                   />
                   <input
+                    aria-label="Subtítulo do banner"
                     type="text"
                     value={slide.subheadline}
                     placeholder="Subtítulo"
@@ -1000,6 +1020,7 @@ export function ElementInspectorPanel({
                   />
                   <div className="grid grid-cols-2 gap-1.5">
                     <input
+                      aria-label="Texto do botão do banner"
                       type="text"
                       value={slide.ctaText}
                       placeholder="Texto do Botão"
@@ -1017,6 +1038,7 @@ export function ElementInspectorPanel({
                       className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                     />
                     <input
+                      aria-label="Link do botão do banner"
                       type="text"
                       value={slide.ctaHref}
                       placeholder="Link (#vitrines)"
@@ -1057,6 +1079,7 @@ export function ElementInspectorPanel({
           </div>
 
           <select
+            aria-label="Formato da tarja"
             value={bp.sections.benefitsBanner?.mode ?? "generated-art"}
             onChange={(e) =>
               onUpdateBp((prev) => ({
@@ -1218,6 +1241,7 @@ export function ElementInspectorPanel({
                 </strong>
               </div>
               <input
+                aria-label="Altura máxima da tarja (px)"
                 type="range"
                 min={36}
                 max={260}
@@ -1298,6 +1322,7 @@ export function ElementInspectorPanel({
                 {bp.sections.benefits.slice(0, 4).map((b, bIdx) => (
                   <div key={bIdx} className="grid grid-cols-2 gap-1.5">
                     <input
+                      aria-label={`Título do benefício ${bIdx + 1}`}
                       type="text"
                       value={b.title}
                       onChange={(e) =>
@@ -1314,6 +1339,7 @@ export function ElementInspectorPanel({
                       className="rounded border border-zinc-200 px-2 py-1"
                     />
                     <input
+                      aria-label={`Subtítulo do benefício ${bIdx + 1}`}
                       type="text"
                       value={b.subtitle}
                       onChange={(e) =>
@@ -1340,7 +1366,7 @@ export function ElementInspectorPanel({
       {selection.targetId === "editorialGallery" && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">Título da Seção</label>
+            <Field label="Título da Seção" labelClassName="mb-1 block font-semibold text-zinc-700">
             <input
               type="text"
               value={bp.sections.moodSectionTitle}
@@ -1352,6 +1378,7 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
 
           <BannerDimensionsControl
@@ -1428,6 +1455,7 @@ export function ElementInspectorPanel({
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 <input
+                  aria-label="Título da coleção"
                   type="text"
                   value={m.title}
                   placeholder="Título da coleção"
@@ -1445,6 +1473,7 @@ export function ElementInspectorPanel({
                   className="rounded border border-zinc-200 bg-white px-2 py-1"
                 />
                 <input
+                  aria-label="Selo da coleção"
                   type="text"
                   value={m.subtitle}
                   placeholder="Selo (ex: Curadoria)"
@@ -1536,7 +1565,7 @@ export function ElementInspectorPanel({
           />
 
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">Modo da Faixa</label>
+            <Field label="Modo da Faixa" labelClassName="mb-1 block font-semibold text-zinc-700">
             <select
               value={bp.sections.slimBanner?.mode ?? "designed"}
               onChange={(e) =>
@@ -1567,6 +1596,7 @@ export function ElementInspectorPanel({
               <option value="designed">Faixa Desenhada (Texto + Selo + Botão)</option>
               <option value="image">Imagem Banner Slim (Upload / IA)</option>
             </select>
+            </Field>
           </div>
 
           {bp.sections.slimBanner?.mode === "image" ? (
@@ -1592,7 +1622,7 @@ export function ElementInspectorPanel({
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-1 block text-zinc-500">Selo</label>
+                  <Field label="Selo" labelClassName="mb-1 block text-zinc-500">
                   <input
                     type="text"
                     value={bp.sections.slimBanner?.badgeText ?? "DESTAQUE"}
@@ -1609,9 +1639,10 @@ export function ElementInspectorPanel({
                     }
                     className="w-full rounded-lg border border-zinc-200 px-2 py-1"
                   />
+                  </Field>
                 </div>
                 <div>
-                  <label className="mb-1 block text-zinc-500">Texto do Botão</label>
+                  <Field label="Texto do Botão" labelClassName="mb-1 block text-zinc-500">
                   <input
                     type="text"
                     value={bp.sections.slimBanner?.ctaText ?? "Aproveitar"}
@@ -1628,10 +1659,11 @@ export function ElementInspectorPanel({
                     }
                     className="w-full rounded-lg border border-zinc-200 px-2 py-1"
                   />
+                  </Field>
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-zinc-500">Mensagem Promocional</label>
+                <Field label="Mensagem Promocional" labelClassName="mb-1 block text-zinc-500">
                 <input
                   type="text"
                   value={bp.sections.slimBanner?.headline ?? ""}
@@ -1648,6 +1680,7 @@ export function ElementInspectorPanel({
                   }
                   className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                 />
+                </Field>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <ColorField
@@ -1738,7 +1771,7 @@ export function ElementInspectorPanel({
             />
 
             <div>
-              <label className="mb-1 block text-zinc-500">Nome do Produto</label>
+              <Field label="Nome do Produto" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="text"
                 value={selectedProduct.title}
@@ -1752,11 +1785,12 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
               />
+              </Field>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-zinc-500">Preço Atual (R$)</label>
+                <Field label="Preço Atual (R$)" labelClassName="mb-1 block text-zinc-500">
                 <input
                   type="number"
                   step="0.01"
@@ -1774,9 +1808,10 @@ export function ElementInspectorPanel({
                   }
                   className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
+                </Field>
               </div>
               <div>
-                <label className="mb-1 block text-zinc-500">Preço Antigo &quot;De&quot; (R$)</label>
+                <Field label={<>Preço Antigo &quot;De&quot; (R$)</>} labelClassName="mb-1 block text-zinc-500">
                 <input
                   type="number"
                   step="0.01"
@@ -1799,12 +1834,13 @@ export function ElementInspectorPanel({
                   }}
                   className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
+                </Field>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-zinc-500">Categoria</label>
+                <Field label="Categoria" labelClassName="mb-1 block text-zinc-500">
                 <input
                   type="text"
                   value={selectedProduct.category}
@@ -1818,9 +1854,10 @@ export function ElementInspectorPanel({
                   }
                   className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
+                </Field>
               </div>
               <div>
-                <label className="mb-1 block text-zinc-500">Parcelamento</label>
+                <Field label="Parcelamento" labelClassName="mb-1 block text-zinc-500">
                 <input
                   type="text"
                   value={selectedProduct.installmentsText ?? ""}
@@ -1837,6 +1874,7 @@ export function ElementInspectorPanel({
                   }
                   className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
+                </Field>
               </div>
             </div>
           </div>
@@ -1892,6 +1930,7 @@ export function ElementInspectorPanel({
                   {bp.sections.showcases.length > 1 && (
                     <button
                       type="button"
+                      aria-label="Remover vitrine"
                       onClick={() =>
                         onUpdateBp((prev) => ({
                           ...prev,
@@ -1908,6 +1947,7 @@ export function ElementInspectorPanel({
                   )}
                 </div>
                 <input
+                  aria-label="Título da vitrine"
                   type="text"
                   value={sc.title}
                   placeholder="Título da vitrine"
@@ -1925,6 +1965,7 @@ export function ElementInspectorPanel({
                   className="w-full rounded border border-zinc-200 bg-white px-2 py-1 font-medium text-zinc-900"
                 />
                 <input
+                  aria-label="Subtítulo da vitrine"
                   type="text"
                   value={sc.subtitle ?? ""}
                   placeholder="Subtítulo opcional"
@@ -1998,6 +2039,7 @@ export function ElementInspectorPanel({
                   className="flex items-center gap-2 rounded-lg border border-zinc-100 bg-zinc-50 px-2 py-1.5"
                 >
                   <input
+                    aria-label={`Exibir ${prod.title}`}
                     type="checkbox"
                     checked={prod.visible !== false}
                     onChange={(e) =>
@@ -2079,7 +2121,7 @@ export function ElementInspectorPanel({
           />
 
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">Modo do Banner</label>
+            <Field label="Modo do Banner" labelClassName="mb-1 block font-semibold text-zinc-700">
             <select
               value={bp.sections.secondaryBanner?.mode ?? "editorial"}
               onChange={(e) =>
@@ -2113,6 +2155,7 @@ export function ElementInspectorPanel({
               <option value="artwork">Arte Completa (Imagem Larga)</option>
               <option value="editorial">Editorial (Imagem + Texto + Botão)</option>
             </select>
+            </Field>
           </div>
 
           <AiImageSlot
@@ -2152,6 +2195,7 @@ export function ElementInspectorPanel({
           {(bp.sections.secondaryBanner?.mode ?? "editorial") === "editorial" && (
             <div className="space-y-2">
               <input
+                aria-label="Título da campanha"
                 type="text"
                 placeholder="Título da campanha"
                 value={bp.sections.secondaryBanner?.headline ?? ""}
@@ -2169,6 +2213,7 @@ export function ElementInspectorPanel({
                 className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
               <textarea
+                aria-label="Subtítulo da campanha"
                 rows={2}
                 placeholder="Subtítulo da campanha"
                 value={bp.sections.secondaryBanner?.subheadline ?? ""}
@@ -2186,6 +2231,7 @@ export function ElementInspectorPanel({
                 className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
               <input
+                aria-label="Texto do botão da campanha"
                 type="text"
                 placeholder="Texto do botão"
                 value={bp.sections.secondaryBanner?.ctaText ?? ""}
@@ -2247,7 +2293,7 @@ export function ElementInspectorPanel({
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-zinc-500">Etiqueta Superior</label>
+              <Field label="Etiqueta Superior" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="text"
                 value={bp.sections.lookbook?.eyebrow ?? "01 / Manifesto"}
@@ -2267,9 +2313,10 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
+              </Field>
             </div>
             <div>
-              <label className="mb-1 block text-zinc-500">Texto do Botão</label>
+              <Field label="Texto do Botão" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="text"
                 value={bp.sections.lookbook?.ctaText ?? bp.sections.hero.ctaText}
@@ -2290,11 +2337,12 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
+              </Field>
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-zinc-500">Título do Manifesto</label>
+            <Field label="Título do Manifesto" labelClassName="mb-1 block text-zinc-500">
             <input
               type="text"
               value={bp.sections.lookbook?.headline ?? bp.sections.promoStripText}
@@ -2315,10 +2363,11 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
 
           <div>
-            <label className="mb-1 block text-zinc-500">Narrativa da Marca</label>
+            <Field label="Narrativa da Marca" labelClassName="mb-1 block text-zinc-500">
             <textarea
               rows={3}
               value={bp.sections.lookbook?.description ?? bp.footer.aboutText}
@@ -2339,6 +2388,7 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
 
           <AiImageSlot
@@ -2400,7 +2450,7 @@ export function ElementInspectorPanel({
       {selection.targetId === "testimonials" && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">Título da Seção</label>
+            <Field label="Título da Seção" labelClassName="mb-1 block font-semibold text-zinc-700">
             <input
               type="text"
               value={bp.sections.testimonialsTitle}
@@ -2412,6 +2462,7 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
 
           <div className="flex items-center justify-between">
@@ -2452,6 +2503,7 @@ export function ElementInspectorPanel({
             >
               <div className="flex items-center justify-between gap-2">
                 <input
+                  aria-label="Nome do cliente"
                   type="text"
                   value={rev.author}
                   placeholder="Nome do cliente"
@@ -2485,6 +2537,7 @@ export function ElementInspectorPanel({
                         }))
                       }
                       className="p-0.5"
+                      aria-label={`${star} estrela(s)`}
                       title={`${star} estrela(s)`}
                     >
                       <Star
@@ -2500,6 +2553,7 @@ export function ElementInspectorPanel({
                 {bp.sections.testimonials.length > 1 && (
                   <button
                     type="button"
+                    aria-label="Remover depoimento"
                     onClick={() =>
                       onUpdateBp((prev) => ({
                         ...prev,
@@ -2516,6 +2570,7 @@ export function ElementInspectorPanel({
                 )}
               </div>
               <textarea
+                aria-label="Comentário do cliente"
                 rows={2}
                 value={rev.comment}
                 onChange={(e) =>
@@ -2540,7 +2595,7 @@ export function ElementInspectorPanel({
       {selection.targetId === "newsletter" && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block text-zinc-500">Título da Newsletter</label>
+            <Field label="Título da Newsletter" labelClassName="mb-1 block text-zinc-500">
             <input
               type="text"
               value={bp.sections.newsletter?.headline ?? `Receba novidades da ${bp.brand.name}`}
@@ -2555,9 +2610,10 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
           <div>
-            <label className="mb-1 block text-zinc-500">Subtítulo</label>
+            <Field label="Subtítulo" labelClassName="mb-1 block text-zinc-500">
             <input
               type="text"
               value={
@@ -2575,10 +2631,11 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-zinc-500">Placeholder do E-mail</label>
+              <Field label="Placeholder do E-mail" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="text"
                 value={bp.sections.newsletter?.placeholder ?? "Digite seu melhor e-mail"}
@@ -2593,9 +2650,10 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
+              </Field>
             </div>
             <div>
-              <label className="mb-1 block text-zinc-500">Texto do Botão</label>
+              <Field label="Texto do Botão" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="text"
                 value={bp.sections.newsletter?.ctaText ?? "Cadastrar"}
@@ -2610,6 +2668,7 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
+              </Field>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2.5">
@@ -2642,7 +2701,7 @@ export function ElementInspectorPanel({
       {selection.targetId === "footer" && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block text-zinc-500">Largura do Rodapé</label>
+            <Field label="Largura do Rodapé" labelClassName="mb-1 block text-zinc-500">
             <select
               value={bp.visualOverrides.footer.width}
               onChange={(e) =>
@@ -2662,6 +2721,7 @@ export function ElementInspectorPanel({
               <option value="container">Padrão do site (1280px)</option>
               <option value="full">Largura Total</option>
             </select>
+            </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
@@ -2695,7 +2755,7 @@ export function ElementInspectorPanel({
           </div>
 
           <div>
-            <label className="mb-1 block text-zinc-500">Sobre a Loja</label>
+            <Field label="Sobre a Loja" labelClassName="mb-1 block text-zinc-500">
             <textarea
               rows={3}
               value={bp.footer.aboutText}
@@ -2707,11 +2767,12 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
 
           <div className="space-y-2">
             <div>
-              <label className="mb-1 block text-zinc-500">WhatsApp de Atendimento</label>
+              <Field label="WhatsApp de Atendimento" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="text"
                 value={bp.footer.whatsapp ?? ""}
@@ -2724,9 +2785,10 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
+              </Field>
             </div>
             <div>
-              <label className="mb-1 block text-zinc-500">E-mail de Contato</label>
+              <Field label="E-mail de Contato" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="email"
                 value={bp.footer.email ?? ""}
@@ -2739,9 +2801,10 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
+              </Field>
             </div>
             <div>
-              <label className="mb-1 block text-zinc-500">URL do Instagram</label>
+              <Field label="URL do Instagram" labelClassName="mb-1 block text-zinc-500">
               <input
                 type="text"
                 value={bp.footer.instagram ?? ""}
@@ -2754,6 +2817,7 @@ export function ElementInspectorPanel({
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
+              </Field>
             </div>
           </div>
 
@@ -2771,9 +2835,7 @@ export function ElementInspectorPanel({
       {selection.targetId === "footer-legal" && (
         <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-zinc-700">
-              Texto de Direitos Autorais / CNPJ
-            </label>
+            <Field label="Texto de Direitos Autorais / CNPJ" labelClassName="mb-1 block font-semibold text-zinc-700">
             <textarea
               rows={2}
               value={bp.footer.legalText ?? ""}
@@ -2786,6 +2848,7 @@ export function ElementInspectorPanel({
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
+            </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
@@ -2825,9 +2888,7 @@ export function ElementInspectorPanel({
         <div className="space-y-3">
           <div className="space-y-2.5 rounded-xl border border-zinc-200 bg-white p-3">
             <div>
-              <label className="mb-1 block font-semibold text-zinc-700">
-                Orientação da Galeria de Fotos
-              </label>
+              <Field label="Orientação da Galeria de Fotos" labelClassName="mb-1 block font-semibold text-zinc-700">
               <select
                 value={bp.visualOverrides.pageProduct.galleryOrientation}
                 onChange={(e) =>
@@ -2847,6 +2908,7 @@ export function ElementInspectorPanel({
                 <option value="vertical">Vertical (Miniaturas à esquerda)</option>
                 <option value="horizontal">Horizontal (Miniaturas abaixo)</option>
               </select>
+              </Field>
             </div>
           </div>
 

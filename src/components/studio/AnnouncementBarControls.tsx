@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 import { ColorField } from "./ColorField";
+import { Field } from "@/components/ui/Field";
 
 interface AnnouncementBarControlsProps {
   bp: StoreBlueprint;
@@ -74,6 +75,7 @@ export function AnnouncementBarControls({
                 {idx + 1}
               </span>
               <input
+                aria-label={`Mensagem ${idx + 1}`}
                 type="text"
                 value={msg}
                 placeholder={`Mensagem ${idx + 1}...`}
@@ -93,6 +95,7 @@ export function AnnouncementBarControls({
                   next.splice(idx - 1, 0, moved);
                   commitMessages(next);
                 }}
+                aria-label="Subir mensagem"
                 title="Subir mensagem"
                 className="rounded p-1 text-zinc-400 hover:bg-white hover:text-zinc-700 disabled:opacity-30"
               >
@@ -108,6 +111,7 @@ export function AnnouncementBarControls({
                   next.splice(idx + 1, 0, moved);
                   commitMessages(next);
                 }}
+                aria-label="Descer mensagem"
                 title="Descer mensagem"
                 className="rounded p-1 text-zinc-400 hover:bg-white hover:text-zinc-700 disabled:opacity-30"
               >
@@ -120,6 +124,7 @@ export function AnnouncementBarControls({
                     const next = messages.filter((_, i) => i !== idx);
                     commitMessages(next);
                   }}
+                  aria-label="Remover mensagem"
                   title="Remover mensagem"
                   className="rounded p-1 text-zinc-400 hover:text-rose-600"
                 >
@@ -160,6 +165,7 @@ export function AnnouncementBarControls({
                 <strong className="font-mono text-zinc-900">{intervalSeconds}s</strong>
               </div>
               <input
+                aria-label="Tempo de rolagem (segundos)"
                 type="range"
                 min={1}
                 max={15}
@@ -183,7 +189,7 @@ export function AnnouncementBarControls({
             </div>
 
             <div>
-              <label className="mb-1 block text-zinc-600">Estilo de Rolagem</label>
+              <Field label="Estilo de Rolagem" labelClassName="mb-1 block text-zinc-600">
               <select
                 value={transitionMode}
                 onChange={(e) =>
@@ -208,6 +214,7 @@ export function AnnouncementBarControls({
                 <option value="slide-horizontal">Deslizar Lateral</option>
                 <option value="fade">Transição Suave</option>
               </select>
+              </Field>
             </div>
           </div>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import { RotateCcw } from "lucide-react";
+import { Field } from "@/components/ui/Field";
 
 interface BannerDimensionsControlProps {
   title?: string;
@@ -68,6 +69,7 @@ export function BannerDimensionsControl({
           <span className="text-zinc-600">Altura (px)</span>
           <div className="flex items-center gap-1">
             <input
+              aria-label="Altura (px)"
               type="number"
               min={minHeightPx}
               max={maxHeightPx}
@@ -91,6 +93,7 @@ export function BannerDimensionsControl({
           </div>
         </div>
         <input
+          aria-label="Altura (px), controle deslizante"
           type="range"
           min={minHeightPx}
           max={maxHeightPx}
@@ -124,6 +127,7 @@ export function BannerDimensionsControl({
             {!fullWidthActive && (
               <div className="flex items-center gap-1">
                 <input
+                  aria-label="Largura (px)"
                   type="number"
                   min={minWidthPx}
                   max={maxWidthPx}
@@ -143,6 +147,7 @@ export function BannerDimensionsControl({
           </div>
           {!fullWidthActive && (
             <input
+              aria-label="Largura (px), controle deslizante"
               type="range"
               min={minWidthPx}
               max={maxWidthPx}
@@ -158,7 +163,7 @@ export function BannerDimensionsControl({
       {/* Enquadramento */}
       {onObjectFitChange && (
         <div>
-          <label className="mb-1 block text-zinc-600">Enquadramento da Imagem</label>
+          <Field label="Enquadramento da Imagem" labelClassName="mb-1 block text-zinc-600">
           <select
             value={objectFit ?? "cover"}
             onChange={(e) =>
@@ -170,6 +175,7 @@ export function BannerDimensionsControl({
             <option value="contain">Mostrar inteira sem corte (Contain)</option>
             <option value="fill">Ajustar exato aos pixels (Fill)</option>
           </select>
+          </Field>
         </div>
       )}
     </div>
