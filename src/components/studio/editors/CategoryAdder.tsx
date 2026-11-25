@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
+import { randomId } from "@/lib/client/randomId";
 
 /** Acrescenta uma categoria ao menu (href âncora única). */
 export const addCategory =
@@ -10,7 +11,7 @@ export const addCategory =
     ...prev,
     sections: {
       ...prev.sections,
-      categories: [...prev.sections.categories, { label, href: `#cat-${crypto.randomUUID()}` }],
+      categories: [...prev.sections.categories, { label, href: `#cat-${randomId()}` }],
     },
   });
 
