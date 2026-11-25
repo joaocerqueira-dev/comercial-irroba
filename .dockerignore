@@ -1,0 +1,14 @@
+node_modules
+.next
+.env*
+!.env.example
+prisma/dev.db*
+public/captures/*
+!public/captures/.gitkeep
+.git
+.github
+.claude
+coverage
+tsconfig.tsbuildinfo
+*.db
+*.db-journal
