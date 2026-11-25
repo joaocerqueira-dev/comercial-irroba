@@ -242,3 +242,21 @@ Pré-requisito: os snapshots golden e o E2E verdes servem de rede de segurança.
 
 ## F. Ordem de início sugerida
 Começar a fase 0 e a fase 3 em paralelo: a infra não conflita com o editor. Depois seguir 1 → 2 → 4 → 5 → 6 → 7, com a 8 ao final.
+
+## G. Débito de dependências (após a fase 5)
+Estado em 25/11/2026, depois de `npm audit fix` (sem `--force`) e da migração do `@google/genai` de 0.14.1 para 3.6.1.
+
+- `npm audit --omit=dev`: de 10 (3 moderadas, 7 altas) para 3 (1 moderada, 2 altas).
+- `npm audit` completo: de 13 (4 moderadas, 7 altas, 2 críticas) para 6 (2 moderadas, 2 altas, 2 críticas).
+- `prisma`/`@prisma/client` ficam em 6.19.3. O `npm audit fix` tentava rebaixar o CLI para 6.12.0 (fora de par com o client). Em vez disso, `overrides` no `package.json` sobem `effect` (3.22.5) e `deepmerge-ts` (8.0.2) só dentro do `@prisma/config`. O estágio `prisma-cli` do Dockerfile reaplica esses overrides. Ao migrar para o Prisma 7, remover os overrides.
+
+Vulnerabilidades remanescentes, todas resolvíveis só com major:
+
+| Pacote | Severidade | Origem | Resolve com |
+| --- | --- | --- | --- |
+| `zod` 3.25 | alta | dependência direta (`<4.6.6`, GHSA-mrhx-c7xc-m3w5) | zod 4 |
+| `postcss` 8.4.31 | alta | aninhado no `next` 15 (o `postcss` do projeto já está em 8.5.33) | Next 16 |
+| `next` 15.5 | moderada | herda o `postcss` aninhado | Next 16 |
+| `vitest`, `tinypool`, `@vitest/mocker` | 2 críticas, 1 moderada | só dev/teste | vitest 4+ (atual 5) |
+
+Majors pendentes, cada um em PR próprio: Next 16 (+ `eslint-config-next` 16), zod 4, vitest 5, Prisma 7, Tailwind 4, lucide-react 1.x, eslint 10, undici 8, jsdom 31, TypeScript 7, `@types/node` acima de 22 (acompanhar o Node 22 da imagem do Playwright).
