@@ -35,6 +35,7 @@ import {
   mapBorderRadius,
 } from "@/lib/layout-patterns";
 import {
+  sanitizeBlueprintImageUrls,
   StoreBlueprintSchema,
   type DesignInsight,
   type ExtractedStoreData,
@@ -527,7 +528,8 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     (slimExtracted ? 1 : 0) + (secondaryExtracted ? 1 : 0)
   );
 
-  return {
+  // Dados da extração podem trazer imagem que o schema rejeita (data:, URL longa)
+  return sanitizeBlueprintImageUrls<StoreBlueprint>({
     brand: {
       name: extracted.storeName,
       logoUrl: extracted.logoUrl || extracted.faviconUrl || "",
@@ -635,7 +637,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
       email: extracted.contacts.email,
     },
     designInsights,
-  };
+  });
 }
 
 export interface ArchitectResult {

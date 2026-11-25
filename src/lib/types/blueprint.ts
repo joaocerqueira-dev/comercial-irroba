@@ -14,6 +14,40 @@ export const BlueprintImageUrlSchema = z
   .max(MAX_IMAGE_URL_LENGTH, "URL de imagem longa demais")
   .refine((v) => !/^\s*data:/i.test(v), "Imagens embutidas (data:) não são aceitas; use o upload.");
 
+export function isValidBlueprintImageUrl(value: unknown): value is string {
+  return BlueprintImageUrlSchema.safeParse(value).success;
+}
+
+/** Campos de imagem do blueprint: logoUrl e qualquer chave terminada em imageUrl. */
+const IMAGE_URL_KEY = /^logoUrl$|imageUrl$/i;
+/** Listas de imagens do blueprint (products[].images, benefitsBanner.siteImageUrls). */
+const IMAGE_LIST_KEY = /^images$|imageUrls$/i;
+
+/**
+ * Troca por "" as URLs de imagem que o BlueprintImageUrlSchema rejeitaria (data:, longas)
+ * e tira as inválidas das listas de imagens. Serve para dados vindos da página da loja e
+ * para blueprints antigos já gravados: uma imagem ruim não invalida o preview inteiro.
+ * Não muda nada além dos campos de imagem; devolve uma cópia.
+ */
+export function sanitizeBlueprintImageUrls<T>(value: T): T {
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!node || typeof node !== "object") return node;
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+      if (IMAGE_URL_KEY.test(key) && typeof child === "string") {
+        out[key] = isValidBlueprintImageUrl(child) ? child : "";
+      } else if (IMAGE_LIST_KEY.test(key) && Array.isArray(child)) {
+        out[key] = child.filter((item) => typeof item !== "string" || isValidBlueprintImageUrl(item));
+      } else {
+        out[key] = walk(child);
+      }
+    }
+    return out;
+  };
+  return walk(value) as T;
+}
+
 export const ExtractedProductSchema = z.object({
   id: z.string().max(5000),
   title: z.string().max(5000),

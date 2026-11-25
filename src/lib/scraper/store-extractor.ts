@@ -94,6 +94,30 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
   }
 }
 
+/**
+ * Passa todas as URLs de imagem da extração por resolveAssetUrl: o DOM ao vivo
+ * (img.currentSrc / img.src) entrega data:, blob: e URLs gigantes que o blueprint
+ * rejeitaria. Logo/favicon inválidos somem, banners inválidos saem da lista e
+ * imagens de produto inválidas viram "". Exportada para testes.
+ */
+export function normalizeExtractedImageUrls(store: ExtractedStoreData, baseUrl: string): void {
+  store.logoUrl = resolveAssetUrl(store.logoUrl, baseUrl);
+  store.faviconUrl = resolveAssetUrl(store.faviconUrl, baseUrl);
+  store.banners = store.banners.flatMap((b) => {
+    const imageUrl = resolveAssetUrl(b.imageUrl, baseUrl);
+    return imageUrl ? [{ ...b, imageUrl }] : [];
+  });
+  store.categories = store.categories.map((c) => ({ ...c, imageUrl: resolveAssetUrl(c.imageUrl, baseUrl) }));
+  store.products = store.products.map((p) => ({
+    ...p,
+    imageUrl: resolveAssetUrl(p.imageUrl, baseUrl) ?? "",
+    images: p.images.flatMap((img) => {
+      const resolved = resolveAssetUrl(img, baseUrl);
+      return resolved ? [resolved] : [];
+    }),
+  }));
+}
+
 function extractProductsFromJsonLd($: cheerio.CheerioAPI, baseUrl: string): ExtractedProduct[] {
   const products: ExtractedProduct[] = [];
   const seen = new Set<string>();
@@ -1111,6 +1135,7 @@ export async function extractStoreFromUrl(
     };
 
     await enrichProductsByCategory(parsed, normalizedUrl);
+    normalizeExtractedImageUrls(parsed, normalizedUrl);
     await mirrorCriticalImages(parsed, normalizedUrl, capturesDir, slug, page.request, (done, total) =>
       report({
         step: "images",
@@ -1130,6 +1155,7 @@ export async function extractStoreFromUrl(
       }
       await enrichProductsByCategory(fallback, normalizedUrl);
       report({ step: "fallback", message: "Navegador falhou; usando leitura rápida do HTML...", fraction: 0.5 });
+      normalizeExtractedImageUrls(fallback, normalizedUrl);
       await mirrorCriticalImages(fallback, normalizedUrl, capturesDir, slug);
       return fallback;
     }

@@ -6,7 +6,7 @@ import {
   LEGACY_ID_PREFIX_LENGTH,
   legacyMirrorPrefix,
 } from "@/lib/files/captures";
-import { StoreBlueprintSchema, type StoreBlueprint } from "@/lib/types/blueprint";
+import { sanitizeBlueprintImageUrls, StoreBlueprintSchema, type StoreBlueprint } from "@/lib/types/blueprint";
 
 type PreviewRow = NonNullable<Awaited<ReturnType<typeof prisma.storePreview.findUnique>>>;
 
@@ -17,13 +17,26 @@ export type PreviewWithBlueprint =
   | { status: "not_found" }
   | { status: "invalid"; preview: PreviewRow };
 
+/**
+ * Valida um blueprint lido do banco. Previews antigos podem ter imagens que o schema
+ * passou a rejeitar (data:, URL longa): nesse caso as imagens ruins são limpas e o resto
+ * do blueprint é aproveitado. A escrita (PATCH) continua estrita; o Studio recebe e
+ * reenvia esta versão já saneada.
+ */
+export function parseStoredBlueprint(raw: unknown): StoreBlueprint | null {
+  const strict = StoreBlueprintSchema.safeParse(raw);
+  if (strict.success) return strict.data;
+  const lenient = StoreBlueprintSchema.safeParse(sanitizeBlueprintImageUrls(raw));
+  return lenient.success ? lenient.data : null;
+}
+
 /** Busca um preview e valida o blueprint com zod. */
 export async function getPreviewWithBlueprint(where: PreviewLookup): Promise<PreviewWithBlueprint> {
   const preview = await prisma.storePreview.findUnique({ where });
   if (!preview || !preview.blueprint) return { status: "not_found" };
-  const parsed = StoreBlueprintSchema.safeParse(preview.blueprint);
-  if (!parsed.success) return { status: "invalid", preview };
-  return { status: "ok", preview, blueprint: parsed.data };
+  const blueprint = parseStoredBlueprint(preview.blueprint);
+  if (!blueprint) return { status: "invalid", preview };
+  return { status: "ok", preview, blueprint };
 }
 
 /** Caminho público do screenshot de página inteira (com fallback para previews antigos). */
