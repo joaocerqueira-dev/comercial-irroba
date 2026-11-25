@@ -5,6 +5,7 @@ import { BannerDimensionsControl } from "../BannerDimensionsControl";
 import { ColorField } from "../ColorField";
 import { PALETTE } from "@/lib/layout-patterns/palette";
 import { Field } from "@/components/ui/Field";
+import { patchSlimBanner } from "../editors/bannerUpdaters";
 import type { InspectorTargetProps } from "./types";
 
 /** Banner slim promocional. */
@@ -21,39 +22,15 @@ export function SlimBannerInspector({ previewId, bp, onUpdateBp }: InspectorTarg
         defaultWidthPx={1280}
         objectFit={bp.sections.slimBanner?.objectFit}
         onHeightChange={(h) =>
-          onUpdateBp((prev) => ({
-            ...prev,
-            sections: {
-              ...prev.sections,
-              slimBanner: prev.sections.slimBanner
-                ? { ...prev.sections.slimBanner, heightPx: h }
-                : undefined,
-            },
-          }))
+          onUpdateBp(patchSlimBanner({ heightPx: h }))
         }
         onWidthChange={(w) =>
-          onUpdateBp((prev) => ({
-            ...prev,
-            sections: {
-              ...prev.sections,
-              slimBanner: prev.sections.slimBanner
-                ? { ...prev.sections.slimBanner, widthPx: w }
-                : undefined,
-            },
-          }))
+          onUpdateBp(patchSlimBanner({ widthPx: w }))
         }
         onObjectFitChange={
           bp.sections.slimBanner?.mode === "image"
             ? (fit) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    slimBanner: prev.sections.slimBanner
-                      ? { ...prev.sections.slimBanner, objectFit: fit }
-                      : undefined,
-                  },
-                }))
+                onUpdateBp(patchSlimBanner({ objectFit: fit }))
             : undefined
         }
       />
@@ -101,15 +78,7 @@ export function SlimBannerInspector({ previewId, bp, onUpdateBp }: InspectorTarg
           defaultAspectRatio="21:9"
           minRecommendedWidth={1000}
           onChange={(nextUrl) =>
-            onUpdateBp((prev) => ({
-              ...prev,
-              sections: {
-                ...prev.sections,
-                slimBanner: prev.sections.slimBanner
-                  ? { ...prev.sections.slimBanner, imageUrl: nextUrl }
-                  : undefined,
-              },
-            }))
+            onUpdateBp(patchSlimBanner({ imageUrl: nextUrl }))
           }
         />
       ) : (
@@ -121,15 +90,7 @@ export function SlimBannerInspector({ previewId, bp, onUpdateBp }: InspectorTarg
                 type="text"
                 value={bp.sections.slimBanner?.badgeText ?? "DESTAQUE"}
                 onChange={(e) =>
-                  onUpdateBp((prev) => ({
-                    ...prev,
-                    sections: {
-                      ...prev.sections,
-                      slimBanner: prev.sections.slimBanner
-                        ? { ...prev.sections.slimBanner, badgeText: e.target.value }
-                        : undefined,
-                    },
-                  }))
+                  onUpdateBp(patchSlimBanner({ badgeText: e.target.value }))
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2 py-1"
               />
@@ -141,15 +102,7 @@ export function SlimBannerInspector({ previewId, bp, onUpdateBp }: InspectorTarg
                 type="text"
                 value={bp.sections.slimBanner?.ctaText ?? "Aproveitar"}
                 onChange={(e) =>
-                  onUpdateBp((prev) => ({
-                    ...prev,
-                    sections: {
-                      ...prev.sections,
-                      slimBanner: prev.sections.slimBanner
-                        ? { ...prev.sections.slimBanner, ctaText: e.target.value }
-                        : undefined,
-                    },
-                  }))
+                  onUpdateBp(patchSlimBanner({ ctaText: e.target.value }))
                 }
                 className="w-full rounded-lg border border-zinc-200 px-2 py-1"
               />
@@ -162,15 +115,7 @@ export function SlimBannerInspector({ previewId, bp, onUpdateBp }: InspectorTarg
               type="text"
               value={bp.sections.slimBanner?.headline ?? ""}
               onChange={(e) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    slimBanner: prev.sections.slimBanner
-                      ? { ...prev.sections.slimBanner, headline: e.target.value }
-                      : undefined,
-                  },
-                }))
+                onUpdateBp(patchSlimBanner({ headline: e.target.value }))
               }
               className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
@@ -181,15 +126,7 @@ export function SlimBannerInspector({ previewId, bp, onUpdateBp }: InspectorTarg
               label="Fundo"
               value={bp.sections.slimBanner?.backgroundColor ?? PALETTE.ink}
               onChange={(v) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    slimBanner: prev.sections.slimBanner
-                      ? { ...prev.sections.slimBanner, backgroundColor: v }
-                      : undefined,
-                  },
-                }))
+                onUpdateBp(patchSlimBanner({ backgroundColor: v }))
               }
             />
             <ColorField
@@ -197,15 +134,7 @@ export function SlimBannerInspector({ previewId, bp, onUpdateBp }: InspectorTarg
               value={bp.sections.slimBanner?.textColor ?? PALETTE.white}
               contrastWith={bp.sections.slimBanner?.backgroundColor ?? PALETTE.ink}
               onChange={(v) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    slimBanner: prev.sections.slimBanner
-                      ? { ...prev.sections.slimBanner, textColor: v }
-                      : undefined,
-                  },
-                }))
+                onUpdateBp(patchSlimBanner({ textColor: v }))
               }
             />
           </div>

@@ -4,6 +4,7 @@ import { Plus } from "lucide-react";
 import { AiImageSlot } from "../AiImageSlot";
 import { BannerDimensionsControl } from "../BannerDimensionsControl";
 import { Field } from "@/components/ui/Field";
+import { patchMoodBanner } from "../editors/bannerUpdaters";
 import type { InspectorTargetProps } from "./types";
 
 /** Galeria editorial (mood banners 3:4). */
@@ -86,15 +87,7 @@ export function EditorialGalleryInspector({ previewId, bp, selection, onUpdateBp
               type="checkbox"
               checked={m.enabled}
               onChange={(e) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    moodBanners: prev.sections.moodBanners.map((item, i) =>
-                      i === idx ? { ...item, enabled: e.target.checked } : item
-                    ),
-                  },
-                }))
+                onUpdateBp(patchMoodBanner(idx, { enabled: e.target.checked }))
               }
             />
           </label>
@@ -105,15 +98,7 @@ export function EditorialGalleryInspector({ previewId, bp, selection, onUpdateBp
               value={m.title}
               placeholder="Título da coleção"
               onChange={(e) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    moodBanners: prev.sections.moodBanners.map((item, i) =>
-                      i === idx ? { ...item, title: e.target.value } : item
-                    ),
-                  },
-                }))
+                onUpdateBp(patchMoodBanner(idx, { title: e.target.value }))
               }
               className="rounded border border-zinc-200 bg-white px-2 py-1"
             />
@@ -123,15 +108,7 @@ export function EditorialGalleryInspector({ previewId, bp, selection, onUpdateBp
               value={m.subtitle}
               placeholder="Selo (ex: Curadoria)"
               onChange={(e) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    moodBanners: prev.sections.moodBanners.map((item, i) =>
-                      i === idx ? { ...item, subtitle: e.target.value } : item
-                    ),
-                  },
-                }))
+                onUpdateBp(patchMoodBanner(idx, { subtitle: e.target.value }))
               }
               className="rounded border border-zinc-200 bg-white px-2 py-1"
             />
@@ -143,15 +120,7 @@ export function EditorialGalleryInspector({ previewId, bp, selection, onUpdateBp
             defaultAspectRatio="3:4"
             minRecommendedWidth={500}
             onChange={(nextUrl) =>
-              onUpdateBp((prev) => ({
-                ...prev,
-                sections: {
-                  ...prev.sections,
-                  moodBanners: prev.sections.moodBanners.map((item, i) =>
-                    i === idx ? { ...item, imageUrl: nextUrl } : item
-                  ),
-                },
-              }))
+              onUpdateBp(patchMoodBanner(idx, { imageUrl: nextUrl }))
             }
           />
         </div>

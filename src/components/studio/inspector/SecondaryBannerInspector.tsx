@@ -4,6 +4,7 @@ import { AiImageSlot } from "../AiImageSlot";
 import { BannerDimensionsControl } from "../BannerDimensionsControl";
 import { ColorField } from "../ColorField";
 import { Field } from "@/components/ui/Field";
+import { patchSecondaryBanner } from "../editors/bannerUpdaters";
 import type { InspectorTargetProps } from "./types";
 
 /** Banner secundário de campanha. */
@@ -20,37 +21,13 @@ export function SecondaryBannerInspector({ previewId, bp, onUpdateBp }: Inspecto
         defaultWidthPx={1280}
         objectFit={bp.sections.secondaryBanner?.objectFit}
         onHeightChange={(h) =>
-          onUpdateBp((prev) => ({
-            ...prev,
-            sections: {
-              ...prev.sections,
-              secondaryBanner: prev.sections.secondaryBanner
-                ? { ...prev.sections.secondaryBanner, heightPx: h }
-                : undefined,
-            },
-          }))
+          onUpdateBp(patchSecondaryBanner({ heightPx: h }))
         }
         onWidthChange={(w) =>
-          onUpdateBp((prev) => ({
-            ...prev,
-            sections: {
-              ...prev.sections,
-              secondaryBanner: prev.sections.secondaryBanner
-                ? { ...prev.sections.secondaryBanner, widthPx: w }
-                : undefined,
-            },
-          }))
+          onUpdateBp(patchSecondaryBanner({ widthPx: w }))
         }
         onObjectFitChange={(fit) =>
-          onUpdateBp((prev) => ({
-            ...prev,
-            sections: {
-              ...prev.sections,
-              secondaryBanner: prev.sections.secondaryBanner
-                ? { ...prev.sections.secondaryBanner, objectFit: fit }
-                : undefined,
-            },
-          }))
+          onUpdateBp(patchSecondaryBanner({ objectFit: fit }))
         }
       />
 
@@ -134,15 +111,7 @@ export function SecondaryBannerInspector({ previewId, bp, onUpdateBp }: Inspecto
             placeholder="Título da campanha"
             value={bp.sections.secondaryBanner?.headline ?? ""}
             onChange={(e) =>
-              onUpdateBp((prev) => ({
-                ...prev,
-                sections: {
-                  ...prev.sections,
-                  secondaryBanner: prev.sections.secondaryBanner
-                    ? { ...prev.sections.secondaryBanner, headline: e.target.value }
-                    : undefined,
-                },
-              }))
+              onUpdateBp(patchSecondaryBanner({ headline: e.target.value }))
             }
             className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
           />
@@ -152,15 +121,7 @@ export function SecondaryBannerInspector({ previewId, bp, onUpdateBp }: Inspecto
             placeholder="Subtítulo da campanha"
             value={bp.sections.secondaryBanner?.subheadline ?? ""}
             onChange={(e) =>
-              onUpdateBp((prev) => ({
-                ...prev,
-                sections: {
-                  ...prev.sections,
-                  secondaryBanner: prev.sections.secondaryBanner
-                    ? { ...prev.sections.secondaryBanner, subheadline: e.target.value }
-                    : undefined,
-                },
-              }))
+              onUpdateBp(patchSecondaryBanner({ subheadline: e.target.value }))
             }
             className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
           />
@@ -170,15 +131,7 @@ export function SecondaryBannerInspector({ previewId, bp, onUpdateBp }: Inspecto
             placeholder="Texto do botão"
             value={bp.sections.secondaryBanner?.ctaText ?? ""}
             onChange={(e) =>
-              onUpdateBp((prev) => ({
-                ...prev,
-                sections: {
-                  ...prev.sections,
-                  secondaryBanner: prev.sections.secondaryBanner
-                    ? { ...prev.sections.secondaryBanner, ctaText: e.target.value }
-                    : undefined,
-                },
-              }))
+              onUpdateBp(patchSecondaryBanner({ ctaText: e.target.value }))
             }
             className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
           />
@@ -187,15 +140,7 @@ export function SecondaryBannerInspector({ previewId, bp, onUpdateBp }: Inspecto
               label="Fundo do Bloco"
               value={bp.sections.secondaryBanner?.backgroundColor ?? bp.theme.secondaryBackground}
               onChange={(v) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    secondaryBanner: prev.sections.secondaryBanner
-                      ? { ...prev.sections.secondaryBanner, backgroundColor: v }
-                      : undefined,
-                  },
-                }))
+                onUpdateBp(patchSecondaryBanner({ backgroundColor: v }))
               }
             />
             <ColorField
@@ -205,15 +150,7 @@ export function SecondaryBannerInspector({ previewId, bp, onUpdateBp }: Inspecto
                 bp.sections.secondaryBanner?.backgroundColor ?? bp.theme.secondaryBackground
               }
               onChange={(v) =>
-                onUpdateBp((prev) => ({
-                  ...prev,
-                  sections: {
-                    ...prev.sections,
-                    secondaryBanner: prev.sections.secondaryBanner
-                      ? { ...prev.sections.secondaryBanner, textColor: v }
-                      : undefined,
-                  },
-                }))
+                onUpdateBp(patchSecondaryBanner({ textColor: v }))
               }
             />
           </div>

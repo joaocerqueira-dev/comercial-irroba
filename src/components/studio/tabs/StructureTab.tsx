@@ -1,21 +1,19 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Pencil, RotateCcw } from "lucide-react";
 import { AiImageSlot } from "@/components/studio/AiImageSlot";
 import { AnnouncementBarControls } from "@/components/studio/AnnouncementBarControls";
 import { FONT_OPTIONS } from "@/components/studio/fontOptions";
-import { HeaderLinksHoverControls } from "@/components/studio/HeaderLinksHoverControls";
 import { Field } from "@/components/ui/Field";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 import type { StudioState } from "@/components/studio/useStudioState";
+import { CategoryMenuPanel } from "./CategoryMenuPanel";
 
 /** Aba Seções: topo/rodapé, ordem das seções, lookbook, aviso, categorias e vitrines. */
 export function StructureTab({ studio }: { studio: StudioState }) {
   const {
     id,
     bp,
-    newCategoryName,
-    setNewCategoryName,
     dragSectionIdx,
     setDragSectionIdx,
     dragOverIdx,
@@ -509,81 +507,7 @@ export function StructureTab({ studio }: { studio: StudioState }) {
       </div>
 
       {/* Menu de Categorias */}
-      <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
-        <div className="font-bold text-zinc-800">Categorias &amp; Links da Navbar</div>
-        <HeaderLinksHoverControls bp={bp} onUpdateBp={updateBp} />
-        <div className="flex gap-1.5">
-          <input
-            aria-label="Nova categoria do menu"
-            type="text"
-            placeholder="Nova categoria..."
-            value={newCategoryName}
-            onChange={(e) => setNewCategoryName(e.target.value)}
-            className="flex-1 rounded-lg border border-zinc-200 px-2.5 py-1"
-          />
-          <button
-            type="button"
-            aria-label="Adicionar categoria"
-            onClick={() => {
-              const label = newCategoryName.trim();
-              if (!label) return;
-              updateBp((prev) => ({
-                ...prev,
-                sections: {
-                  ...prev.sections,
-                  categories: [
-                    ...prev.sections.categories,
-                    { label, href: `#cat-${crypto.randomUUID()}` },
-                  ],
-                },
-              }));
-              setNewCategoryName("");
-            }}
-            className="rounded-lg bg-irroba-ink px-2.5 py-1 font-semibold text-white"
-          >
-            +
-          </button>
-        </div>
-        <div className="space-y-1.5">
-          {bp.sections.categories.map((cat, idx) => (
-            <div key={idx} className="flex items-center gap-1.5">
-              <input
-                aria-label={`Categoria ${idx + 1}`}
-                type="text"
-                value={cat.label}
-                onChange={(e) =>
-                  updateBp((prev) => ({
-                    ...prev,
-                    sections: {
-                      ...prev.sections,
-                      categories: prev.sections.categories.map((c, i) =>
-                        i === idx ? { ...c, label: e.target.value } : c
-                      ),
-                    },
-                  }))
-                }
-                className="flex-1 rounded border border-zinc-200 px-2 py-1"
-              />
-              <button
-                type="button"
-                aria-label={`Remover categoria ${idx + 1}`}
-                onClick={() =>
-                  updateBp((prev) => ({
-                    ...prev,
-                    sections: {
-                      ...prev.sections,
-                      categories: prev.sections.categories.filter((_, i) => i !== idx),
-                    },
-                  }))
-                }
-                className="p-1 text-zinc-400 hover:text-rose-600"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
+      <CategoryMenuPanel studio={studio} />
 
       {/* Vitrines & Produtos */}
       <div className="space-y-2 rounded-xl border border-zinc-200 p-3">
