@@ -24,9 +24,12 @@ RUN npx prisma generate && npx next build
 # ---------- prisma-cli: CLI do Prisma isolado (com dependências) para o db push no boot ----------
 FROM ${PLAYWRIGHT_IMAGE} AS prisma-cli
 WORKDIR /opt/prisma-cli
+COPY package.json /tmp/package.json
 COPY package-lock.json /tmp/package-lock.json
+# Reaplica os "overrides" do package.json do app (ex.: effect/deepmerge-ts do @prisma/config).
 RUN PRISMA_VERSION="$(node -p "require('/tmp/package-lock.json').packages['node_modules/prisma'].version")" \
  && npm init -y >/dev/null \
+ && node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.overrides=require('/tmp/package.json').overrides||{};fs.writeFileSync('package.json',JSON.stringify(p,null,2))" \
  && npm install --omit=dev --no-audit --no-fund "prisma@${PRISMA_VERSION}"
 
 # ---------- runner: imagem final enxuta ----------
