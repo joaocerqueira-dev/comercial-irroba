@@ -747,20 +747,20 @@ function buildStudioInspectorSnippet(): string {
     }
     #irb-studio-hover-box {
       z-index: 9998;
-      border: 2px solid #059669;
-      background: rgba(16, 185, 129, 0.055);
+      border: 2px solid #EA191F;
+      background: rgba(234, 25, 31, 0.055);
       box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75) inset;
     }
     #irb-studio-active-box {
       z-index: 9996;
-      border: 2px dashed #4f46e5;
-      background: rgba(79, 70, 229, 0.025);
+      border: 2px dashed #980101;
+      background: rgba(152, 1, 1, 0.03);
     }
     #irb-studio-hover-badge,
     #irb-studio-active-badge {
       position: fixed;
       pointer-events: none;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: "Montserrat", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: none;
       align-items: center;
       gap: 6px;
@@ -768,26 +768,26 @@ function buildStudioInspectorSnippet(): string {
       max-width: calc(100vw - 16px);
       overflow: hidden;
       text-overflow: ellipsis;
-      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.24);
+      box-shadow: 0 6px 18px rgba(31, 31, 35, 0.24);
     }
     #irb-studio-hover-badge {
       z-index: 10000;
-      background: #059669;
+      background: #EA191F;
       color: #ffffff;
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.01em;
       padding: 4px 10px;
-      border-radius: 6px;
+      border-radius: 8px;
     }
     #irb-studio-active-badge {
       z-index: 9997;
-      background: #4f46e5;
+      background: #980101;
       color: #ffffff;
       font-size: 10px;
       font-weight: 700;
       padding: 2px 8px;
-      border-radius: 5px;
+      border-radius: 6px;
     }
   </style>
   <div id="irb-studio-active-box" data-irb-inspector-ui="1"></div>

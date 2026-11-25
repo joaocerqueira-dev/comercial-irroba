@@ -97,7 +97,7 @@ export function BannerDimensionsControl({
           step={10}
           value={effectiveHeight}
           onChange={(e) => onHeightChange(Number(e.target.value))}
-          className="w-full accent-emerald-600"
+          className="w-full accent-brand-500"
         />
       </div>
 
@@ -149,7 +149,7 @@ export function BannerDimensionsControl({
               step={20}
               value={effectiveWidth}
               onChange={(e) => onWidthChange(Number(e.target.value))}
-              className="w-full accent-emerald-600"
+              className="w-full accent-brand-500"
             />
           )}
         </div>
