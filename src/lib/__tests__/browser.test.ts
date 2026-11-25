@@ -66,3 +66,31 @@ describe("getSharedBrowser", () => {
     expect(await getSharedBrowser()).toBe(b);
   });
 });
+
+describe("checkChromiumAtBoot", () => {
+  it("não roda em NODE_ENV=test", async () => {
+    const { checkChromiumAtBoot } = await import("@/lib/scraper/browser");
+    expect(await checkChromiumAtBoot({ NODE_ENV: "test" })).toBeNull();
+    expect(pw.launch).not.toHaveBeenCalled();
+  });
+
+  it("abre e fecha o Chromium com o sandbox ligado", async () => {
+    const close = vi.fn(async () => undefined);
+    pw.launch.mockResolvedValue({ close });
+    const { checkChromiumAtBoot } = await import("@/lib/scraper/browser");
+    expect(await checkChromiumAtBoot({ NODE_ENV: "production" })).toBe(true);
+    expect(pw.launch).toHaveBeenCalledWith(expect.objectContaining({ chromiumSandbox: true }));
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("falha vira log com a solução, sem lançar", async () => {
+    pw.launch.mockRejectedValue(new Error("No usable sandbox!"));
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { checkChromiumAtBoot } = await import("@/lib/scraper/browser");
+    await expect(checkChromiumAtBoot({ NODE_ENV: "production" })).resolves.toBe(false);
+    const logged = err.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("No usable sandbox!");
+    expect(logged).toContain("seccomp-chromium.json");
+    err.mockRestore();
+  });
+});

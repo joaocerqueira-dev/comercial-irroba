@@ -55,3 +55,30 @@ export async function getSharedBrowser(): Promise<Browser> {
   }
   return launchShared();
 }
+
+/**
+ * Checagem de boot: lança o Chromium uma vez (com as mesmas opções da extração) e fecha.
+ * Nunca lança exceção nem derruba o servidor; só deixa no log, logo na subida, o motivo e
+ * a solução quando o Chromium não abre (antes o erro só aparecia na primeira geração).
+ * Retorna true se abriu. Não roda em NODE_ENV=test.
+ */
+export async function checkChromiumAtBoot(
+  env: Record<string, string | undefined> = process.env
+): Promise<boolean | null> {
+  if (env.NODE_ENV === "test") return null;
+  try {
+    const browser = await chromium.launch(chromiumLaunchOptions(env));
+    await browser.close().catch(() => undefined);
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    console.error(
+      `[boot] O Chromium não abriu: ${message}\n` +
+        "[boot] A extração de lojas vai falhar até isso ser resolvido. No Docker: rode como pwuser, " +
+        "aplique o perfil seccomp do Playwright (security_opt: seccomp=./docker/seccomp-chromium.json " +
+        "no docker-compose.yml) e confira shm_size. Fora do Docker: npx playwright install --with-deps chromium. " +
+        "Último recurso: PLAYWRIGHT_NO_SANDBOX=1. Detalhes em docs/deploy.md (Troubleshooting: sandbox do Chromium)."
+    );
+    return false;
+  }
+}

@@ -14,6 +14,10 @@ services:
       - app-captures:/app/public/captures
     init: true
     shm_size: 1gb
+    # Perfil seccomp do Playwright (padrão do Docker + clone/setns/unshare): o sandbox do
+    # Chromium como pwuser precisa dessas syscalls. Origem e atualização: docs/deploy.md.
+    security_opt:
+      - seccomp=./docker/seccomp-chromium.json
     restart: unless-stopped
     healthcheck:
       test:

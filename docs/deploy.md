@@ -15,6 +15,16 @@ Na inicialização, o entrypoint (`docker/entrypoint.sh`) roda `prisma db push -
 
 A imagem usa `mcr.microsoft.com/playwright:<versão>-noble` e roda como `pwuser` (não-root), o que permite manter o sandbox do Chromium. Ao atualizar o pacote `playwright`, atualize também a tag da imagem no `Dockerfile` (`ARG PLAYWRIGHT_IMAGE`).
 
+O `docker-compose.yml` aplica `security_opt: ["seccomp=./docker/seccomp-chromium.json"]`. O arquivo é o perfil seccomp oficial do Playwright (`utils/docker/seccomp_profile.json` do repositório `microsoft/playwright`): o perfil padrão do Docker mais `clone`, `setns` e `unshare`, que o sandbox do Chromium usa para criar namespaces sem root. Sob o seccomp padrão do Docker o Chromium pode não abrir com sandbox. Para atualizar o perfil:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/microsoft/playwright/main/utils/docker/seccomp_profile.json \
+  -o docker/seccomp-chromium.json
+docker compose up -d
+```
+
+No boot, o servidor tenta abrir o Chromium uma vez (`src/instrumentation.ts`). Se falhar, o servidor continua de pé e o log mostra `[boot] O Chromium não abriu: ...` com a solução; veja "Troubleshooting: sandbox do Chromium".
+
 ## Atualizar
 
 ```bash
@@ -163,7 +173,7 @@ Faça o backup das capturas (seção acima) antes da primeira execução com `--
 
 ## Troubleshooting: sandbox do Chromium
 
-O sandbox fica ligado por padrão (`chromiumSandbox: true` em `src/lib/scraper/browser.ts`). Se o Chromium não abrir, a geração falha e o log mostra:
+O sandbox fica ligado por padrão (`chromiumSandbox: true` em `src/lib/scraper/browser.ts`). Se o Chromium não abrir, o boot loga `[boot] O Chromium não abriu: ...`, a geração falha e o log mostra:
 
 ```
 [browser] O Chromium não abriu com sandbox. Use a imagem oficial do Playwright com usuário não-root e perfil seccomp, ou, como último recurso, PLAYWRIGHT_NO_SANDBOX=1.
@@ -172,7 +182,7 @@ O sandbox fica ligado por padrão (`chromiumSandbox: true` em `src/lib/scraper/b
 Verifique, nesta ordem:
 
 1. **Usuário**: o container precisa rodar como `pwuser`, e não como root. `docker compose exec app id` deve mostrar `pwuser`. Um `user:` no compose ou um `docker run --user root` quebra o sandbox.
-2. **Seccomp/AppArmor do host**: perfis restritivos (`security_opt` customizado, AppArmor de user namespaces em hosts Ubuntu recentes, runtimes como gVisor) podem bloquear as syscalls do sandbox. A documentação do Playwright para Docker traz um perfil seccomp próprio para o Chromium, que pode ser aplicado com `security_opt: ["seccomp=/caminho/seccomp_profile.json"]` no serviço.
+2. **Seccomp/AppArmor do host**: o compose já aplica o perfil do Playwright (`docker/seccomp-chromium.json`). Confira com `docker inspect --format '{{.HostConfig.SecurityOpt}}' <container>`; se alguém trocou o `security_opt` ou subiu com `docker run` sem ele, o seccomp padrão volta. AppArmor de user namespaces em hosts Ubuntu recentes (`kernel.apparmor_restrict_unprivileged_userns=1`) e runtimes como gVisor também podem bloquear o sandbox.
 3. **Memória compartilhada**: o compose já define `shm_size: 1gb` e o app passa `--disable-dev-shm-usage`. Crashes de aba em páginas grandes costumam vir daí, se alguém remover essas opções.
 4. **Último recurso**: `PLAYWRIGHT_NO_SANDBOX=1` no `.env`, seguido de `docker compose up -d`. O Chromium abre sites de terceiros, então use só temporariamente e, de preferência, com a regra de egress da seção acima.
 
