@@ -10,6 +10,8 @@ export const runtime = "nodejs";
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
 const MAX_DIMENSION_PX = 3840;
+/** Folga para os cabeçalhos do multipart além do arquivo em si. */
+const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
 const EXT_BY_SHARP_FORMAT: Record<string, string> = {
   png: ".png",
@@ -54,6 +56,13 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  // Falha rápida pelo Content-Length declarado, antes de ler o corpo. Não cobre
+  // Transfer-Encoding: chunked; o teto de verdade é o client_max_body_size do proxy.
+  const declared = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_UPLOAD_BYTES + MULTIPART_OVERHEAD_BYTES) {
+    return NextResponse.json({ error: "A imagem excede o limite máximo de 15 MB." }, { status: 413 });
+  }
+
   const { id } = await context.params;
   const preview = await prisma.storePreview.findUnique({
     where: { id },

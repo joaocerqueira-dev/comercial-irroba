@@ -82,7 +82,9 @@ Com o proxy na mesma máquina, publique a porta só em loopback: `"127.0.0.1:300
 
 ## Egress do Chromium (opcional, recomendado)
 
-O app já valida URLs contra IPs privados. Como defesa extra contra SSRF, bloqueie no host a saída do container para redes internas e para o endpoint de metadados da nuvem:
+O app já valida URLs contra IPs privados. No `fetch` do Node (`fetchPublic`), a validação também acontece na hora da conexão: um `undici.Agent` com `connect.lookup` próprio (`src/lib/net/safe-dispatcher.ts`) recusa o socket se o DNS resolver para IP interno, o que fecha a janela de DNS rebinding entre checar e conectar.
+
+Essa proteção **não vale para o Chromium** do Playwright, que tem resolvedor DNS próprio. Lá a defesa é o `page.route` com a checagem de `response.url()` (`src/lib/scraper/page-guard.ts`) e o sandbox do container. Um domínio que troca de IP entre a checagem e a conexão do Chromium só é barrado pela regra de egress abaixo. Como defesa extra contra SSRF, bloqueie no host a saída do container para redes internas e para o endpoint de metadados da nuvem:
 
 ```bash
 # Subrede da rede do compose: docker network inspect irroba-preview-ai_default
@@ -94,3 +96,30 @@ done
 ```
 
 Persista as regras com `iptables-persistent`, ou equivalente, e teste se a geração de preview continua funcionando com uma loja real.
+
+## Limpeza de disco (`captures:gc`)
+
+`public/captures` acumula screenshots, espelhos de imagem, uploads e artes de IA. Excluir um preview já apaga os arquivos dele, mas sobram órfãos de gerações antigas, de imagens de IA geradas e não usadas e de versões anteriores do app. O script `scripts/captures-gc.mjs` remove os arquivos que não pertencem a nenhum preview do banco:
+
+- mantém tudo que algum preview cita (`/api/captures/<nome>`) ou que começa com o prefixo de um preview existente;
+- ignora arquivos modificados há menos de 60 minutos (`--min-age-minutes` muda isso);
+- remove as miniaturas (`.thumbs/`) cujo original saiu.
+
+O modo padrão é **dry-run**: só lista o que sairia. Para apagar, passe `--apply`.
+
+```bash
+# Conferir antes (dry-run)
+docker compose exec -T app node scripts/captures-gc.mjs
+# Apagar
+docker compose exec -T app node scripts/captures-gc.mjs --apply
+```
+
+Fora do Docker: `npm run captures:gc` (dry-run) e `npm run captures:gc -- --apply`.
+
+Cron no host, diário às 4h, com log:
+
+```cron
+0 4 * * * cd /opt/irroba-preview-ai && docker compose exec -T app node scripts/captures-gc.mjs --apply >> /var/log/irroba-captures-gc.log 2>&1
+```
+
+Faça o backup das capturas (seção acima) antes da primeira execução com `--apply`.

@@ -4,6 +4,7 @@ import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
 import { getSharedBrowser } from "@/lib/scraper/browser";
 import { fetchPublic, readBufferCapped } from "@/lib/net/safe-fetch";
+import { aiImageFilePrefix } from "@/lib/files/captures";
 import { withBrowserSlot } from "@/lib/net/rate-limit";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -507,7 +508,7 @@ export async function processAiImageRequest(
         ? ".webp"
         : ".png";
     const hash = crypto.randomBytes(5).toString("hex");
-    const filename = `ai-${req.previewId.slice(0, 10)}-${Date.now()}-${hash}${ext}`;
+    const filename = `${aiImageFilePrefix(req.previewId)}${Date.now()}-${hash}${ext}`;
     await fs.writeFile(path.join(capturesDir, filename), nativeAttempt.buffer);
 
     return {
@@ -524,7 +525,7 @@ export async function processAiImageRequest(
   const pngBuffer = await renderArtStudioPng(req, sourceImage, spec, width, height, options.signal);
 
   const hash = crypto.randomBytes(5).toString("hex");
-  const filename = `ai-${req.previewId.slice(0, 10)}-${Date.now()}-${hash}.png`;
+  const filename = `${aiImageFilePrefix(req.previewId)}${Date.now()}-${hash}.png`;
   await fs.writeFile(path.join(capturesDir, filename), pngBuffer);
 
   return {

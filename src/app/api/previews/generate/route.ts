@@ -1,7 +1,6 @@
 import { GEMINI_DEFAULT_MODEL } from "@/lib/layout-patterns/ai";
 import { normalizeStoreUrl } from "@/lib/format/inputs";
 import { PREVIEW_STATUS } from "@/lib/previews/status";
-import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
@@ -13,6 +12,9 @@ import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
 import { captureMobileStoreScreenshots } from "@/lib/scraper/mobile-screenshot";
 import { BrowserBusyError, limitAuthenticated, withBrowserSlot } from "@/lib/net/rate-limit";
+import { deletePreviewFiles } from "@/lib/previews/repository";
+import { slugifyHostname } from "@/lib/previews/slug";
+import { cleanupStalePreviewsThrottled } from "@/lib/previews/maintenance";
 
 export const runtime = "nodejs";
 /** Orçamento total da geração (extração + IA + imagem). */
@@ -22,8 +24,8 @@ const GENERATION_BUDGET_MS = 270_000;
 const BROWSER_SLOT_WAIT_MS = 90_000;
 
 const GenerateRequestSchema = z.object({
-  url: z.string().min(4, "Informe a URL da loja"),
-  sellerWhatsapp: z.string().optional(),
+  url: z.string().min(4, "Informe a URL da loja").max(2048, "URL longa demais"),
+  sellerWhatsapp: z.string().max(32, "WhatsApp inválido").optional(),
 });
 
 function formatFriendlyScrapeError(raw: string): string {
@@ -40,24 +42,12 @@ function formatFriendlyScrapeError(raw: string): string {
   return "Não foi possível acessar a loja informada. Verifique a URL e tente novamente.";
 }
 
-function slugifyHostname(rawUrl: string): string {
-  try {
-    const u = new URL(rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`);
-    const base = u.hostname
-      .replace(/^www\./, "")
-      .replace(/[^a-zA-Z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .toLowerCase();
-    const suffix = crypto.randomBytes(3).toString("hex");
-    return `${base || "loja"}-${suffix}`;
-  } catch {
-    return `loja-${crypto.randomBytes(4).toString("hex")}`;
-  }
-}
-
 export async function POST(req: NextRequest) {
   const limited = limitAuthenticated(req, "generate");
   if (limited) return limited;
+
+  // Best-effort, com throttle: remove gerações presas em "processing" (não bloqueia a resposta)
+  void cleanupStalePreviewsThrottled();
 
   const body = await req.json().catch(() => null);
   const parsed = GenerateRequestSchema.safeParse(body);
@@ -261,6 +251,11 @@ export async function POST(req: NextRequest) {
           await prisma.storePreview
             .delete({ where: { id: recordId } })
             .catch(() => undefined);
+          // Screenshots, espelhos e arte IA já gravados desta tentativa (mesma limpeza do DELETE)
+          await deletePreviewFiles({ id: recordId, slug }).catch((cleanupErr) => {
+            console.error("[generate] Falha ao limpar arquivos da geração:", cleanupErr);
+            return 0;
+          });
         }
         safeSend("error", { message: friendlyMessage });
       } finally {

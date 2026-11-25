@@ -71,7 +71,7 @@ describe("POST /api/previews/[id]/upload-image", () => {
       height: number;
       filename: string;
     };
-    expect(data.imageUrl).toMatch(/^\/api\/captures\/up-cmtestprev-.*\.png$/);
+    expect(data.imageUrl).toMatch(/^\/api\/captures\/up-cmtestpreview123-.*\.png$/);
     expect(data.width).toBe(320);
     expect(data.height).toBe(180);
 
@@ -98,7 +98,7 @@ describe("POST /api/previews/[id]/upload-image", () => {
     const res = await upload(new File([cleanSvg], "logo.svg", { type: "image/svg+xml" }));
     expect(res.status).toBe(200);
     const data = (await res.json()) as { imageUrl: string; filename: string; width: number; height: number };
-    expect(data.imageUrl).toMatch(/^\/api\/captures\/up-cmtestprev-.*\.png$/);
+    expect(data.imageUrl).toMatch(/^\/api\/captures\/up-cmtestpreview123-.*\.png$/);
     // 100x30 a 72dpi; alvo de 2048px, mas a densidade para em 16x → 1600x480
     expect(data.width).toBe(1600);
     expect(data.height).toBe(480);

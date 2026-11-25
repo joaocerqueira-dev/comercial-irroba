@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/db";
+import { getPreviewWithBlueprint } from "@/lib/previews/repository";
+import { MAX_IMAGE_URL_LENGTH } from "@/lib/types/blueprint";
 import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
-import type { StoreBlueprint } from "@/lib/types/blueprint";
 import { BrowserBusyError, limitAuthenticated } from "@/lib/net/rate-limit";
 
 export const runtime = "nodejs";
@@ -15,10 +15,10 @@ const BodySchema = z.object({
   aspectRatio: z.enum(["16:9", "21:9", "3:4", "1:1"]).default("16:9"),
   sourceImageUrl: z
     .string()
-    .max(2048)
+    .max(MAX_IMAGE_URL_LENGTH)
     .refine((v) => v.startsWith("/api/captures/") || /^https?:\/\//i.test(v), "URL de imagem inválida")
     .optional(),
-  slotLabel: z.string().optional(),
+  slotLabel: z.string().max(120).optional(),
 });
 
 export async function POST(
@@ -29,10 +29,18 @@ export async function POST(
   if (limited) return limited;
 
   const { id } = await context.params;
-  const preview = await prisma.storePreview.findUnique({ where: { id } });
-  if (!preview) {
+  // Blueprint lido do banco também passa pelo schema (não confia no JSON gravado)
+  const found = await getPreviewWithBlueprint({ id });
+  if (found.status === "not_found") {
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
+  if (found.status === "invalid") {
+    return NextResponse.json(
+      { error: "O blueprint deste preview está em formato incompatível. Gere o preview novamente." },
+      { status: 409 }
+    );
+  }
+  const { preview, blueprint: bp } = found;
 
   let body: z.infer<typeof BodySchema>;
   try {
@@ -54,10 +62,6 @@ export async function POST(
   }
 
   try {
-    const bp = preview.blueprint as unknown as StoreBlueprint | null;
-    if (!bp) {
-      return NextResponse.json({ error: "Blueprint ainda não gerado para este preview" }, { status: 400 });
-    }
     const result = await processAiImageRequest(
       buildImageRequestFromBlueprint(bp, {
         previewId: preview.id,
@@ -76,9 +80,8 @@ export async function POST(
     if (err instanceof BrowserBusyError) {
       return NextResponse.json({ error: err.message }, { status: 503, headers: { "Retry-After": "10" } });
     }
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Erro ao processar imagem com IA" },
-      { status: 500 }
-    );
+    // Detalhe (Gemini, Playwright, disco) só no log; o cliente recebe mensagem genérica
+    console.error("[ai-image] Falha ao processar imagem:", err);
+    return NextResponse.json({ error: "Não foi possível processar a imagem com IA. Tente novamente." }, { status: 500 });
   }
 }

@@ -15,6 +15,7 @@ import type {
   ExtractedProduct,
   ExtractedStoreData,
 } from "@/lib/types/blueprint";
+import { MAX_IMAGE_URL_LENGTH } from "@/lib/types/blueprint";
 
 function valueIsNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
@@ -77,6 +78,10 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
   try {
     let resolved = new URL(trimmed, baseUrl).toString();
     if (!resolved.startsWith("http://") && !resolved.startsWith("https://")) {
+      return undefined;
+    }
+    // Mesmo teto do blueprint (BlueprintImageUrlSchema): URL maior derrubaria a validação
+    if (resolved.length > MAX_IMAGE_URL_LENGTH) {
       return undefined;
     }
     // Upgrade small Nuvemshop thumbnails (-240-0, -320-0, -480-0) to higher resolution

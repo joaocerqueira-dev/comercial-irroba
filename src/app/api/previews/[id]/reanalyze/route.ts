@@ -4,6 +4,11 @@ import { ExtractedStoreDataSchema } from "@/lib/types/blueprint";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
 
+export const runtime = "nodejs";
+/** Só Gemini: até 3 modelos × 35 s de timeout cada, mais a leitura das imagens. */
+export const maxDuration = 150;
+const REANALYZE_BUDGET_MS = 140_000;
+
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -30,7 +35,19 @@ export async function POST(
     );
   }
 
-  const { blueprint, mode, modelUsed, aiError } = await buildStoreBlueprint(parsedExtracted.data);
+  let result: Awaited<ReturnType<typeof buildStoreBlueprint>>;
+  try {
+    // Cliente que desiste (fecha a aba, cancela) ou estouro do orçamento aborta a chamada ao Gemini
+    const signal = AbortSignal.any([req.signal, AbortSignal.timeout(REANALYZE_BUDGET_MS)]);
+    result = await buildStoreBlueprint(parsedExtracted.data, { signal });
+  } catch (err) {
+    console.error("[reanalyze] Falha na reanálise:", err);
+    return NextResponse.json(
+      { error: "Não foi possível reanalisar agora. O layout atual foi preservado sem alterações.", preserved: true },
+      { status: 503 }
+    );
+  }
+  const { blueprint, mode, modelUsed, aiError } = result;
 
   if (mode !== "gemini") {
     return NextResponse.json(

@@ -46,6 +46,8 @@ COPY --from=build --chown=pwuser:pwuser /app/.next/standalone ./
 COPY --from=build --chown=pwuser:pwuser /app/.next/static ./.next/static
 COPY --from=build --chown=pwuser:pwuser /app/public ./public
 COPY --from=build --chown=pwuser:pwuser /app/prisma ./prisma
+# Coleta de lixo de public/captures (npm run captures:gc), para rodar via cron com docker compose exec.
+COPY --from=build --chown=pwuser:pwuser /app/scripts ./scripts
 # Client gerado + engine do Prisma (garante presença mesmo se o tracing do Next omitir algo).
 COPY --from=build --chown=pwuser:pwuser /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build --chown=pwuser:pwuser /app/node_modules/@prisma ./node_modules/@prisma

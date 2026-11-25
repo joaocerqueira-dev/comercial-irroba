@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
-import { collectCaptureRefs, deletePreviewCaptures, legacyMirrorPrefix } from "@/lib/files/captures";
+import {
+  collectCaptureRefs,
+  deletePreviewCaptures,
+  LEGACY_ID_PREFIX_LENGTH,
+  legacyMirrorPrefix,
+} from "@/lib/files/captures";
 import { StoreBlueprintSchema, type StoreBlueprint } from "@/lib/types/blueprint";
 
 type PreviewRow = NonNullable<Awaited<ReturnType<typeof prisma.storePreview.findUnique>>>;
@@ -82,8 +87,14 @@ export async function saveBlueprint(
  */
 export async function deletePreviewFiles(preview: { id: string; slug: string }): Promise<number> {
   const slugPrefix = legacyMirrorPrefix(preview.slug).slice(2, -1);
+  // Quem pode citar arquivos com prefixo antigo: lojas com o mesmo começo de slug
+  // (espelhos m-<slug18>-) e previews com o mesmo começo de id (ai-/up-<id10>-).
+  const idPrefix = preview.id.slice(0, LEGACY_ID_PREFIX_LENGTH);
   const others = await prisma.storePreview.findMany({
-    where: { slug: { startsWith: slugPrefix }, NOT: { id: preview.id } },
+    where: {
+      OR: [{ slug: { startsWith: slugPrefix } }, { id: { startsWith: idPrefix } }],
+      NOT: { id: preview.id },
+    },
     select: { extractedData: true, blueprint: true, compiledExport: true },
   });
   const referencedElsewhere = collectCaptureRefs(

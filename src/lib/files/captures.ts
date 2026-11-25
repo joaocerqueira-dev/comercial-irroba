@@ -40,9 +40,27 @@ export interface DeleteCapturesOptions {
   capturesDir?: string;
 }
 
-/** Prefixo dos arquivos enviados diretamente do computador no Studio. */
+/**
+ * Tamanho do prefixo de id usado nos nomes antigos (`ai-`/`up-`). CUIDs criados no
+ * mesmo instante compartilham esses 10 caracteres (timestamp), então o prefixo
+ * antigo NÃO é exclusivo de um preview.
+ */
+export const LEGACY_ID_PREFIX_LENGTH = 10;
+
+/** Prefixo dos arquivos enviados diretamente do computador no Studio (id completo). */
 export function uploadFilePrefix(previewId: string): string {
-  return `up-${previewId.slice(0, 10)}-`;
+  return `up-${previewId}-`;
+}
+
+/** Prefixo das imagens geradas pela IA (id completo). */
+export function aiImageFilePrefix(previewId: string): string {
+  return `ai-${previewId}-`;
+}
+
+/** Prefixos antigos (id truncado) de uploads e imagens de IA; podem ser de outro preview. */
+export function legacyIdPrefixes(previewId: string): string[] {
+  const short = previewId.slice(0, LEGACY_ID_PREFIX_LENGTH);
+  return [`ai-${short}-`, `up-${short}-`];
 }
 
 /** Remove arquivos de captura exclusivos de um preview (screenshots, espelhos, uploads e imagens de IA). */
@@ -59,13 +77,14 @@ export async function deletePreviewCaptures(
     `${slug}-mobile.`,
     `${slug}-mobile-full.`,
     mirrorFilePrefix(slug),
-    `ai-${previewId.slice(0, 10)}-`,
+    aiImageFilePrefix(previewId),
     uploadFilePrefix(previewId),
   ];
-  const legacyPrefix = legacyMirrorPrefix(slug);
+  // Prefixos compartilháveis: só apagam o que nenhum outro preview cita
+  const legacyPrefixes = [legacyMirrorPrefix(slug), ...legacyIdPrefixes(previewId)];
   const shouldDelete = (original: string): boolean => {
     if (exclusivePrefixes.some((p) => original.startsWith(p))) return true;
-    if (original.startsWith(legacyPrefix)) {
+    if (legacyPrefixes.some((p) => original.startsWith(p))) {
       return Boolean(options.referencedElsewhere) && !options.referencedElsewhere!.has(original);
     }
     return false;
