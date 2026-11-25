@@ -20,6 +20,7 @@ import {
   PALETTE,
   RADIUS_CSS,
   SERIF_FONT_PATTERN,
+  STOREFRONT_GRAYS as G,
   TARJA_WIDTH,
 } from "@/lib/layout-patterns";
 import {
@@ -97,7 +98,7 @@ function renderTarjaBenefitsHtml(bp: StoreBlueprint): string {
   <div style="width:42px;height:42px;flex-shrink:0;border-radius:${radius};background:${primary};color:${primaryFg};display:flex;align-items:center;justify-content:center;">${getBenefitSvgIcon(b.icon)}</div>
   <div>
     <div style="font-size:14px;font-weight:700;color:${bodyColor};margin-bottom:2px;">${escapeHtml(b.title)}</div>
-    <div style="font-size:12px;color:#4b5563;line-height:1.35;">${escapeHtml(b.subtitle)}</div>
+    <div style="font-size:12px;color:${G.gray600};line-height:1.35;">${escapeHtml(b.subtitle)}</div>
   </div>
 </div>`;
     })
@@ -760,7 +761,7 @@ function buildStudioInspectorSnippet(): string {
     #irb-studio-active-badge {
       position: fixed;
       pointer-events: none;
-      font-family: "Montserrat", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       display: none;
       align-items: center;
       gap: 6px;
@@ -1785,7 +1786,7 @@ export function compileStorefrontDocument(
     .irb-account-dropdown__item--primary:hover { opacity: 0.92; }
     .irb-account-dropdown__item--secondary {
       background: rgba(17, 24, 39, 0.05);
-      color: #111827;
+      color: ${G.gray900};
       border: 1px solid rgba(17, 24, 39, 0.12);
     }
     .irb-account-dropdown__item--secondary:hover { background: rgba(17, 24, 39, 0.1); }
@@ -1816,7 +1817,7 @@ export function compileStorefrontDocument(
       width: 100%;
       max-width: 640px;
       background: #ffffff;
-      color: #111827;
+      color: ${G.gray900};
       border-radius: calc(var(--irb-radius) + 6px);
       box-shadow: 0 24px 64px rgba(0, 0, 0, 0.24);
       overflow: hidden;
@@ -1831,7 +1832,7 @@ export function compileStorefrontDocument(
       align-items: center;
       gap: 10px;
       padding: 16px 18px;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid ${G.gray200};
     }
     .headerContent_search {
       flex: 1;
@@ -1843,12 +1844,12 @@ export function compileStorefrontDocument(
       width: 100%;
       padding: 10px 42px 10px 14px;
       border-radius: var(--irb-radius);
-      border: 1px solid #d1d5db;
+      border: 1px solid ${G.gray300};
       font-family: var(--text-font-family);
       font-size: 15px;
       outline: none;
-      background: #f9fafb;
-      color: #111827;
+      background: ${G.gray50};
+      color: ${G.gray900};
     }
     .headerContent_search input:focus { border-color: var(--primary-background); background: #ffffff; }
     .headerSearchSubmit {
@@ -1858,7 +1859,7 @@ export function compileStorefrontDocument(
       transform: translateY(-50%);
       border: none;
       background: transparent;
-      color: #374151;
+      color: ${G.gray700};
       padding: 6px;
       display: flex;
       align-items: center;
@@ -1867,8 +1868,8 @@ export function compileStorefrontDocument(
     }
     .headerSearchClose {
       border: none;
-      background: #f3f4f6;
-      color: #374151;
+      background: ${G.gray100};
+      color: ${G.gray700};
       font-size: 20px;
       line-height: 1;
       width: 36px;
@@ -1877,7 +1878,7 @@ export function compileStorefrontDocument(
       cursor: pointer;
       flex-shrink: 0;
     }
-    .headerSearchClose:hover { background: #e5e7eb; }
+    .headerSearchClose:hover { background: ${G.gray200}; }
     .irb-search-modal-body {
       padding: 16px 18px 20px;
       max-height: 60vh;
@@ -1890,14 +1891,14 @@ export function compileStorefrontDocument(
       gap: 12px;
       padding: 8px;
       border-radius: var(--irb-radius);
-      border: 1px solid #f3f4f6;
+      border: 1px solid ${G.gray100};
       background: #ffffff;
       cursor: pointer;
       text-align: left;
       width: 100%;
       transition: background .15s, border-color .15s;
     }
-    .irb-search-item:hover { background: #f9fafb; border-color: #d1d5db; }
+    .irb-search-item:hover { background: ${G.gray50}; border-color: ${G.gray300}; }
     .irb-search-item img { width: 46px; height: 46px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
     .headerContent_categories {
       display: flex;
@@ -1965,14 +1966,14 @@ export function compileStorefrontDocument(
       gap: 8px;
       padding: 18px 0 10px;
       font-size: 12px;
-      color: #6b7280;
+      color: ${G.gray500};
     }
     .irb-breadcrumb a, .irb-breadcrumb button {
       background: none;
       border: none;
       padding: 0;
       font: inherit;
-      color: #4b5563;
+      color: ${G.gray600};
       cursor: pointer;
       text-decoration: none;
     }
@@ -2008,9 +2009,9 @@ export function compileStorefrontDocument(
     .catFilterChip {
       padding: 6px 12px;
       border-radius: 999px;
-      border: 1px solid #d1d5db;
+      border: 1px solid ${G.gray300};
       background: #ffffff;
-      color: #374151;
+      color: ${G.gray700};
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
@@ -2023,10 +2024,10 @@ export function compileStorefrontDocument(
     .categorySortSelect {
       padding: 8px 12px;
       border-radius: var(--irb-radius);
-      border: 1px solid #d1d5db;
+      border: 1px solid ${G.gray300};
       font-size: 13px;
       background: #ffffff;
-      color: #111827;
+      color: ${G.gray900};
     }
 
     /* Página Completa de Produto (PDP .product-content) */
@@ -2056,14 +2057,14 @@ export function compileStorefrontDocument(
       border: 2px solid transparent;
       overflow: hidden;
       cursor: pointer;
-      background: #f9fafb;
+      background: ${G.gray50};
       padding: 0;
     }
     .pdpThumb.active { border-color: var(--primary-background); }
     .pdpThumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .pdpMainImageWrap {
       flex: 1;
-      background: #f9fafb;
+      background: ${G.gray50};
       border-radius: var(--irb-radius);
       border: 1px solid rgba(0, 0, 0, 0.06);
       overflow: hidden;
@@ -2075,7 +2076,7 @@ export function compileStorefrontDocument(
     .pdpMainImageWrap img { width: 100%; height: 100%; object-fit: contain; transition: transform .3s ease; }
     .pdpMainImageWrap:hover img { transform: scale(1.04); }
     .productInfo__title { font-size: clamp(22px, 3vw, 30px); line-height: 1.2; margin: 6px 0 10px; }
-    .pdpRating { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; margin-bottom: 16px; }
+    .pdpRating { display: flex; align-items: center; gap: 8px; font-size: 13px; color: ${G.gray600}; margin-bottom: 16px; }
     .pdpPriceBox {
       background: var(--neutral-background);
       color: var(--neutral-foreground);
@@ -2089,9 +2090,9 @@ export function compileStorefrontDocument(
       height: 38px;
       padding: 0 12px;
       border-radius: var(--irb-radius);
-      border: 1px solid #d1d5db;
+      border: 1px solid ${G.gray300};
       background: #ffffff;
-      color: #111827;
+      color: ${G.gray900};
       font-weight: 600;
       font-size: 13px;
       cursor: pointer;
@@ -2105,7 +2106,7 @@ export function compileStorefrontDocument(
     .pdpQtyBox {
       display: inline-flex;
       align-items: center;
-      border: 1px solid #d1d5db;
+      border: 1px solid ${G.gray300};
       border-radius: var(--irb-radius);
       overflow: hidden;
       background: #ffffff;
@@ -2118,7 +2119,7 @@ export function compileStorefrontDocument(
       font-size: 16px;
       font-weight: 700;
       cursor: pointer;
-      color: #111827;
+      color: ${G.gray900};
     }
     .pdpQtyBox span { min-width: 32px; text-align: center; font-weight: 700; font-size: 14px; }
     .pdpShippingBox {
@@ -2185,7 +2186,7 @@ export function compileStorefrontDocument(
       ${heroHeightPx ? `height: ${heroHeightPx}px;` : ""}
       display: flex;
       align-items: center;
-      background: #111827;
+      background: ${G.gray900};
       overflow: hidden;
       border-radius: ${heroCustomWidthPx || bp.visualOverrides.banner.width === "container" ? "var(--irb-radius)" : "0px"};
     }
@@ -2243,7 +2244,7 @@ export function compileStorefrontDocument(
     .productList { padding: 46px 0; }
     .productList__header { margin-bottom: 26px; }
     .productList__title { font-size: 28px; margin: 0 0 6px; font-weight: 700; }
-    .productList__subtitle { margin: 0; color: #6b7280; font-size: 14px; }
+    .productList__subtitle { margin: 0; color: ${G.gray500}; font-size: 14px; }
     .productList__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
     @media (max-width: 1024px) { .productList__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     @media (max-width: 720px) {
@@ -2265,7 +2266,7 @@ export function compileStorefrontDocument(
     .product-image-wrap {
       position: relative;
       aspect-ratio: 1 / 1;
-      background: #f9fafb;
+      background: ${G.gray50};
       overflow: hidden;
       cursor: pointer;
     }
@@ -2289,7 +2290,7 @@ export function compileStorefrontDocument(
       flex-direction: column;
       flex: 1;
     }
-    .product-cat { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .product-cat { font-size: 11px; color: ${G.gray500}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
     .product-title {
       font-family: var(--text-font-family);
       font-size: 14px;
@@ -2305,7 +2306,7 @@ export function compileStorefrontDocument(
     .product-price-wrap { display: flex; align-items: baseline; gap: 8px; margin-top: auto; }
     .product-price-old { font-size: 12px; color: var(--product-old-price-color); text-decoration: line-through; }
     .product-price { font-size: 17px; font-weight: 700; color: var(--product-price-color); }
-    .product-installments { font-size: 11px; color: #4b5563; margin-top: 3px; margin-bottom: 12px; }
+    .product-installments { font-size: 11px; color: ${G.gray600}; margin-top: 3px; margin-bottom: 12px; }
     .product-btn {
       width: 100%;
       padding: 10px 12px;
@@ -2328,10 +2329,10 @@ export function compileStorefrontDocument(
     .reviewModule { padding: 46px 0; background: var(--neutral-background); color: var(--neutral-foreground); }
     .reviewGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
     @media (max-width: 768px) { .reviewGrid { grid-template-columns: 1fr; } }
-    .reviewCard { background: #ffffff; color: #111827; padding: 22px; border-radius: var(--irb-radius); border: 1px solid rgba(0, 0, 0, 0.06); }
+    .reviewCard { background: #ffffff; color: ${G.gray900}; padding: 22px; border-radius: var(--irb-radius); border: 1px solid rgba(0, 0, 0, 0.06); }
     .reviewCard__stars { color: #f59e0b; font-size: 16px; margin-bottom: 8px; }
-    .reviewCard__text { font-size: 14px; line-height: 1.5; color: #374151; margin: 0 0 12px; }
-    .reviewCard__author { font-size: 13px; font-weight: 700; color: #111827; }
+    .reviewCard__text { font-size: 14px; line-height: 1.5; color: ${G.gray700}; margin: 0 0 12px; }
+    .reviewCard__author { font-size: 13px; font-weight: 700; color: ${G.gray900}; }
 
     /* Newsletter (.newsletterModule) */
     .newsletterModule { padding: 44px 0; background: var(--body-background); border-top: 1px solid rgba(0, 0, 0, 0.06); }
@@ -2347,7 +2348,7 @@ export function compileStorefrontDocument(
       gap: 20px;
     }
     .newsletterForm { display: flex; gap: 10px; flex: 1 1 320px; max-width: 460px; }
-    .newsletterForm input { flex: 1; padding: 12px 14px; border-radius: var(--irb-radius); border: 1px solid #d1d5db; font-size: 14px; }
+    .newsletterForm input { flex: 1; padding: 12px 14px; border-radius: var(--irb-radius); border: 1px solid ${G.gray300}; font-size: 14px; }
     .newsletterForm button {
       background: var(--btn-primary-background);
       color: var(--btn-primary-color);
@@ -2398,7 +2399,7 @@ export function compileStorefrontDocument(
       width: 100%;
       max-width: 390px;
       background: #ffffff;
-      color: #111827;
+      color: ${G.gray900};
       height: 100%;
       display: flex;
       flex-direction: column;
@@ -2407,8 +2408,8 @@ export function compileStorefrontDocument(
     .mobileNavLink {
       display: block;
       padding: 12px 4px;
-      border-bottom: 1px solid #f3f4f6;
-      color: #111827;
+      border-bottom: 1px solid ${G.gray100};
+      color: ${G.gray900};
       text-decoration: none;
       font-weight: 600;
       font-size: 14px;
@@ -2424,6 +2425,14 @@ export function compileStorefrontDocument(
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -2516,9 +2525,9 @@ export function compileStorefrontDocument(
         <button type="button" class="headerSearchClose" id="irb-close-search" aria-label="Fechar busca">&times;</button>
       </div>
       <div class="irb-search-modal-body">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;margin-bottom:8px;">Categorias populares</div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${G.gray500};margin-bottom:8px;">Categorias populares</div>
         <div class="catFilterChips" style="margin-bottom:14px;">${categoryPillsHtml}</div>
-        <div id="irb-search-live-title" style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Sugestões em destaque</div>
+        <div id="irb-search-live-title" style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${G.gray500};">Sugestões em destaque</div>
         <div class="irb-search-results" id="irb-search-live-results"></div>
       </div>
     </div>
@@ -2655,7 +2664,7 @@ export function compileStorefrontDocument(
           </div>
 
           <div class="productInfo">
-            <span id="irb-pdp-cat" style="font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:0.08em;font-weight:700;"></span>
+            <span id="irb-pdp-cat" style="font-size:11px;text-transform:uppercase;color:${G.gray500};letter-spacing:0.08em;font-weight:700;"></span>
             <h2 id="irb-pdp-title" class="productInfo__title"></h2>
             <div class="pdpRating">
               <span style="color:#f59e0b;letter-spacing:2px;">★★★★★</span>
@@ -2701,10 +2710,10 @@ export function compileStorefrontDocument(
                 <span>Calcular Frete e Prazo</span>
               </div>
               <form id="irb-cep-form" style="display:flex;gap:8px;">
-                <input type="text" id="irb-cep-input" placeholder="Digite seu CEP (ex: 14400-000)" style="flex:1;padding:9px 12px;border:1px solid #d1d5db;border-radius:var(--irb-radius);font-size:13px;" />
+                <input type="text" id="irb-cep-input" placeholder="Digite seu CEP (ex: 14400-000)" style="flex:1;padding:9px 12px;border:1px solid ${G.gray300};border-radius:var(--irb-radius);font-size:13px;" />
                 <button type="submit" style="padding:9px 16px;border:none;border-radius:var(--irb-radius);background:var(--primary-background);color:var(--primary-foreground);font-weight:700;font-size:13px;cursor:pointer;">Calcular</button>
               </form>
-              <div id="irb-cep-result" style="margin-top:8px;font-size:12px;color:#374151;display:none;"></div>
+              <div id="irb-cep-result" style="margin-top:8px;font-size:12px;color:${G.gray700};display:none;"></div>
             </div>
 
             <div style="border-top:1px solid rgba(0,0,0,0.08);padding-top:16px;">
@@ -2765,9 +2774,9 @@ export function compileStorefrontDocument(
   <!-- Mobile Navigation Drawer -->
   <div id="irb-mobile-drawer" class="irb-drawer-backdrop left" role="dialog" aria-modal="true">
     <div class="irb-drawer-panel">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid #e5e7eb;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid ${G.gray200};">
         <strong style="font-size:17px;">Menu da Loja</strong>
-        <button type="button" id="irb-mobile-close" style="border:none;background:#f3f4f6;width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
+        <button type="button" id="irb-mobile-close" style="border:none;background:${G.gray100};width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       </div>
       <div style="padding:10px 0;overflow-y:auto;">
         <a href="#home" class="mobileNavLink" data-go-home="1">Início</a>
@@ -2778,17 +2787,17 @@ export function compileStorefrontDocument(
 
   <!-- Account Modal (Demo: Entrar & Criar conta) -->
   <div id="irb-account-modal" class="irb-modal-backdrop" role="dialog" aria-modal="true">
-    <div style="background:#ffffff;color:#111827;max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
-      <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:#f3f4f6;width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
+    <div style="background:#ffffff;color:${G.gray900};max-width:400px;width:100%;border-radius:12px;padding:24px;position:relative;">
+      <button type="button" id="irb-account-close" style="position:absolute;top:14px;right:14px;border:none;background:${G.gray100};width:30px;height:30px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         ${IRROBA_ICONS.person}
         <h3 id="irb-account-modal-title" style="margin:0;font-size:19px;">Entrar na sua conta</h3>
       </div>
-      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:#4b5563;">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
+      <p id="irb-account-modal-desc" style="margin:0 0 16px;font-size:13px;color:${G.gray600};">Acesse seus pedidos, favoritos e dados cadastrais no ambiente seguro da Irroba.</p>
       <form id="irb-account-form" onsubmit="event.preventDefault(); document.getElementById('irb-account-msg').style.display='block';">
-        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
-        <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:10px;font-size:14px;" />
-        <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;margin-bottom:14px;font-size:14px;" />
+        <input type="text" id="irb-account-name-field" placeholder="Seu nome completo" style="display:none;width:100%;padding:10px 12px;border:1px solid ${G.gray300};border-radius:8px;margin-bottom:10px;font-size:14px;" />
+        <input type="email" required placeholder="Seu e-mail" style="width:100%;padding:10px 12px;border:1px solid ${G.gray300};border-radius:8px;margin-bottom:10px;font-size:14px;" />
+        <input type="password" required placeholder="Sua senha" style="width:100%;padding:10px 12px;border:1px solid ${G.gray300};border-radius:8px;margin-bottom:14px;font-size:14px;" />
         <button type="submit" id="irb-account-submit-btn" class="product-btn" style="padding:12px;">Entrar na Conta (Demo)</button>
       </form>
       <div id="irb-account-msg" style="display:none;margin-top:12px;padding:10px;border-radius:8px;background:#ecfdf5;color:#065f46;font-size:12px;font-weight:600;">
@@ -2800,15 +2809,15 @@ export function compileStorefrontDocument(
   <!-- Mini-Carrinho Lateral -->
   <div id="irb-cart-drawer" class="irb-drawer-backdrop" role="dialog" aria-modal="true">
     <div class="irb-drawer-panel">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid #e5e7eb;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:1px solid ${G.gray200};">
         <div style="display:flex;align-items:center;gap:8px;">
           ${IRROBA_ICONS.shoppingBag}
           <strong style="font-size:18px;">Sua Sacola</strong>
         </div>
-        <button type="button" id="irb-cart-close" style="border:none;background:#f3f4f6;width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
+        <button type="button" id="irb-cart-close" style="border:none;background:${G.gray100};width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       </div>
       <div id="irb-cart-items" style="flex:1;overflow-y:auto;padding:14px 0;display:flex;flex-direction:column;gap:12px;"></div>
-      <div style="border-top:1px solid #e5e7eb;padding-top:14px;">
+      <div style="border-top:1px solid ${G.gray200};padding-top:14px;">
         <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;margin-bottom:12px;">
           <span>Subtotal</span>
           <span id="irb-cart-total">R$ 0,00</span>
@@ -3030,7 +3039,7 @@ export function compileStorefrontDocument(
         const grid = document.getElementById('irb-cat-grid');
         grid.innerHTML = '';
         if (filtered.length === 0) {
-          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px 0;color:#6b7280;">Nenhum produto encontrado para essa busca. Tente outro termo ou volte para Início.</p>';
+          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px 0;color:${G.gray500};">Nenhum produto encontrado para essa busca. Tente outro termo ou volte para Início.</p>';
         } else {
           filtered.forEach((p) => grid.appendChild(createProductCardNode(p)));
         }
@@ -3157,7 +3166,7 @@ export function compileStorefrontDocument(
         searchLiveResults.innerHTML = '';
         if (matches.length === 0) {
           const empty = document.createElement('div');
-          empty.style.cssText = 'font-size:13px;color:#6b7280;padding:12px 4px;';
+          empty.style.cssText = 'font-size:13px;color:${G.gray500};padding:12px 4px;';
           empty.textContent = 'Nenhum produto encontrado. Tente outro termo.';
           searchLiveResults.appendChild(empty);
           return;
@@ -3176,11 +3185,11 @@ export function compileStorefrontDocument(
           meta.style.cssText = 'flex:1;min-width:0;';
 
           const t = document.createElement('div');
-          t.style.cssText = 'font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+          t.style.cssText = 'font-size:13px;font-weight:600;color:${G.gray900};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
           t.textContent = p.title;
 
           const sub = document.createElement('div');
-          sub.style.cssText = 'font-size:12px;color:#4b5563;';
+          sub.style.cssText = 'font-size:12px;color:${G.gray600};';
           sub.textContent = (p.category || '') + ' · ' + formatCurrency(p.price);
 
           meta.appendChild(t);
@@ -3297,14 +3306,14 @@ export function compileStorefrontDocument(
         totalEl.textContent = formatCurrency(totalAmt);
 
         if (cart.length === 0) {
-          itemsEl.innerHTML = '<p style="color:#6b7280;font-size:14px;text-align:center;margin-top:40px;">Sua sacola está vazia. Clique em comprar em qualquer produto para testar!</p>';
+          itemsEl.innerHTML = '<p style="color:${G.gray500};font-size:14px;text-align:center;margin-top:40px;">Sua sacola está vazia. Clique em comprar em qualquer produto para testar!</p>';
           return;
         }
 
         itemsEl.innerHTML = '';
         cart.forEach((item, idx) => {
           const row = document.createElement('div');
-          row.style.cssText = 'display:flex;gap:12px;align-items:center;border-bottom:1px solid #f3f4f6;padding-bottom:10px;';
+          row.style.cssText = 'display:flex;gap:12px;align-items:center;border-bottom:1px solid ${G.gray100};padding-bottom:10px;';
 
           const img = document.createElement('img');
           img.src = item.product.imageUrl || '';
@@ -3319,7 +3328,7 @@ export function compileStorefrontDocument(
           titleEl.textContent = item.product.title + (item.size ? ' (' + item.size + ')' : '');
 
           const priceEl = document.createElement('div');
-          priceEl.style.cssText = 'font-size:13px;color:#4b5563;';
+          priceEl.style.cssText = 'font-size:13px;color:${G.gray600};';
           priceEl.textContent = item.qty + 'x ' + formatCurrency(item.product.price);
 
           info.appendChild(titleEl);

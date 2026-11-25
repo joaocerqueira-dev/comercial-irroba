@@ -1733,6 +1733,14 @@ exports[`layout patterns golden > fitness > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -4572,6 +4580,14 @@ exports[`layout patterns golden > generic > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -7453,6 +7469,14 @@ exports[`layout patterns golden > luxury > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -10478,6 +10502,14 @@ exports[`layout patterns golden > tech > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -13503,6 +13535,14 @@ exports[`layout patterns golden > vegan > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
