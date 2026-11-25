@@ -3,6 +3,9 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { copyToClipboard } from "@/lib/client/clipboard";
+import { computeUnsaved, type StudioSaveSnapshot } from "@/lib/client/unsavedChanges";
+import { useLatest } from "@/lib/client/useLatest";
+import { useTimeout } from "@/lib/client/useTimeout";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -122,6 +125,10 @@ export default function StudioClient({
   const dragSectionIdxRef = useRef<number | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
+  // Estado atual lido após o await do save (edições feitas durante a requisição)
+  const latestSnapshotRef = useLatest<StudioSaveSnapshot>({ bp, sellerWhatsapp, currentMode });
+  const copiedTimeout = useTimeout();
+  const savedNoticeTimeout = useTimeout();
 
   const postToPreview = useCallback((payload: Record<string, unknown>) => {
     try {
@@ -261,27 +268,32 @@ export default function StudioClient({
       return;
     }
     setCopiedKey(key);
-    setTimeout(() => setCopiedKey(null), 2000);
+    copiedTimeout.schedule(() => setCopiedKey(null), 2000);
   };
 
   const handleSave = async () => {
+    const sent: StudioSaveSnapshot = { bp, sellerWhatsapp, currentMode };
     setIsSaving(true);
     setActionError(null);
     try {
       const res = await fetch(`/api/previews/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blueprint: bp, sellerWhatsapp, generationMode: currentMode }),
+        body: JSON.stringify({
+          blueprint: sent.bp,
+          sellerWhatsapp: sent.sellerWhatsapp,
+          generationMode: sent.currentMode,
+        }),
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error((errData as { error?: string }).error || "Falha ao salvar alterações");
       }
-      setBaselineTheme(bp.theme);
-      setBaselineBp(bp);
-      setHasUnsavedChanges(false);
+      setBaselineTheme(sent.bp.theme);
+      setBaselineBp(sent.bp);
+      setHasUnsavedChanges(computeUnsaved(latestSnapshotRef.current, sent));
       setSavedNotice(true);
-      setTimeout(() => setSavedNotice(false), 2000);
+      savedNoticeTimeout.schedule(() => setSavedNotice(false), 2000);
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro de conexão ao salvar");
     } finally {
@@ -2764,7 +2776,7 @@ export default function StudioClient({
                             ...prev.sections,
                             categories: [
                               ...prev.sections.categories,
-                              { label, href: `#cat-${prev.sections.categories.length + 1}` },
+                              { label, href: `#cat-${crypto.randomUUID()}` },
                             ],
                           },
                         }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowDown,
   ArrowLeft,
@@ -20,6 +20,7 @@ import { BannerDimensionsControl } from "./BannerDimensionsControl";
 import { ColorField } from "./ColorField";
 import { HeaderLinksHoverControls } from "./HeaderLinksHoverControls";
 import { INSPECTOR_META, type InspectorSelection } from "./inspectorTargets";
+import { useLatest } from "@/lib/client/useLatest";
 
 interface ElementInspectorPanelProps {
   previewId: string;
@@ -61,8 +62,14 @@ export function ElementInspectorPanel({
 
   const selectedProduct =
     selection.targetId === "product-item" && selection.productId
-      ? bp.products.find((p) => p.id === selection.productId) ?? bp.products[0]
+      ? bp.products.find((p) => p.id === selection.productId) ?? null
       : null;
+  // Produto selecionado deixou de existir (ex.: removido): limpa a seleção fora do render
+  const missingProduct = selection.targetId === "product-item" && !selectedProduct;
+  const onSelectRef = useLatest(onSelect);
+  useEffect(() => {
+    if (missingProduct) onSelectRef.current(null);
+  }, [missingProduct, onSelectRef]);
 
   const renderCardAndBuyButtonControls = () => (
     <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
@@ -481,7 +488,7 @@ export function ElementInspectorPanel({
                         ...prev.sections,
                         categories: [
                           ...prev.sections.categories,
-                          { label, href: `#cat-${prev.sections.categories.length + 1}` },
+                          { label, href: `#cat-${crypto.randomUUID()}` },
                         ],
                       },
                     }));
@@ -501,7 +508,7 @@ export function ElementInspectorPanel({
                       ...prev.sections,
                       categories: [
                         ...prev.sections.categories,
-                        { label, href: `#cat-${prev.sections.categories.length + 1}` },
+                        { label, href: `#cat-${crypto.randomUUID()}` },
                       ],
                     },
                   }));
@@ -1680,6 +1687,11 @@ export function ElementInspectorPanel({
       )}
 
       {/* 9. CARD DE PRODUTO INDIVIDUAL */}
+      {missingProduct && (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white p-3 text-slate-500">
+          Este produto não existe mais. Selecione outro elemento na prévia.
+        </div>
+      )}
       {selection.targetId === "product-item" && selectedProduct && (
         <div className="space-y-3">
           <div className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-3">

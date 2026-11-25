@@ -74,6 +74,23 @@ export default function StoreCompareView({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const scrollLockRef = useRef<"left" | "right" | null>(null);
   const lockTimerRef = useRef<number | null>(null);
+  const mobileCaptureAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      if (lockTimerRef.current) window.clearTimeout(lockTimerRef.current);
+    },
+    []
+  );
+
+  // Captura mobile em andamento é cancelada no unmount ou quando o slug muda
+  useEffect(
+    () => () => {
+      mobileCaptureAbortRef.current?.abort();
+      mobileCaptureAbortRef.current = null;
+    },
+    [slug]
+  );
 
   useEffect(() => {
     setImgSrc(fullScreenshotPath || screenshotPath);
@@ -88,11 +105,15 @@ export default function StoreCompareView({
       if (!slug) return;
       if (!force && attemptedMobileSlugsRef.current.has(slug)) return;
       attemptedMobileSlugsRef.current.add(slug);
+      mobileCaptureAbortRef.current?.abort();
+      const controller = new AbortController();
+      mobileCaptureAbortRef.current = controller;
       setIsCapturingMobile(true);
       setMobileCaptureFailed(false);
       try {
         const res = await fetch(`/api/captures/mobile/${encodeURIComponent(slug)}`, {
           method: "POST",
+          signal: controller.signal,
         });
         if (!res.ok) {
           setMobileCaptureFailed(true);
@@ -110,9 +131,16 @@ export default function StoreCompareView({
           setMobileCaptureFailed(true);
         }
       } catch {
+        if (controller.signal.aborted) {
+          // Abortada: permite nova tentativa se voltar a este slug
+          attemptedMobileSlugsRef.current.delete(slug);
+          return;
+        }
         setMobileCaptureFailed(true);
       } finally {
-        setIsCapturingMobile(false);
+        if (mobileCaptureAbortRef.current === controller) mobileCaptureAbortRef.current = null;
+        // Só a requisição mais recente controla o spinner
+        if (mobileCaptureAbortRef.current === null) setIsCapturingMobile(false);
       }
     },
     [slug]

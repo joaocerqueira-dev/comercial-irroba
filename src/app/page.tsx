@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { formatWhatsapp, hostnameOf, isValidWhatsapp, normalizeStoreUrl, pluralize } from "@/lib/format/inputs";
 import { readEventStream } from "@/lib/sse/readEventStream";
 import { copyToClipboard } from "@/lib/client/clipboard";
+import { useTimeout } from "@/lib/client/useTimeout";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -58,6 +59,7 @@ export default function HomePage() {
   }, [previews]);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const copiedTimeout = useTimeout();
   const urlId = useId();
   const waId = useId();
 
@@ -121,6 +123,8 @@ export default function HomePage() {
           setStatusMessage("Preview gerado com sucesso!");
           await loadPreviews();
           router.push(`/studio/${String(payload.id)}`);
+          // Caso a navegação não desmonte a página, não deixa o formulário travado
+          setIsGenerating(false);
           return true;
         } else if (eventName === "error") {
           throw new Error(String(payload.message ?? "Falha na extração da loja"));
@@ -145,7 +149,7 @@ export default function HomePage() {
       return;
     }
     setCopiedSlug(slug);
-    setTimeout(() => setCopiedSlug(null), 2000);
+    copiedTimeout.schedule(() => setCopiedSlug(null), 2000);
   };
 
   const handleDelete = async (id: string) => {

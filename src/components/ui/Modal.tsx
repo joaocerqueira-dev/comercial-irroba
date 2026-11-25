@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useLatest } from "@/lib/client/useLatest";
 
 interface ModalProps {
   open: boolean;
@@ -14,6 +15,8 @@ interface ModalProps {
 export function Modal({ open, onClose, title, children, className = "" }: ModalProps) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  // onClose costuma ser inline: em ref, re-renders do pai não reexecutam o effect (nem roubam o foco)
+  const onCloseRef = useLatest(onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +32,7 @@ export function Modal({ open, onClose, title, children, className = "" }: ModalP
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab") return;
@@ -50,7 +53,7 @@ export function Modal({ open, onClose, title, children, className = "" }: ModalP
       document.removeEventListener("keydown", onKey);
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open, onCloseRef]);
 
   if (!open) return null;
   return (
