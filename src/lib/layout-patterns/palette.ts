@@ -18,6 +18,8 @@ export const PALETTE = {
   lightenFallback: "#F8FAFC",
   /** Sugestão de CTA de conversão (insight). */
   conversionGreen: "#0F766E",
+  /** Valor inicial exibido no Studio para o fundo de hover dos links da navbar. */
+  linkHoverSurface: "#F3F4F6",
 } as const;
 
 /** Proporções de derivação de cores a partir da primária/rodapé. */

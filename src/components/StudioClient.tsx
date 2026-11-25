@@ -741,15 +741,15 @@ export default function StudioClient({
             {!selectedElement && editorTab === "insights" && (
               <div className="space-y-4">
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="font-bold text-slate-900">
+                    <span className="font-bold text-zinc-900">
                       Diagnóstico de Paleta &amp; Conversão
                     </span>
                     <button aria-label="Restaurar paleta original extraída"
                       type="button"
                       onClick={restoreOriginalPalette}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-600 hover:text-zinc-900"
                       title="Restaurar paleta original extraída"
                     >
                       <RotateCcw className="h-3 w-3" />
@@ -814,7 +814,7 @@ export default function StudioClient({
                   )}
 
                   {bp.designInsights.length === 0 ? (
-                    <p className="text-slate-500">
+                    <p className="text-zinc-500">
                       Paleta fiel aplicada a partir do site original ({baselineTheme.primaryBackground}).
                     </p>
                   ) : (
@@ -837,8 +837,8 @@ export default function StudioClient({
                               }`}
                             />
                             <div className="space-y-1">
-                              <div className="font-bold text-slate-900">{insight.title}</div>
-                              <p className="leading-relaxed text-slate-600">{insight.description}</p>
+                              <div className="font-bold text-zinc-900">{insight.title}</div>
+                              <p className="leading-relaxed text-zinc-600">{insight.description}</p>
                               {insight.suggestedThemePatch && insight.actionLabel && (
                                 <button
                                   type="button"
@@ -857,10 +857,10 @@ export default function StudioClient({
                   )}
                 </div>
 
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Identidade da Marca</div>
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">Identidade da Marca</div>
                   <div>
-                    <label className="mb-1 block text-slate-500">Nome da Loja</label>
+                    <label className="mb-1 block text-zinc-500">Nome da Loja</label>
                     <input
                       type="text"
                       value={bp.brand.name}
@@ -870,7 +870,7 @@ export default function StudioClient({
                           brand: { ...prev.brand, name: e.target.value },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
+                      className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                     />
                   </div>
                   <AiImageSlot
@@ -889,7 +889,7 @@ export default function StudioClient({
                     }
                   />
                   <div>
-                    <label className="mb-1 block text-slate-500">Nicho / Segmento</label>
+                    <label className="mb-1 block text-zinc-500">Nicho / Segmento</label>
                     <input
                       type="text"
                       value={bp.brand.niche}
@@ -899,11 +899,11 @@ export default function StudioClient({
                           brand: { ...prev.brand, niche: e.target.value },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
+                      className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                     />
                   </div>
                   <div>
-                    <label className="mb-1 block text-slate-500">WhatsApp do Consultor (CTA)</label>
+                    <label className="mb-1 block text-zinc-500">WhatsApp do Consultor (CTA)</label>
                     <input
                       type="text"
                       value={sellerWhatsapp}
@@ -912,7 +912,7 @@ export default function StudioClient({
                         setHasUnsavedChanges(true);
                       }}
                       placeholder="5511999999999"
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
+                      className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                     />
                   </div>
                   <AnnouncementBarControls bp={bp} onUpdateBp={updateBp} showColors={false} />
@@ -923,8 +923,8 @@ export default function StudioClient({
             {/* TAB 2: CORES & BOTÕES (LIBERDADE TOTAL) */}
             {!selectedElement && editorTab === "colors" && (
               <div className="space-y-4">
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">8 Tokens de Cor (Tema LIME)</div>
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">8 Tokens de Cor (Tema LIME)</div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <ColorField
                       label="Cor Primária"
@@ -1014,8 +1014,8 @@ export default function StudioClient({
                 </div>
 
                 {/* Botões e Cards */}
-                <div className="space-y-3 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Botões (Primário, Secundário &amp; Comprar)</div>
+                <div className="space-y-3 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">Botões (Primário, Secundário &amp; Comprar)</div>
 
                   <div className="grid grid-cols-2 gap-2.5">
                     <ColorField
@@ -1073,15 +1073,15 @@ export default function StudioClient({
                         }))
                       }
                     />
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-zinc-700">
                       Botão secundário com contorno (outline)
                     </span>
                   </label>
 
-                  <div className="border-t border-slate-100 pt-2.5">
-                    <div className="mb-2 font-semibold text-slate-700">Botão Comprar dos Produtos</div>
+                  <div className="border-t border-zinc-100 pt-2.5">
+                    <div className="mb-2 font-semibold text-zinc-700">Botão Comprar dos Produtos</div>
                     <div className="mb-2">
-                      <label className="mb-1 block text-slate-500">Texto do Botão</label>
+                      <label className="mb-1 block text-zinc-500">Texto do Botão</label>
                       <input
                         type="text"
                         value={bp.visualOverrides.pageProduct.buyButtonText}
@@ -1097,7 +1097,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
+                        className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
@@ -1203,8 +1203,8 @@ export default function StudioClient({
                 </div>
 
                 {/* Tarja, Cabeçalho & Rodapé */}
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Tarja, Cabeçalho &amp; Rodapé</div>
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">Tarja, Cabeçalho &amp; Rodapé</div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <ColorField
                       label="Tarja (Fundo)"
@@ -1316,9 +1316,9 @@ export default function StudioClient({
                     />
                   </div>
 
-                  <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                  <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-700">Opacidade do Cabeçalho</span>
+                      <span className="font-semibold text-zinc-700">Opacidade do Cabeçalho</span>
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
@@ -1335,7 +1335,7 @@ export default function StudioClient({
                         >
                           100% Transparente
                         </button>
-                        <strong className="font-mono text-slate-900">
+                        <strong className="font-mono text-zinc-900">
                           {Math.round(bp.visualOverrides.header.backgroundOpacity * 100)}%
                         </strong>
                       </div>
@@ -1370,7 +1370,7 @@ export default function StudioClient({
             {/* TAB 3: BANNERS (HERO CAROUSEL, SLIM, MOOD, CAMPANHA) */}
             {!selectedElement && editorTab === "banners" && (
               <div className="space-y-4">
-                <div className="space-y-3 rounded-xl border border-slate-200 p-3">
+                <div className="space-y-3 rounded-xl border border-zinc-200 p-3">
                   <BannerDimensionsControl
                     title="Tamanho do Banner Principal (PX)"
                     heightPx={bp.visualOverrides.banner.heightPx}
@@ -1436,7 +1436,7 @@ export default function StudioClient({
                   />
 
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">Slides do Banner Principal</span>
+                    <span className="font-bold text-zinc-800">Slides do Banner Principal</span>
                     <button
                       type="button"
                       onClick={() =>
@@ -1460,7 +1460,7 @@ export default function StudioClient({
                           },
                         }))
                       }
-                      className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-800"
+                      className="inline-flex items-center gap-1 rounded-md bg-irroba-ink px-2 py-1 text-xs font-semibold text-white hover:bg-zinc-800"
                     >
                       <Plus className="h-3 w-3" />
                       Slide
@@ -1468,9 +1468,9 @@ export default function StudioClient({
                   </div>
 
                   {bp.sections.heroSlides.map((slide, idx) => (
-                    <div key={slide.id} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                    <div key={slide.id} className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
                       <div className="flex items-center justify-between">
-                        <label className="flex items-center gap-1.5 font-semibold text-slate-700">
+                        <label className="flex items-center gap-1.5 font-semibold text-zinc-700">
                           <input
                             type="checkbox"
                             checked={slide.enabled}
@@ -1500,7 +1500,7 @@ export default function StudioClient({
                                 },
                               }))
                             }
-                            className="text-slate-400 hover:text-rose-600"
+                            className="text-zinc-400 hover:text-rose-600"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -1508,7 +1508,7 @@ export default function StudioClient({
                       </div>
 
                       <div>
-                        <label className="mb-1 block text-xs text-slate-500">Modo do Banner</label>
+                        <label className="mb-1 block text-xs text-zinc-500">Modo do Banner</label>
                         <select
                           value={slide.mode}
                           onChange={(e) =>
@@ -1524,7 +1524,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                          className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                         >
                           <option value="artwork">Arte Original (sem texto por cima)</option>
                           <option value="editorial">Editorial (título + botão CTA)</option>
@@ -1568,7 +1568,7 @@ export default function StudioClient({
                                 },
                               }))
                             }
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                            className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                           />
                           <input
                             type="text"
@@ -1585,7 +1585,7 @@ export default function StudioClient({
                                 },
                               }))
                             }
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                            className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                           />
                           <input
                             type="text"
@@ -1602,7 +1602,7 @@ export default function StudioClient({
                                 },
                               }))
                             }
-                            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                            className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                           />
                         </>
                       )}
@@ -1611,11 +1611,11 @@ export default function StudioClient({
                 </div>
 
                 {/* Banner de Benefícios (Tarja Informativa) */}
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-bold text-slate-800">Tarja de Benefícios</span>
-                      <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
+                      <span className="font-bold text-zinc-800">Tarja de Benefícios</span>
+                      <span className="ml-1.5 rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-semibold text-zinc-600">
                         Tarja Informativa
                       </span>
                     </div>
@@ -1653,7 +1653,7 @@ export default function StudioClient({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-slate-800"
+                    className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-800"
                   >
                     {(bp.sections.benefitsBanner?.siteImageUrls?.length ?? 0) > 0 && (
                       <option value="site-images">Artes Extraídas do Site</option>
@@ -1664,10 +1664,10 @@ export default function StudioClient({
                   </select>
 
                   {/* Controles de dimensionamento da Tarja */}
-                  <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
+                    <div className="flex items-center justify-between text-xs font-semibold text-zinc-700">
                       <span>Dimensionamento da Tarja</span>
-                      <label className="flex items-center gap-1 text-xs font-medium text-slate-600">
+                      <label className="flex items-center gap-1 text-xs font-medium text-zinc-600">
                         <input
                           type="checkbox"
                           checked={Boolean(bp.sections.benefitsBanner?.fullWidth)}
@@ -1697,9 +1697,9 @@ export default function StudioClient({
                     </div>
 
                     <div>
-                      <div className="mb-0.5 flex justify-between text-xs text-slate-600">
+                      <div className="mb-0.5 flex justify-between text-xs text-zinc-600">
                         <span>Altura máxima</span>
-                        <strong className="font-mono text-slate-800">
+                        <strong className="font-mono text-zinc-800">
                           {bp.sections.benefitsBanner?.maxHeightPx ?? 120}px
                         </strong>
                       </div>
@@ -1735,9 +1735,9 @@ export default function StudioClient({
 
                     {!bp.sections.benefitsBanner?.fullWidth && (
                       <div>
-                        <div className="mb-0.5 flex justify-between text-xs text-slate-600">
+                        <div className="mb-0.5 flex justify-between text-xs text-zinc-600">
                           <span>Largura máxima</span>
-                          <strong className="font-mono text-slate-800">
+                          <strong className="font-mono text-zinc-800">
                             {bp.sections.benefitsBanner?.maxWidthPx ?? 1280}px
                           </strong>
                         </div>
@@ -1773,9 +1773,9 @@ export default function StudioClient({
                     )}
 
                     <div>
-                      <div className="mb-0.5 flex justify-between text-xs text-slate-600">
+                      <div className="mb-0.5 flex justify-between text-xs text-zinc-600">
                         <span>Espaçamento vertical</span>
-                        <strong className="font-mono text-slate-800">
+                        <strong className="font-mono text-zinc-800">
                           {bp.sections.benefitsBanner?.paddingY ?? 14}px
                         </strong>
                       </div>
@@ -1906,7 +1906,7 @@ export default function StudioClient({
                                   },
                                 }))
                               }
-                              className="rounded border border-slate-200 px-2 py-1 text-xs"
+                              className="rounded border border-zinc-200 px-2 py-1 text-xs"
                             />
                             <input
                               type="text"
@@ -1922,7 +1922,7 @@ export default function StudioClient({
                                   },
                                 }))
                               }
-                              className="rounded border border-slate-200 px-2 py-1 text-xs"
+                              className="rounded border border-zinc-200 px-2 py-1 text-xs"
                             />
                           </div>
                         ))}
@@ -1932,8 +1932,8 @@ export default function StudioClient({
 
                 {/* Banner Slim */}
                 {bp.sections.slimBanner && (
-                  <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                    <label className="flex items-center justify-between font-bold text-slate-800">
+                  <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
+                    <label className="flex items-center justify-between font-bold text-zinc-800">
                       <span>Banner Slim Promocional</span>
                       <input
                         type="checkbox"
@@ -1999,7 +1999,7 @@ export default function StudioClient({
                           },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-slate-800"
+                      className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-800"
                     >
                       <option value="designed">Faixa Desenhada (Editável)</option>
                       <option value="image">Imagem Banner Slim</option>
@@ -2039,7 +2039,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                          className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                         />
                         <div className="grid grid-cols-2 gap-2">
                           <ColorField
@@ -2080,8 +2080,8 @@ export default function StudioClient({
 
                 {/* Banner Secundário */}
                 {bp.sections.secondaryBanner && (
-                  <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                    <label className="flex items-center justify-between font-bold text-slate-800">
+                  <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
+                    <label className="flex items-center justify-between font-bold text-zinc-800">
                       <span>Banner Secundário de Campanha</span>
                       <input
                         type="checkbox"
@@ -2158,7 +2158,7 @@ export default function StudioClient({
                           },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                      className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
                     >
                       <option value="artwork">Arte Completa (Imagem Larga)</option>
                       <option value="editorial">Editorial (Imagem + Texto + Botão)</option>
@@ -2197,7 +2197,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                          className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                         />
                         <input
                           type="text"
@@ -2213,7 +2213,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                          className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                         />
                       </>
                     )}
@@ -2221,9 +2221,9 @@ export default function StudioClient({
                 )}
 
                 {/* Mosaico Mood / Categorias */}
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">Galeria Editorial (Mood / Coleções)</span>
+                    <span className="font-bold text-zinc-800">Galeria Editorial (Mood / Coleções)</span>
                     <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
                       Conteúdo HTML
                     </span>
@@ -2237,7 +2237,7 @@ export default function StudioClient({
                         sections: { ...prev.sections, moodSectionTitle: e.target.value },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                   />
                   <BannerDimensionsControl
                     title="Altura dos Cards da Galeria (PX)"
@@ -2253,8 +2253,8 @@ export default function StudioClient({
                     }
                   />
                   {bp.sections.moodBanners.map((m, idx) => (
-                    <div key={m.id} className="space-y-1.5 rounded-lg bg-slate-50 p-2">
-                      <label className="flex items-center justify-between font-semibold text-slate-700">
+                    <div key={m.id} className="space-y-1.5 rounded-lg bg-zinc-50 p-2">
+                      <label className="flex items-center justify-between font-semibold text-zinc-700">
                         <span>Card {idx + 1}</span>
                         <input
                           type="checkbox"
@@ -2286,7 +2286,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full rounded border border-slate-200 bg-white px-2 py-1"
+                        className="w-full rounded border border-zinc-200 bg-white px-2 py-1"
                       />
                       <AiImageSlot
                         previewId={id}
@@ -2316,10 +2316,10 @@ export default function StudioClient({
             {!selectedElement && editorTab === "structure" && (
               <div className="space-y-4">
                 {/* 0. Árvore Fixa: Topo e Rodapé (Igual ao Editor de Tema Irroba) */}
-                <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <div className="space-y-2 rounded-xl border border-zinc-200 bg-zinc-50/70 p-3">
                   <div>
-                    <div className="font-bold text-slate-900">Topo, Rodapé &amp; Páginas</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-bold text-zinc-900">Topo, Rodapé &amp; Páginas</div>
+                    <div className="text-xs text-zinc-500">
                       Passe o cursor para destacar na prévia ou clique para editar cada área
                     </div>
                   </div>
@@ -2357,8 +2357,8 @@ export default function StudioClient({
                 <div className="space-y-2.5 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="font-bold text-slate-900">Seções da Página Inicial</div>
-                      <div className="text-xs text-slate-500">
+                      <div className="font-bold text-zinc-900">Seções da Página Inicial</div>
+                      <div className="text-xs text-zinc-500">
                         Clique em qualquer seção para editar, arraste para reordenar ou oculte
                       </div>
                     </div>
@@ -2366,7 +2366,7 @@ export default function StudioClient({
                       type="button"
                       onClick={resetSectionLayout}
                       title="Restaurar ordem padrão"
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-50"
                     >
                       <RotateCcw className="h-3 w-3" />
                       Padrão
@@ -2507,9 +2507,9 @@ export default function StudioClient({
                 </div>
 
                 {/* 2. Editor do Lookbook & Manifesto (Conteúdo HTML) */}
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">Lookbook &amp; Manifesto</span>
+                    <span className="font-bold text-zinc-800">Lookbook &amp; Manifesto</span>
                     <span className="rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
                       Conteúdo HTML
                     </span>
@@ -2532,7 +2532,7 @@ export default function StudioClient({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                   />
                   <input
                     type="text"
@@ -2553,7 +2553,7 @@ export default function StudioClient({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                   />
                   <textarea
                     rows={2}
@@ -2574,7 +2574,7 @@ export default function StudioClient({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                   />
                   <AiImageSlot
                     previewId={id}
@@ -2630,16 +2630,16 @@ export default function StudioClient({
                 </div>
 
                 {/* 3. Barra de Aviso Superior */}
-                <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Barra de Aviso do Topo</div>
+                <div className="space-y-2 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">Barra de Aviso do Topo</div>
                   <AnnouncementBarControls bp={bp} onUpdateBp={updateBp} />
                 </div>
 
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Tipografia &amp; Arredondamento</div>
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">Tipografia &amp; Arredondamento</div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-slate-500">Fonte Títulos</label>
+                      <label className="mb-1 block text-zinc-500">Fonte Títulos</label>
                       <select
                         value={bp.theme.headingFont}
                         onChange={(e) =>
@@ -2648,7 +2648,7 @@ export default function StudioClient({
                             theme: { ...prev.theme, headingFont: e.target.value },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                        className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
                       >
                         {!FONT_OPTIONS.includes(bp.theme.headingFont) && (
                           <option value={bp.theme.headingFont}>{bp.theme.headingFont}</option>
@@ -2661,7 +2661,7 @@ export default function StudioClient({
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-slate-500">Fonte Corpo</label>
+                      <label className="mb-1 block text-zinc-500">Fonte Corpo</label>
                       <select
                         value={bp.theme.bodyFont}
                         onChange={(e) =>
@@ -2670,7 +2670,7 @@ export default function StudioClient({
                             theme: { ...prev.theme, bodyFont: e.target.value },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                        className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
                       >
                         {!FONT_OPTIONS.includes(bp.theme.bodyFont) && (
                           <option value={bp.theme.bodyFont}>{bp.theme.bodyFont}</option>
@@ -2686,7 +2686,7 @@ export default function StudioClient({
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-slate-500">Arredondamento</label>
+                      <label className="mb-1 block text-zinc-500">Arredondamento</label>
                       <select
                         value={bp.theme.radius}
                         onChange={(e) =>
@@ -2698,7 +2698,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                        className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
                       >
                         <option value="none">Sem arredondamento</option>
                         <option value="small">Pequeno (6px)</option>
@@ -2707,7 +2707,7 @@ export default function StudioClient({
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-slate-500">Cabeçalho Layout</label>
+                      <label className="mb-1 block text-zinc-500">Cabeçalho Layout</label>
                       <select
                         value={bp.theme.headerLayout}
                         onChange={(e) =>
@@ -2719,7 +2719,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                        className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
                       >
                         <option value="layout-1">Layout 1 (Linha)</option>
                         <option value="layout-2">Layout 2 (Centralizado)</option>
@@ -2730,7 +2730,7 @@ export default function StudioClient({
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-slate-500">Cabeçalho Posição</label>
+                      <label className="mb-1 block text-zinc-500">Cabeçalho Posição</label>
                       <select
                         value={bp.visualOverrides.header.position}
                         onChange={(e) =>
@@ -2745,7 +2745,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                        className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
                       >
                         <option value="default">Padrão (Rola com a página)</option>
                         <option value="sticky">Fixo ao rolar</option>
@@ -2753,7 +2753,7 @@ export default function StudioClient({
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-slate-500">Alinhamento Vitrines</label>
+                      <label className="mb-1 block text-zinc-500">Alinhamento Vitrines</label>
                       <select
                         value={bp.visualOverrides.productCard.titleAlign}
                         onChange={(e) =>
@@ -2768,7 +2768,7 @@ export default function StudioClient({
                             },
                           }))
                         }
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                        className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
                       >
                         <option value="left">Esquerda</option>
                         <option value="center">Centro</option>
@@ -2779,8 +2779,8 @@ export default function StudioClient({
                 </div>
 
                 {/* Menu de Categorias */}
-                <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">Categorias &amp; Links da Navbar</div>
+                <div className="space-y-2.5 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">Categorias &amp; Links da Navbar</div>
                   <HeaderLinksHoverControls bp={bp} onUpdateBp={updateBp} />
                   <div className="flex gap-1.5">
                     <input
@@ -2788,7 +2788,7 @@ export default function StudioClient({
                       placeholder="Nova categoria..."
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1"
+                      className="flex-1 rounded-lg border border-zinc-200 px-2.5 py-1"
                     />
                     <button
                       type="button"
@@ -2807,7 +2807,7 @@ export default function StudioClient({
                         }));
                         setNewCategoryName("");
                       }}
-                      className="rounded-lg bg-slate-900 px-2.5 py-1 font-semibold text-white"
+                      className="rounded-lg bg-irroba-ink px-2.5 py-1 font-semibold text-white"
                     >
                       +
                     </button>
@@ -2829,7 +2829,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="flex-1 rounded border border-slate-200 px-2 py-1"
+                          className="flex-1 rounded border border-zinc-200 px-2 py-1"
                         />
                         <button
                           type="button"
@@ -2842,7 +2842,7 @@ export default function StudioClient({
                               },
                             }))
                           }
-                          className="p-1 text-slate-400 hover:text-rose-600"
+                          className="p-1 text-zinc-400 hover:text-rose-600"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -2852,8 +2852,8 @@ export default function StudioClient({
                 </div>
 
                 {/* Vitrines & Produtos */}
-                <div className="space-y-2 rounded-xl border border-slate-200 p-3">
-                  <div className="font-bold text-slate-800">
+                <div className="space-y-2 rounded-xl border border-zinc-200 p-3">
+                  <div className="font-bold text-zinc-800">
                     Vitrines &amp; Produtos ({bp.products.filter((p) => p.visible !== false).length}/
                     {bp.products.length})
                   </div>
@@ -2873,14 +2873,14 @@ export default function StudioClient({
                           },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 font-medium"
+                      className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 font-medium"
                     />
                   ))}
                   <div className="max-h-48 space-y-1.5 overflow-y-auto pt-1">
                     {bp.products.map((prod) => (
                       <div
                         key={prod.id}
-                        className="flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-2 py-1.5"
+                        className="flex items-center gap-2 rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5"
                       >
                         <input
                           type="checkbox"
@@ -2894,7 +2894,7 @@ export default function StudioClient({
                             }))
                           }
                         />
-                        <span className="flex-1 truncate text-xs text-slate-700">
+                        <span className="flex-1 truncate text-xs text-zinc-700">
                           {prod.title}
                         </span>
                         <button

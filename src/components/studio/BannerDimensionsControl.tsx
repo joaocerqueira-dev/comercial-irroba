@@ -42,9 +42,9 @@ export function BannerDimensionsControl({
   const fullWidthActive = isFullWidth ?? widthPx === undefined;
 
   return (
-    <div className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs">
+    <div className="space-y-2.5 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5 text-xs">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-slate-800">{title}</span>
+        <span className="font-semibold text-zinc-800">{title}</span>
         {(heightPx !== undefined || widthPx !== undefined) && (
           <button
             type="button"
@@ -53,7 +53,7 @@ export function BannerDimensionsControl({
               onWidthChange?.(undefined);
               onFullWidthChange?.(true);
             }}
-            className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-slate-900"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-500 hover:text-zinc-900"
             title="Restaurar tamanho responsivo automático"
           >
             <RotateCcw className="h-3 w-3" />
@@ -65,7 +65,7 @@ export function BannerDimensionsControl({
       {/* Altura em PX */}
       <div>
         <div className="mb-1 flex items-center justify-between gap-2">
-          <span className="text-slate-600">Altura (px)</span>
+          <span className="text-zinc-600">Altura (px)</span>
           <div className="flex items-center gap-1">
             <input
               type="number"
@@ -85,9 +85,9 @@ export function BannerDimensionsControl({
                   onHeightChange(Math.min(maxHeightPx, Math.max(minHeightPx, Math.round(num))));
                 }
               }}
-              className="w-24 rounded border border-slate-200 bg-white px-2 py-0.5 text-right font-mono text-xs text-slate-900"
+              className="w-24 rounded border border-zinc-200 bg-white px-2 py-0.5 text-right font-mono text-xs text-zinc-900"
             />
-            <span className="text-[11px] font-medium text-slate-500">px</span>
+            <span className="text-[11px] font-medium text-zinc-500">px</span>
           </div>
         </div>
         <input
@@ -105,7 +105,7 @@ export function BannerDimensionsControl({
       {onWidthChange && (
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <label className="flex items-center gap-1.5 text-slate-600">
+            <label className="flex items-center gap-1.5 text-zinc-600">
               <input
                 type="checkbox"
                 checked={fullWidthActive}
@@ -135,9 +135,9 @@ export function BannerDimensionsControl({
                       onWidthChange(Math.min(maxWidthPx, Math.max(minWidthPx, Math.round(num))));
                     }
                   }}
-                  className="w-20 rounded border border-slate-200 bg-white px-2 py-0.5 text-right font-mono text-xs text-slate-900"
+                  className="w-20 rounded border border-zinc-200 bg-white px-2 py-0.5 text-right font-mono text-xs text-zinc-900"
                 />
-                <span className="text-[11px] font-medium text-slate-500">px</span>
+                <span className="text-[11px] font-medium text-zinc-500">px</span>
               </div>
             )}
           </div>
@@ -158,13 +158,13 @@ export function BannerDimensionsControl({
       {/* Enquadramento */}
       {onObjectFitChange && (
         <div>
-          <label className="mb-1 block text-slate-600">Enquadramento da Imagem</label>
+          <label className="mb-1 block text-zinc-600">Enquadramento da Imagem</label>
           <select
             value={objectFit ?? "cover"}
             onChange={(e) =>
               onObjectFitChange(e.target.value as "cover" | "contain" | "fill")
             }
-            className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800"
+            className="w-full rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-800"
           >
             <option value="cover">Preencher área (Cover)</option>
             <option value="contain">Mostrar inteira sem corte (Contain)</option>

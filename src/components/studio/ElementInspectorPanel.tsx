@@ -21,6 +21,7 @@ import { ColorField } from "./ColorField";
 import { HeaderLinksHoverControls } from "./HeaderLinksHoverControls";
 import { INSPECTOR_META, type InspectorSelection } from "./inspectorTargets";
 import { useLatest } from "@/lib/client/useLatest";
+import { PALETTE } from "@/lib/layout-patterns/palette";
 
 interface ElementInspectorPanelProps {
   previewId: string;
@@ -72,12 +73,12 @@ export function ElementInspectorPanel({
   }, [missingProduct, onSelectRef]);
 
   const renderCardAndBuyButtonControls = () => (
-    <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
-      <div className="font-bold text-slate-800">Estilo dos Cards &amp; Botão Comprar</div>
+    <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
+      <div className="font-bold text-zinc-800">Estilo dos Cards &amp; Botão Comprar</div>
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="mb-1 block text-slate-500">Largura da Vitrine</label>
+          <label className="mb-1 block text-zinc-500">Largura da Vitrine</label>
           <select
             value={bp.visualOverrides.productCard.listWidth}
             onChange={(e) =>
@@ -92,7 +93,7 @@ export function ElementInspectorPanel({
                 },
               }))
             }
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
           >
             <option value="container">Padrão (1280px)</option>
             <option value="full">Largura Total</option>
@@ -100,7 +101,7 @@ export function ElementInspectorPanel({
         </div>
 
         <div>
-          <label className="mb-1 block text-slate-500">Alinhamento Título</label>
+          <label className="mb-1 block text-zinc-500">Alinhamento Título</label>
           <select
             value={bp.visualOverrides.productCard.titleAlign}
             onChange={(e) =>
@@ -115,7 +116,7 @@ export function ElementInspectorPanel({
                 },
               }))
             }
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
           >
             <option value="left">Esquerda</option>
             <option value="center">Centro</option>
@@ -126,7 +127,7 @@ export function ElementInspectorPanel({
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="mb-1 block text-slate-500">Padding Lateral Card</label>
+          <label className="mb-1 block text-zinc-500">Padding Lateral Card</label>
           <select
             value={bp.visualOverrides.productCard.paddingX}
             onChange={(e) =>
@@ -141,7 +142,7 @@ export function ElementInspectorPanel({
                 },
               }))
             }
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
           >
             <option value={8}>Compacto (8px)</option>
             <option value={16}>Padrão (16px)</option>
@@ -151,7 +152,7 @@ export function ElementInspectorPanel({
         </div>
 
         <div>
-          <label className="mb-1 block text-slate-500">Texto do Botão</label>
+          <label className="mb-1 block text-zinc-500">Texto do Botão</label>
           <input
             type="text"
             value={bp.visualOverrides.pageProduct.buyButtonText}
@@ -167,7 +168,7 @@ export function ElementInspectorPanel({
                 },
               }))
             }
-            className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
+            className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
           />
         </div>
       </div>
@@ -327,16 +328,16 @@ export function ElementInspectorPanel({
 
       {/* 1. BARRA DE AVISO / OVERLINE */}
       {selection.targetId === "announcement" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <AnnouncementBarControls bp={bp} onUpdateBp={onUpdateBp} />
         </div>
       )}
 
       {/* 2. LOGOTIPO DA LOJA */}
       {selection.targetId === "header-logo" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">Nome da Loja</label>
+            <label className="mb-1 block font-semibold text-zinc-700">Nome da Loja</label>
             <input
               type="text"
               value={bp.brand.name}
@@ -346,7 +347,7 @@ export function ElementInspectorPanel({
                   brand: { ...prev.brand, name: e.target.value },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
             />
           </div>
 
@@ -366,10 +367,10 @@ export function ElementInspectorPanel({
             }
           />
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-            <div className="mb-1 flex items-center justify-between text-slate-700">
+          <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
+            <div className="mb-1 flex items-center justify-between text-zinc-700">
               <span className="font-semibold">Altura da Logo (PX)</span>
-              <strong className="font-mono text-slate-900">
+              <strong className="font-mono text-zinc-900">
                 {bp.visualOverrides.header.logoHeightPx ?? 46}px
               </strong>
             </div>
@@ -393,13 +394,13 @@ export function ElementInspectorPanel({
               }
               className="w-full accent-brand-500"
             />
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-zinc-500">
               A logo é um elemento independente e mantém 100% de nitidez mesmo com a navbar transparente.
             </p>
           </div>
 
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">
+            <label className="mb-1 block font-semibold text-zinc-700">
               Posição da Logo no Cabeçalho
             </label>
             <select
@@ -413,7 +414,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+              className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
             >
               <option value="layout-1">Layout 1 — Logo à esquerda + Menu na linha</option>
               <option value="layout-2">Layout 2 — Logo centralizada + Menu abaixo</option>
@@ -424,7 +425,7 @@ export function ElementInspectorPanel({
           <button
             type="button"
             onClick={() => onSelect({ targetId: "header", label: "Cabeçalho" })}
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
           >
             Editar cores, opacidade e posicionamento do Cabeçalho →
           </button>
@@ -433,11 +434,11 @@ export function ElementInspectorPanel({
 
       {/* 3. MENU DE CATEGORIAS */}
       {selection.targetId === "header-nav" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <HeaderLinksHoverControls bp={bp} onUpdateBp={onUpdateBp} />
 
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">
+            <label className="mb-1 block font-semibold text-zinc-700">
               Formato do Texto das Categorias
             </label>
             <select
@@ -458,7 +459,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+              className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
             >
               <option value="normal">Normal (como digitado)</option>
               <option value="uppercase">MAIÚSCULAS</option>
@@ -468,7 +469,7 @@ export function ElementInspectorPanel({
           </div>
 
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">
+            <label className="mb-1 block font-semibold text-zinc-700">
               Itens do Menu Principal
             </label>
             <div className="mb-2 flex gap-1.5">
@@ -495,7 +496,7 @@ export function ElementInspectorPanel({
                     setNewCategoryName("");
                   }
                 }}
-                className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="flex-1 rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
               <button
                 type="button"
@@ -514,7 +515,7 @@ export function ElementInspectorPanel({
                   }));
                   setNewCategoryName("");
                 }}
-                className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 font-semibold text-white hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-lg bg-irroba-ink px-2.5 py-1.5 font-semibold text-white hover:bg-zinc-800"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Adicionar
@@ -538,7 +539,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="min-w-0 flex-1 rounded border border-slate-200 px-2 py-1 text-slate-800"
+                    className="min-w-0 flex-1 rounded border border-zinc-200 px-2 py-1 text-zinc-800"
                   />
                   <button
                     type="button"
@@ -552,7 +553,7 @@ export function ElementInspectorPanel({
                         return { ...prev, sections: { ...prev.sections, categories: arr } };
                       })
                     }
-                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                    className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"
                   >
                     <ArrowUp className="h-3.5 w-3.5" />
                   </button>
@@ -568,7 +569,7 @@ export function ElementInspectorPanel({
                         return { ...prev, sections: { ...prev.sections, categories: arr } };
                       })
                     }
-                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+                    className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30"
                   >
                     <ArrowDown className="h-3.5 w-3.5" />
                   </button>
@@ -583,7 +584,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="rounded p-1 text-slate-400 hover:text-rose-600"
+                    className="rounded p-1 text-zinc-400 hover:text-rose-600"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -597,10 +598,10 @@ export function ElementInspectorPanel({
       {/* 4. CABEÇALHO COMPLETO */}
       {selection.targetId === "header" && (
         <div className="space-y-3">
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-slate-500">Estrutura</label>
+                <label className="mb-1 block text-zinc-500">Estrutura</label>
                 <select
                   value={bp.theme.headerLayout}
                   onChange={(e) =>
@@ -612,7 +613,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
                 >
                   <option value="layout-1">Layout 1 (Linha)</option>
                   <option value="layout-2">Layout 2 (Central)</option>
@@ -620,7 +621,7 @@ export function ElementInspectorPanel({
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-slate-500">Posicionamento</label>
+                <label className="mb-1 block text-zinc-500">Posicionamento</label>
                 <select
                   value={bp.visualOverrides.header.position}
                   onChange={(e) =>
@@ -635,7 +636,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
                 >
                   <option value="default">Padrão (Rola com a página)</option>
                   <option value="sticky">Fixo ao rolar</option>
@@ -674,9 +675,9 @@ export function ElementInspectorPanel({
               />
             </div>
 
-            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+            <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold text-slate-700">Opacidade do Fundo</span>
+                <span className="font-semibold text-zinc-700">Opacidade do Fundo</span>
                 <div className="flex items-center gap-1.5">
                   <button
                     type="button"
@@ -693,7 +694,7 @@ export function ElementInspectorPanel({
                   >
                     100% Transparente
                   </button>
-                  <strong className="font-mono text-slate-900">
+                  <strong className="font-mono text-zinc-900">
                     {Math.round(bp.visualOverrides.header.backgroundOpacity * 100)}%
                   </strong>
                 </div>
@@ -719,9 +720,9 @@ export function ElementInspectorPanel({
                 className="w-full accent-brand-500"
               />
               <div className="pt-1">
-                <div className="mb-0.5 flex justify-between text-slate-600">
+                <div className="mb-0.5 flex justify-between text-zinc-600">
                   <span>Desfoque de vidro (Blur)</span>
-                  <strong className="font-mono text-slate-800">
+                  <strong className="font-mono text-zinc-800">
                     {bp.visualOverrides.header.backgroundOpacity <= 0
                       ? "0px (Transparente)"
                       : `${bp.visualOverrides.header.blurPx}px`}
@@ -748,7 +749,7 @@ export function ElementInspectorPanel({
                   className="w-full accent-brand-500"
                 />
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-zinc-500">
                 A opacidade atua somente no fundo da navbar; a logo e os links permanecem nítidos.
               </p>
             </div>
@@ -758,7 +759,7 @@ export function ElementInspectorPanel({
             <button
               type="button"
               onClick={() => onSelect({ targetId: "header-logo", label: "Logotipo da Loja" })}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
             >
               Editar Logotipo (Elemento Separado) →
             </button>
@@ -766,7 +767,7 @@ export function ElementInspectorPanel({
             <button
               type="button"
               onClick={() => onSelect({ targetId: "header-nav", label: "Menu de Categorias" })}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
             >
               Editar itens do Menu de Categorias ({bp.sections.categories.length}) →
             </button>
@@ -776,7 +777,7 @@ export function ElementInspectorPanel({
 
       {/* 5. BANNER PRINCIPAL (HERO CAROUSEL) */}
       {selection.targetId === "hero" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <BannerDimensionsControl
             title="Tamanho de Exibição do Banner Principal (PX)"
             heightPx={bp.visualOverrides.banner.heightPx}
@@ -840,7 +841,7 @@ export function ElementInspectorPanel({
           />
 
           <div className="flex items-center justify-between gap-2">
-            <span className="font-bold text-slate-800">Slides do Banner Principal</span>
+            <span className="font-bold text-zinc-800">Slides do Banner Principal</span>
 
             <button
               type="button"
@@ -867,7 +868,7 @@ export function ElementInspectorPanel({
                 }));
                 onShowSlide?.(nextIdx);
               }}
-              className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+              className="inline-flex items-center gap-1 rounded-lg bg-irroba-ink px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800"
             >
               <Plus className="h-3.5 w-3.5" />
               Novo Slide
@@ -881,11 +882,11 @@ export function ElementInspectorPanel({
               className={`space-y-2 rounded-lg border p-2.5 transition ${
                 selection.subIndex === idx
                   ? "border-brand-400 bg-brand-50/50"
-                  : "border-slate-200 bg-slate-50"
+                  : "border-zinc-200 bg-zinc-50"
               }`}
             >
               <div className="flex items-center justify-between">
-                <label className="flex items-center gap-1.5 font-semibold text-slate-800">
+                <label className="flex items-center gap-1.5 font-semibold text-zinc-800">
                   <input
                     type="checkbox"
                     checked={slide.enabled}
@@ -915,7 +916,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="text-slate-400 hover:text-rose-600"
+                    className="text-zinc-400 hover:text-rose-600"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -935,7 +936,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
               >
                 <option value="artwork">Arte Original (sem texto sobreposto)</option>
                 <option value="editorial">Editorial (título + subtítulo + botão CTA)</option>
@@ -978,7 +979,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                   />
                   <input
                     type="text"
@@ -995,7 +996,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                   />
                   <div className="grid grid-cols-2 gap-1.5">
                     <input
@@ -1013,7 +1014,7 @@ export function ElementInspectorPanel({
                           },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                      className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                     />
                     <input
                       type="text"
@@ -1030,7 +1031,7 @@ export function ElementInspectorPanel({
                           },
                         }))
                       }
-                      className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-800"
+                      className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-800"
                     />
                   </div>
                 </div>
@@ -1042,9 +1043,9 @@ export function ElementInspectorPanel({
 
       {/* 6. TARJA INFORMATIVA (BENEFÍCIOS) */}
       {selection.targetId === "tarja" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div className="flex items-center justify-between">
-            <span className="font-bold text-slate-800">Formato da Tarja</span>
+            <span className="font-bold text-zinc-800">Formato da Tarja</span>
             <button
               type="button"
               onClick={onDownloadBenefitsPng}
@@ -1078,7 +1079,7 @@ export function ElementInspectorPanel({
                 },
               }))
             }
-            className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+            className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
           >
             {(bp.sections.benefitsBanner?.siteImageUrls?.length ?? 0) > 0 && (
               <option value="site-images">Artes Extraídas / Enviadas (Múltiplas)</option>
@@ -1118,9 +1119,9 @@ export function ElementInspectorPanel({
           )}
 
           {bp.sections.benefitsBanner?.mode === "site-images" && (
-            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+            <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-700">Imagens dos Benefícios</span>
+                <span className="font-semibold text-zinc-700">Imagens dos Benefícios</span>
                 {(bp.sections.benefitsBanner.siteImageUrls?.length ?? 0) < 6 && (
                   <button
                     type="button"
@@ -1139,7 +1140,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="inline-flex items-center gap-1 rounded bg-slate-900 px-2 py-0.5 text-xs font-semibold text-white"
+                    className="inline-flex items-center gap-1 rounded bg-irroba-ink px-2 py-0.5 text-xs font-semibold text-white"
                   >
                     <Plus className="h-3 w-3" /> Item
                   </button>
@@ -1179,10 +1180,10 @@ export function ElementInspectorPanel({
             </div>
           )}
 
-          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-            <div className="flex items-center justify-between font-semibold text-slate-700">
+          <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
+            <div className="flex items-center justify-between font-semibold text-zinc-700">
               <span>Dimensionamento</span>
-              <label className="flex items-center gap-1 font-medium text-slate-600">
+              <label className="flex items-center gap-1 font-medium text-zinc-600">
                 <input
                   type="checkbox"
                   checked={Boolean(bp.sections.benefitsBanner?.fullWidth)}
@@ -1210,9 +1211,9 @@ export function ElementInspectorPanel({
               </label>
             </div>
             <div>
-              <div className="mb-0.5 flex justify-between text-slate-600">
+              <div className="mb-0.5 flex justify-between text-zinc-600">
                 <span>Altura máxima</span>
-                <strong className="font-mono text-slate-800">
+                <strong className="font-mono text-zinc-800">
                   {bp.sections.benefitsBanner?.maxHeightPx ?? 120}px
                 </strong>
               </div>
@@ -1293,7 +1294,7 @@ export function ElementInspectorPanel({
           {bp.sections.benefitsBanner?.mode !== "site-images" &&
             bp.sections.benefitsBanner?.mode !== "custom-image" && (
               <div className="space-y-1.5 pt-1">
-                <div className="font-semibold text-slate-700">Textos dos Benefícios</div>
+                <div className="font-semibold text-zinc-700">Textos dos Benefícios</div>
                 {bp.sections.benefits.slice(0, 4).map((b, bIdx) => (
                   <div key={bIdx} className="grid grid-cols-2 gap-1.5">
                     <input
@@ -1310,7 +1311,7 @@ export function ElementInspectorPanel({
                           },
                         }))
                       }
-                      className="rounded border border-slate-200 px-2 py-1"
+                      className="rounded border border-zinc-200 px-2 py-1"
                     />
                     <input
                       type="text"
@@ -1326,7 +1327,7 @@ export function ElementInspectorPanel({
                           },
                         }))
                       }
-                      className="rounded border border-slate-200 px-2 py-1"
+                      className="rounded border border-zinc-200 px-2 py-1"
                     />
                   </div>
                 ))}
@@ -1337,9 +1338,9 @@ export function ElementInspectorPanel({
 
       {/* 7. GALERIA EDITORIAL (MOOD BANNERS 3:4) */}
       {selection.targetId === "editorialGallery" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">Título da Seção</label>
+            <label className="mb-1 block font-semibold text-zinc-700">Título da Seção</label>
             <input
               type="text"
               value={bp.sections.moodSectionTitle}
@@ -1349,7 +1350,7 @@ export function ElementInspectorPanel({
                   sections: { ...prev.sections, moodSectionTitle: e.target.value },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
 
@@ -1368,7 +1369,7 @@ export function ElementInspectorPanel({
           />
 
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-700">Cards da Galeria (até 4 ativos)</span>
+            <span className="font-semibold text-zinc-700">Cards da Galeria (até 4 ativos)</span>
             {bp.sections.moodBanners.length < 4 && (
               <button
                 type="button"
@@ -1391,7 +1392,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white"
+                className="inline-flex items-center gap-1 rounded-md bg-irroba-ink px-2 py-1 text-xs font-semibold text-white"
               >
                 <Plus className="h-3 w-3" /> Card
               </button>
@@ -1404,10 +1405,10 @@ export function ElementInspectorPanel({
               className={`space-y-1.5 rounded-lg border p-2.5 ${
                 selection.subIndex === idx
                   ? "border-brand-400 bg-brand-50/50"
-                  : "border-slate-200 bg-slate-50"
+                  : "border-zinc-200 bg-zinc-50"
               }`}
             >
-              <label className="flex items-center justify-between font-semibold text-slate-700">
+              <label className="flex items-center justify-between font-semibold text-zinc-700">
                 <span>Card {idx + 1}</span>
                 <input
                   type="checkbox"
@@ -1441,7 +1442,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="rounded border border-slate-200 bg-white px-2 py-1"
+                  className="rounded border border-zinc-200 bg-white px-2 py-1"
                 />
                 <input
                   type="text"
@@ -1458,7 +1459,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="rounded border border-slate-200 bg-white px-2 py-1"
+                  className="rounded border border-zinc-200 bg-white px-2 py-1"
                 />
               </div>
               <AiImageSlot
@@ -1486,7 +1487,7 @@ export function ElementInspectorPanel({
 
       {/* 8. BANNER SLIM PROMOCIONAL */}
       {selection.targetId === "slimBanner" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <BannerDimensionsControl
             title="Tamanho do Banner Slim (PX)"
             heightPx={bp.sections.slimBanner?.heightPx}
@@ -1535,7 +1536,7 @@ export function ElementInspectorPanel({
           />
 
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">Modo da Faixa</label>
+            <label className="mb-1 block font-semibold text-zinc-700">Modo da Faixa</label>
             <select
               value={bp.sections.slimBanner?.mode ?? "designed"}
               onChange={(e) =>
@@ -1561,7 +1562,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+              className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
             >
               <option value="designed">Faixa Desenhada (Texto + Selo + Botão)</option>
               <option value="image">Imagem Banner Slim (Upload / IA)</option>
@@ -1591,7 +1592,7 @@ export function ElementInspectorPanel({
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="mb-1 block text-slate-500">Selo</label>
+                  <label className="mb-1 block text-zinc-500">Selo</label>
                   <input
                     type="text"
                     value={bp.sections.slimBanner?.badgeText ?? "DESTAQUE"}
@@ -1606,11 +1607,11 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1"
+                    className="w-full rounded-lg border border-zinc-200 px-2 py-1"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-slate-500">Texto do Botão</label>
+                  <label className="mb-1 block text-zinc-500">Texto do Botão</label>
                   <input
                     type="text"
                     value={bp.sections.slimBanner?.ctaText ?? "Aproveitar"}
@@ -1625,12 +1626,12 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1"
+                    className="w-full rounded-lg border border-zinc-200 px-2 py-1"
                   />
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-slate-500">Mensagem Promocional</label>
+                <label className="mb-1 block text-zinc-500">Mensagem Promocional</label>
                 <input
                   type="text"
                   value={bp.sections.slimBanner?.headline ?? ""}
@@ -1645,13 +1646,13 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <ColorField
                   label="Fundo"
-                  value={bp.sections.slimBanner?.backgroundColor ?? "#111827"}
+                  value={bp.sections.slimBanner?.backgroundColor ?? PALETTE.ink}
                   onChange={(v) =>
                     onUpdateBp((prev) => ({
                       ...prev,
@@ -1666,8 +1667,8 @@ export function ElementInspectorPanel({
                 />
                 <ColorField
                   label="Texto"
-                  value={bp.sections.slimBanner?.textColor ?? "#FFFFFF"}
-                  contrastWith={bp.sections.slimBanner?.backgroundColor ?? "#111827"}
+                  value={bp.sections.slimBanner?.textColor ?? PALETTE.white}
+                  contrastWith={bp.sections.slimBanner?.backgroundColor ?? PALETTE.ink}
                   onChange={(v) =>
                     onUpdateBp((prev) => ({
                       ...prev,
@@ -1688,16 +1689,16 @@ export function ElementInspectorPanel({
 
       {/* 9. CARD DE PRODUTO INDIVIDUAL */}
       {missingProduct && (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-white p-3 text-slate-500">
+        <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-3 text-zinc-500">
           Este produto não existe mais. Selecione outro elemento na prévia.
         </div>
       )}
       {selection.targetId === "product-item" && selectedProduct && (
         <div className="space-y-3">
-          <div className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="space-y-2.5 rounded-xl border border-zinc-200 bg-white p-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800">Dados deste Produto</span>
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+              <span className="font-bold text-zinc-800">Dados deste Produto</span>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700">
                 <input
                   type="checkbox"
                   checked={selectedProduct.visible !== false}
@@ -1737,7 +1738,7 @@ export function ElementInspectorPanel({
             />
 
             <div>
-              <label className="mb-1 block text-slate-500">Nome do Produto</label>
+              <label className="mb-1 block text-zinc-500">Nome do Produto</label>
               <input
                 type="text"
                 value={selectedProduct.title}
@@ -1749,13 +1750,13 @@ export function ElementInspectorPanel({
                     ),
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-900"
+                className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-slate-500">Preço Atual (R$)</label>
+                <label className="mb-1 block text-zinc-500">Preço Atual (R$)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1771,11 +1772,11 @@ export function ElementInspectorPanel({
                       ),
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-slate-900"
+                  className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-slate-500">Preço Antigo &quot;De&quot; (R$)</label>
+                <label className="mb-1 block text-zinc-500">Preço Antigo &quot;De&quot; (R$)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -1796,14 +1797,14 @@ export function ElementInspectorPanel({
                       ),
                     }));
                   }}
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-slate-900"
+                  className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block text-slate-500">Categoria</label>
+                <label className="mb-1 block text-zinc-500">Categoria</label>
                 <input
                   type="text"
                   value={selectedProduct.category}
@@ -1815,11 +1816,11 @@ export function ElementInspectorPanel({
                       ),
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-slate-900"
+                  className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-slate-500">Parcelamento</label>
+                <label className="mb-1 block text-zinc-500">Parcelamento</label>
                 <input
                   type="text"
                   value={selectedProduct.installmentsText ?? ""}
@@ -1834,7 +1835,7 @@ export function ElementInspectorPanel({
                       ),
                     }))
                   }
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-slate-900"
+                  className="w-full rounded-lg border border-zinc-200 px-2 py-1.5 text-zinc-900"
                 />
               </div>
             </div>
@@ -1850,9 +1851,9 @@ export function ElementInspectorPanel({
       {/* 11. VITRINE PRINCIPAL & VITRINES ADICIONAIS */}
       {(selection.targetId === "showcase1" || selection.targetId === "extraShowcases") && (
         <div className="space-y-3">
-          <div className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="space-y-2.5 rounded-xl border border-zinc-200 bg-white p-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800">Títulos das Vitrines</span>
+              <span className="font-bold text-zinc-800">Títulos das Vitrines</span>
               <button
                 type="button"
                 onClick={() =>
@@ -1871,7 +1872,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white"
+                className="inline-flex items-center gap-1 rounded-md bg-irroba-ink px-2 py-1 text-xs font-semibold text-white"
               >
                 <Plus className="h-3 w-3" /> Vitrine
               </button>
@@ -1883,10 +1884,10 @@ export function ElementInspectorPanel({
                 className={`space-y-1.5 rounded-lg border p-2 ${
                   idx === activeShowcaseIdx
                     ? "border-brand-400 bg-brand-50/50"
-                    : "border-slate-200 bg-slate-50"
+                    : "border-zinc-200 bg-zinc-50"
                 }`}
               >
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                <div className="flex items-center justify-between text-xs font-semibold text-zinc-600">
                   <span>Vitrine {idx + 1}</span>
                   {bp.sections.showcases.length > 1 && (
                     <button
@@ -1900,7 +1901,7 @@ export function ElementInspectorPanel({
                           },
                         }))
                       }
-                      className="text-slate-400 hover:text-rose-600"
+                      className="text-zinc-400 hover:text-rose-600"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -1921,7 +1922,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1 font-medium text-slate-900"
+                  className="w-full rounded border border-zinc-200 bg-white px-2 py-1 font-medium text-zinc-900"
                 />
                 <input
                   type="text"
@@ -1938,7 +1939,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-slate-700"
+                  className="w-full rounded border border-zinc-200 bg-white px-2 py-1 text-zinc-700"
                 />
               </div>
             ))}
@@ -1946,9 +1947,9 @@ export function ElementInspectorPanel({
 
           {renderCardAndBuyButtonControls()}
 
-          <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="space-y-2 rounded-xl border border-zinc-200 bg-white p-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-800">
+              <span className="font-bold text-zinc-800">
                 Catálogo de Produtos ({bp.products.filter((p) => p.visible !== false).length}/
                 {bp.products.length})
               </span>
@@ -1994,7 +1995,7 @@ export function ElementInspectorPanel({
               {bp.products.map((prod) => (
                 <div
                   key={prod.id}
-                  className="flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5"
+                  className="flex items-center gap-2 rounded-lg border border-zinc-100 bg-zinc-50 px-2 py-1.5"
                 >
                   <input
                     type="checkbox"
@@ -2008,7 +2009,7 @@ export function ElementInspectorPanel({
                       }))
                     }
                   />
-                  <span className="flex-1 truncate text-slate-700">{prod.title}</span>
+                  <span className="flex-1 truncate text-zinc-700">{prod.title}</span>
                   <button
                     type="button"
                     onClick={() =>
@@ -2018,7 +2019,7 @@ export function ElementInspectorPanel({
                         label: `Produto: ${prod.title.slice(0, 26)}`,
                       })
                     }
-                    className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700 hover:bg-brand-50 hover:text-brand-700"
+                    className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-zinc-700 hover:bg-brand-50 hover:text-brand-700"
                   >
                     <Pencil className="h-2.5 w-2.5" />
                     Editar
@@ -2032,7 +2033,7 @@ export function ElementInspectorPanel({
 
       {/* 12. BANNER SECUNDÁRIO DE CAMPANHA */}
       {selection.targetId === "secondaryBanner" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <BannerDimensionsControl
             title="Tamanho do Banner Secundário (PX)"
             heightPx={bp.sections.secondaryBanner?.heightPx}
@@ -2078,7 +2079,7 @@ export function ElementInspectorPanel({
           />
 
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">Modo do Banner</label>
+            <label className="mb-1 block font-semibold text-zinc-700">Modo do Banner</label>
             <select
               value={bp.sections.secondaryBanner?.mode ?? "editorial"}
               onChange={(e) =>
@@ -2107,7 +2108,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+              className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
             >
               <option value="artwork">Arte Completa (Imagem Larga)</option>
               <option value="editorial">Editorial (Imagem + Texto + Botão)</option>
@@ -2165,7 +2166,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
               <textarea
                 rows={2}
@@ -2182,7 +2183,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
               <input
                 type="text"
@@ -2199,7 +2200,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
               <div className="grid grid-cols-2 gap-2">
                 <ColorField
@@ -2243,10 +2244,10 @@ export function ElementInspectorPanel({
 
       {/* 13. LOOKBOOK & MANIFESTO */}
       {selection.targetId === "editorialLookbook" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-slate-500">Etiqueta Superior</label>
+              <label className="mb-1 block text-zinc-500">Etiqueta Superior</label>
               <input
                 type="text"
                 value={bp.sections.lookbook?.eyebrow ?? "01 / Manifesto"}
@@ -2264,11 +2265,11 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
             </div>
             <div>
-              <label className="mb-1 block text-slate-500">Texto do Botão</label>
+              <label className="mb-1 block text-zinc-500">Texto do Botão</label>
               <input
                 type="text"
                 value={bp.sections.lookbook?.ctaText ?? bp.sections.hero.ctaText}
@@ -2287,13 +2288,13 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-slate-500">Título do Manifesto</label>
+            <label className="mb-1 block text-zinc-500">Título do Manifesto</label>
             <input
               type="text"
               value={bp.sections.lookbook?.headline ?? bp.sections.promoStripText}
@@ -2312,12 +2313,12 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-slate-500">Narrativa da Marca</label>
+            <label className="mb-1 block text-zinc-500">Narrativa da Marca</label>
             <textarea
               rows={3}
               value={bp.sections.lookbook?.description ?? bp.footer.aboutText}
@@ -2336,7 +2337,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
 
@@ -2397,9 +2398,9 @@ export function ElementInspectorPanel({
 
       {/* 14. AVALIAÇÕES DE CLIENTES */}
       {selection.targetId === "testimonials" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">Título da Seção</label>
+            <label className="mb-1 block font-semibold text-zinc-700">Título da Seção</label>
             <input
               type="text"
               value={bp.sections.testimonialsTitle}
@@ -2409,12 +2410,12 @@ export function ElementInspectorPanel({
                   sections: { ...prev.sections, testimonialsTitle: e.target.value },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-700">Depoimentos Exibidos</span>
+            <span className="font-semibold text-zinc-700">Depoimentos Exibidos</span>
             <button
               type="button"
               onClick={() =>
@@ -2434,7 +2435,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white"
+              className="inline-flex items-center gap-1 rounded-md bg-irroba-ink px-2 py-1 text-xs font-semibold text-white"
             >
               <Plus className="h-3 w-3" /> Avaliação
             </button>
@@ -2446,7 +2447,7 @@ export function ElementInspectorPanel({
               className={`space-y-1.5 rounded-lg border p-2.5 ${
                 selection.subIndex === idx
                   ? "border-brand-400 bg-brand-50/50"
-                  : "border-slate-200 bg-slate-50"
+                  : "border-zinc-200 bg-zinc-50"
               }`}
             >
               <div className="flex items-center justify-between gap-2">
@@ -2465,7 +2466,7 @@ export function ElementInspectorPanel({
                       },
                     }))
                   }
-                  className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 py-1 font-semibold text-slate-800"
+                  className="min-w-0 flex-1 rounded border border-zinc-200 bg-white px-2 py-1 font-semibold text-zinc-800"
                 />
                 <div className="flex items-center gap-0.5">
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -2490,7 +2491,7 @@ export function ElementInspectorPanel({
                         className={`h-3.5 w-3.5 ${
                           star <= rev.rating
                             ? "fill-amber-400 text-amber-400"
-                            : "text-slate-300"
+                            : "text-zinc-300"
                         }`}
                       />
                     </button>
@@ -2508,7 +2509,7 @@ export function ElementInspectorPanel({
                         },
                       }))
                     }
-                    className="text-slate-400 hover:text-rose-600"
+                    className="text-zinc-400 hover:text-rose-600"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -2528,7 +2529,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-slate-700"
+                className="w-full rounded border border-zinc-200 bg-white px-2 py-1 text-zinc-700"
               />
             </div>
           ))}
@@ -2537,9 +2538,9 @@ export function ElementInspectorPanel({
 
       {/* 15. NEWSLETTER */}
       {selection.targetId === "newsletter" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block text-slate-500">Título da Newsletter</label>
+            <label className="mb-1 block text-zinc-500">Título da Newsletter</label>
             <input
               type="text"
               value={bp.sections.newsletter?.headline ?? `Receba novidades da ${bp.brand.name}`}
@@ -2552,11 +2553,11 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
           <div>
-            <label className="mb-1 block text-slate-500">Subtítulo</label>
+            <label className="mb-1 block text-zinc-500">Subtítulo</label>
             <input
               type="text"
               value={
@@ -2572,12 +2573,12 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-slate-500">Placeholder do E-mail</label>
+              <label className="mb-1 block text-zinc-500">Placeholder do E-mail</label>
               <input
                 type="text"
                 value={bp.sections.newsletter?.placeholder ?? "Digite seu melhor e-mail"}
@@ -2590,11 +2591,11 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
             </div>
             <div>
-              <label className="mb-1 block text-slate-500">Texto do Botão</label>
+              <label className="mb-1 block text-zinc-500">Texto do Botão</label>
               <input
                 type="text"
                 value={bp.sections.newsletter?.ctaText ?? "Cadastrar"}
@@ -2607,7 +2608,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
               />
             </div>
           </div>
@@ -2639,9 +2640,9 @@ export function ElementInspectorPanel({
 
       {/* 16. RODAPÉ — INFORMAÇÕES & ATENDIMENTO */}
       {selection.targetId === "footer" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block text-slate-500">Largura do Rodapé</label>
+            <label className="mb-1 block text-zinc-500">Largura do Rodapé</label>
             <select
               value={bp.visualOverrides.footer.width}
               onChange={(e) =>
@@ -2656,7 +2657,7 @@ export function ElementInspectorPanel({
                   },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+              className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
             >
               <option value="container">Padrão do site (1280px)</option>
               <option value="full">Largura Total</option>
@@ -2694,7 +2695,7 @@ export function ElementInspectorPanel({
           </div>
 
           <div>
-            <label className="mb-1 block text-slate-500">Sobre a Loja</label>
+            <label className="mb-1 block text-zinc-500">Sobre a Loja</label>
             <textarea
               rows={3}
               value={bp.footer.aboutText}
@@ -2704,13 +2705,13 @@ export function ElementInspectorPanel({
                   footer: { ...prev.footer, aboutText: e.target.value },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
 
           <div className="space-y-2">
             <div>
-              <label className="mb-1 block text-slate-500">WhatsApp de Atendimento</label>
+              <label className="mb-1 block text-zinc-500">WhatsApp de Atendimento</label>
               <input
                 type="text"
                 value={bp.footer.whatsapp ?? ""}
@@ -2721,11 +2722,11 @@ export function ElementInspectorPanel({
                     footer: { ...prev.footer, whatsapp: e.target.value },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
             </div>
             <div>
-              <label className="mb-1 block text-slate-500">E-mail de Contato</label>
+              <label className="mb-1 block text-zinc-500">E-mail de Contato</label>
               <input
                 type="email"
                 value={bp.footer.email ?? ""}
@@ -2736,11 +2737,11 @@ export function ElementInspectorPanel({
                     footer: { ...prev.footer, email: e.target.value },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
             </div>
             <div>
-              <label className="mb-1 block text-slate-500">URL do Instagram</label>
+              <label className="mb-1 block text-zinc-500">URL do Instagram</label>
               <input
                 type="text"
                 value={bp.footer.instagram ?? ""}
@@ -2751,7 +2752,7 @@ export function ElementInspectorPanel({
                     footer: { ...prev.footer, instagram: e.target.value },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
               />
             </div>
           </div>
@@ -2759,7 +2760,7 @@ export function ElementInspectorPanel({
           <button
             type="button"
             onClick={() => onSelect({ targetId: "footer-legal", label: "Rodapé — Faixa Legal" })}
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
           >
             Editar Faixa Legal / CNPJ →
           </button>
@@ -2768,9 +2769,9 @@ export function ElementInspectorPanel({
 
       {/* 17. RODAPÉ — FAIXA LEGAL */}
       {selection.targetId === "footer-legal" && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+        <div className="space-y-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div>
-            <label className="mb-1 block font-semibold text-slate-700">
+            <label className="mb-1 block font-semibold text-zinc-700">
               Texto de Direitos Autorais / CNPJ
             </label>
             <textarea
@@ -2783,7 +2784,7 @@ export function ElementInspectorPanel({
                   footer: { ...prev.footer, legalText: e.target.value },
                 }))
               }
-              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5"
             />
           </div>
 
@@ -2822,9 +2823,9 @@ export function ElementInspectorPanel({
       {/* 18. PÁGINA DO PRODUTO (PDP) */}
       {selection.targetId === "pdp" && (
         <div className="space-y-3">
-          <div className="space-y-2.5 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="space-y-2.5 rounded-xl border border-zinc-200 bg-white p-3">
             <div>
-              <label className="mb-1 block font-semibold text-slate-700">
+              <label className="mb-1 block font-semibold text-zinc-700">
                 Orientação da Galeria de Fotos
               </label>
               <select
@@ -2841,7 +2842,7 @@ export function ElementInspectorPanel({
                     },
                   }))
                 }
-                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+                className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-zinc-800"
               >
                 <option value="vertical">Vertical (Miniaturas à esquerda)</option>
                 <option value="horizontal">Horizontal (Miniaturas abaixo)</option>

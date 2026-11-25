@@ -46,9 +46,9 @@ export function AnnouncementBarControls({
 
   return (
     <div className="space-y-3">
-      <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+      <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 p-2.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-semibold text-slate-800">Mensagens da Barra Superior</span>
+          <span className="font-semibold text-zinc-800">Mensagens da Barra Superior</span>
           <button
             type="button"
             onClick={() => {
@@ -60,7 +60,7 @@ export function AnnouncementBarControls({
               ];
               commitMessages(next, { rollingEnabled: true });
             }}
-            className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-800"
+            className="inline-flex items-center gap-1 rounded-md bg-irroba-ink px-2 py-1 text-xs font-semibold text-white hover:bg-zinc-800"
           >
             <Plus className="h-3 w-3" />
             Mensagem
@@ -70,7 +70,7 @@ export function AnnouncementBarControls({
         <div className="space-y-1.5">
           {messages.map((msg, idx) => (
             <div key={idx} className="flex items-center gap-1">
-              <span className="w-4 shrink-0 text-center font-mono text-[11px] font-bold text-slate-400">
+              <span className="w-4 shrink-0 text-center font-mono text-[11px] font-bold text-zinc-400">
                 {idx + 1}
               </span>
               <input
@@ -81,7 +81,7 @@ export function AnnouncementBarControls({
                   const next = messages.map((m, i) => (i === idx ? e.target.value : m));
                   commitMessages(next);
                 }}
-                className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900"
+                className="min-w-0 flex-1 rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-900"
               />
               <button
                 type="button"
@@ -94,7 +94,7 @@ export function AnnouncementBarControls({
                   commitMessages(next);
                 }}
                 title="Subir mensagem"
-                className="rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700 disabled:opacity-30"
+                className="rounded p-1 text-zinc-400 hover:bg-white hover:text-zinc-700 disabled:opacity-30"
               >
                 <ArrowUp className="h-3 w-3" />
               </button>
@@ -109,7 +109,7 @@ export function AnnouncementBarControls({
                   commitMessages(next);
                 }}
                 title="Descer mensagem"
-                className="rounded p-1 text-slate-400 hover:bg-white hover:text-slate-700 disabled:opacity-30"
+                className="rounded p-1 text-zinc-400 hover:bg-white hover:text-zinc-700 disabled:opacity-30"
               >
                 <ArrowDown className="h-3 w-3" />
               </button>
@@ -121,7 +121,7 @@ export function AnnouncementBarControls({
                     commitMessages(next);
                   }}
                   title="Remover mensagem"
-                  className="rounded p-1 text-slate-400 hover:text-rose-600"
+                  className="rounded p-1 text-zinc-400 hover:text-rose-600"
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>
@@ -130,8 +130,8 @@ export function AnnouncementBarControls({
           ))}
         </div>
 
-        <label className="flex items-center justify-between gap-2 border-t border-slate-200 pt-2">
-          <span className="font-medium text-slate-700">
+        <label className="flex items-center justify-between gap-2 border-t border-zinc-200 pt-2">
+          <span className="font-medium text-zinc-700">
             Rolar mensagens uma de cada vez
           </span>
           <input
@@ -155,9 +155,9 @@ export function AnnouncementBarControls({
         {rollingEnabled && (
           <div className="grid grid-cols-2 gap-2 pt-1">
             <div>
-              <div className="mb-1 flex items-center justify-between text-slate-600">
+              <div className="mb-1 flex items-center justify-between text-zinc-600">
                 <span>Tempo (seg.)</span>
-                <strong className="font-mono text-slate-900">{intervalSeconds}s</strong>
+                <strong className="font-mono text-zinc-900">{intervalSeconds}s</strong>
               </div>
               <input
                 type="range"
@@ -183,7 +183,7 @@ export function AnnouncementBarControls({
             </div>
 
             <div>
-              <label className="mb-1 block text-slate-600">Estilo de Rolagem</label>
+              <label className="mb-1 block text-zinc-600">Estilo de Rolagem</label>
               <select
                 value={transitionMode}
                 onChange={(e) =>
@@ -202,7 +202,7 @@ export function AnnouncementBarControls({
                     },
                   }))
                 }
-                className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800"
+                className="w-full rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-800"
               >
                 <option value="slide-up">Rolar Vertical</option>
                 <option value="slide-horizontal">Deslizar Lateral</option>

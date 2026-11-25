@@ -58,7 +58,7 @@ export function Modal({ open, onClose, title, children, className = "" }: ModalP
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/75 p-4 backdrop-blur-sm"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -68,7 +68,7 @@ export function Modal({ open, onClose, title, children, className = "" }: ModalP
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`w-full max-w-md rounded-2xl bg-white p-6 text-slate-900 shadow-2xl ${className}`}
+        className={`w-full max-w-md rounded-2xl bg-white p-6 text-zinc-900 shadow-2xl ${className}`}
       >
         <div id={titleId} className="sr-only">
           {title}
