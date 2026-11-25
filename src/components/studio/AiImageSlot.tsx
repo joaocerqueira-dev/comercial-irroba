@@ -138,17 +138,17 @@ export function AiImageSlot({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-slate-600">{label}</span>
+        <span className="text-xs font-medium text-zinc-600">{label}</span>
         {isMissing ? (
-          <span className="rounded bg-rose-100 px-1.5 py-0.5 text-xs font-bold text-rose-700">
+          <span className="rounded-md bg-brand-100 px-1.5 py-0.5 text-xs font-bold text-brand-800">
             Ausente / Sem imagem
           </span>
         ) : isLowRes && dims ? (
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800">
+          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-bold text-amber-800">
             Baixa res. ({dims.w}×{dims.h})
           </span>
         ) : dims ? (
-          <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-xs font-semibold text-emerald-700">
+          <span className="rounded-md bg-zinc-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-zinc-700">
             {dims.w}×{dims.h}px
           </span>
         ) : null}
@@ -188,14 +188,14 @@ export function AiImageSlot({
           if (busyMode === null) fileInputRef.current?.click();
         }}
         title="Clique ou arraste uma imagem do computador para enviar"
-        className={`group relative h-24 w-full cursor-pointer overflow-hidden rounded-lg border transition ${
+        className={`group relative h-24 w-full cursor-pointer overflow-hidden rounded-xl border transition ${
           isDraggingFile
-            ? "border-2 border-dashed border-emerald-500 bg-emerald-50"
-            : "border-slate-200 bg-slate-100 hover:border-emerald-400"
+            ? "border-2 border-dashed border-brand-500 bg-brand-50"
+            : "border-zinc-200 bg-zinc-100 hover:border-brand-300"
         }`}
       >
         {busyMode === "upload" ? (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-xs font-semibold text-emerald-700">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 text-xs font-semibold text-brand-600">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>Enviando imagem do computador...</span>
           </div>
@@ -222,17 +222,17 @@ export function AiImageSlot({
               }}
               className={`h-full w-full ${fit === "contain" ? "object-contain p-2" : "object-cover"}`}
             />
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/55 opacity-0 transition group-hover:opacity-100">
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-white/95 px-2.5 py-1 text-xs font-bold text-slate-900 shadow">
-                <Upload className="h-3.5 w-3.5 text-emerald-600" />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-irroba-ink/55 opacity-0 transition group-hover:opacity-100">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-2.5 py-1 text-xs font-bold text-irroba-ink shadow">
+                <Upload className="h-3.5 w-3.5 text-brand-500" />
                 Trocar imagem do computador
               </span>
             </div>
           </>
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center text-xs text-slate-500">
-            <ImageIcon className="h-4 w-4 text-slate-400" />
-            <span className="font-medium text-slate-600">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-2 text-center text-xs text-zinc-500">
+            <ImageIcon className="h-4 w-4 text-zinc-400" />
+            <span className="font-medium text-zinc-600">
               Clique ou arraste uma imagem do computador
             </span>
           </div>
@@ -248,14 +248,14 @@ export function AiImageSlot({
             setImgStatus("idle");
             onChange(e.target.value);
           }}
-          className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-800"
+          className="min-w-0 flex-1 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs text-irroba-ink"
         />
         <button
           type="button"
           disabled={busyMode !== null}
           onClick={() => fileInputRef.current?.click()}
           title="Selecionar arquivo de imagem do seu computador"
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-300 bg-slate-900 px-2.5 py-1 text-xs font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
+          className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-irroba-ink px-2.5 py-1 text-xs font-bold text-white transition hover:bg-zinc-800 disabled:opacity-50"
         >
           {busyMode === "upload" ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -270,8 +270,8 @@ export function AiImageSlot({
             onClick={() => setAiOpen((prev) => !prev)}
             className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold transition ${
               isMissing || isLowRes
-                ? "bg-emerald-600 text-white hover:bg-emerald-500"
-                : "border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                ? "bg-brand-500 text-white hover:bg-brand-600"
+                : "border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100"
             }`}
           >
             <Wand2 className="h-3 w-3" />
@@ -288,7 +288,7 @@ export function AiImageSlot({
             }}
             title="Remover imagem"
             aria-label={`Remover ${label}`}
-            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 py-1 text-slate-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-white px-2 py-1 text-zinc-500 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -297,10 +297,10 @@ export function AiImageSlot({
 
       {feedback && !aiOpen && (
         <div
-          className={`rounded-md px-2 py-1 text-xs leading-snug ${
+          className={`rounded-lg px-2.5 py-1.5 text-xs leading-snug ${
             feedback.isError
-              ? "border border-rose-200 bg-rose-50 text-rose-700"
-              : "border border-emerald-200 bg-emerald-50 text-emerald-800"
+              ? "border border-brand-200 bg-brand-50 text-brand-800"
+              : "border border-zinc-200 bg-zinc-50 text-zinc-800"
           }`}
         >
           {feedback.text}
@@ -308,15 +308,15 @@ export function AiImageSlot({
       )}
 
       {allowAi && aiOpen && (
-        <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5">
+        <div className="space-y-2 rounded-xl border border-brand-200 bg-brand-50/70 p-2.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold uppercase tracking-wide text-emerald-900">
+            <span className="font-heading text-xs font-bold uppercase tracking-wide text-brand-800">
               Ajuste / Recriação de Imagem por IA
             </span>
             <select
               value={ratio}
               onChange={(e) => setRatio(e.target.value as AiRatio)}
-              className="rounded border border-emerald-200 bg-white px-1.5 py-0.5 text-xs font-semibold text-slate-700"
+              className="rounded-lg border border-brand-200 bg-white px-1.5 py-0.5 text-xs font-semibold text-zinc-700"
             >
               <option value="16:9">16:9 (Banner HD)</option>
               <option value="21:9">21:9 (Slim)</option>
@@ -329,14 +329,14 @@ export function AiImageSlot({
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Ex: Aumentar resolução sem distorcer, fundo de estúdio minimalista, iluminação quente..."
-            className="w-full rounded-md border border-emerald-200 bg-white px-2 py-1.5 text-xs text-slate-800 placeholder:text-slate-400"
+            className="w-full rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-xs text-irroba-ink placeholder:text-zinc-400"
           />
           <div className="grid grid-cols-3 gap-1">
             <button
               type="button"
               disabled={busyMode !== null || isMissing}
               onClick={() => runAiImage("enhance")}
-              className="inline-flex items-center justify-center gap-1 rounded bg-slate-900 px-1.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-40"
+              className="inline-flex items-center justify-center gap-1 rounded-lg bg-irroba-ink px-1.5 py-1.5 text-xs font-bold text-white hover:bg-zinc-800 disabled:opacity-40"
             >
               {busyMode === "enhance" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
               Melhorar HD
@@ -345,7 +345,7 @@ export function AiImageSlot({
               type="button"
               disabled={busyMode !== null || isMissing}
               onClick={() => runAiImage("resize")}
-              className="inline-flex items-center justify-center gap-1 rounded bg-indigo-600 px-1.5 py-1.5 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-40"
+              className="inline-flex items-center justify-center gap-1 rounded-lg bg-brand-700 px-1.5 py-1.5 text-xs font-bold text-white hover:bg-brand-800 disabled:opacity-40"
             >
               {busyMode === "resize" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
               Redimensionar
@@ -354,7 +354,7 @@ export function AiImageSlot({
               type="button"
               disabled={busyMode !== null}
               onClick={() => runAiImage("generate")}
-              className="inline-flex items-center justify-center gap-1 rounded bg-emerald-600 px-1.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+              className="inline-flex items-center justify-center gap-1 rounded-lg bg-brand-500 px-1.5 py-1.5 text-xs font-bold text-white hover:bg-brand-600 disabled:opacity-40"
             >
               {busyMode === "generate" ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
               Recriar IA
@@ -362,10 +362,10 @@ export function AiImageSlot({
           </div>
           {feedback && (
             <div
-              className={`rounded px-2 py-1 text-xs leading-snug ${
+              className={`rounded-lg px-2 py-1 text-xs leading-snug ${
                 feedback.isError
-                  ? "bg-rose-50 text-rose-700"
-                  : "bg-white/90 text-slate-700"
+                  ? "bg-brand-100 text-brand-800"
+                  : "bg-white/95 text-zinc-700"
               }`}
             >
               {feedback.text}

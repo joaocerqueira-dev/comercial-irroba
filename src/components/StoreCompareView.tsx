@@ -236,12 +236,14 @@ export default function StoreCompareView({
   const activeLeftMobileImg = mobileImgSrc || imgSrc;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-slate-900 text-white">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-slate-950/90 px-4 py-2 text-xs">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-irroba-surface text-irroba-ink">
+      {/* Toolbar — Padrão Claro Irroba BrandBook 2026 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-white px-4 py-2.5 text-xs">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="font-bold text-white">Comparativo Completo</span>
-          <span className="hidden text-slate-400 lg:inline">
+          <span className="font-heading font-bold text-irroba-ink">
+            Comparativo <span className="text-brand-500">Completo</span>
+          </span>
+          <span className="hidden text-zinc-500 lg:inline">
             Role para comparar a loja inteira do cabeçalho ao rodapé
           </span>
         </div>
@@ -251,16 +253,16 @@ export default function StoreCompareView({
           <div
             role="group"
             aria-label="Dispositivo do comparativo"
-            className="flex items-center gap-0.5 rounded-lg border border-white/15 bg-white/5 p-0.5"
+            className="flex items-center gap-0.5 rounded-xl border border-zinc-200 bg-irroba-surface p-0.5"
           >
             <button
               type="button"
               onClick={() => setCurrentDevice("desktop")}
               aria-pressed={currentDevice === "desktop"}
-              className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                 currentDevice === "desktop"
-                  ? "bg-white text-slate-950 shadow-sm"
-                  : "text-slate-300 hover:text-white"
+                  ? "bg-brand-500 text-white shadow-sm"
+                  : "text-zinc-600 hover:text-irroba-ink"
               }`}
             >
               <Monitor className="h-3.5 w-3.5" />
@@ -270,10 +272,10 @@ export default function StoreCompareView({
               type="button"
               onClick={() => setCurrentDevice("mobile")}
               aria-pressed={currentDevice === "mobile"}
-              className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition ${
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                 currentDevice === "mobile"
-                  ? "bg-white text-slate-950 shadow-sm"
-                  : "text-slate-300 hover:text-white"
+                  ? "bg-brand-500 text-white shadow-sm"
+                  : "text-zinc-600 hover:text-irroba-ink"
               }`}
             >
               <Smartphone className="h-3.5 w-3.5" />
@@ -284,10 +286,10 @@ export default function StoreCompareView({
           <button
             type="button"
             onClick={() => setSyncScroll((s) => !s)}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
               syncScroll
-                ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-                : "border-white/15 bg-white/5 text-slate-300 hover:bg-white/10"
+                ? "border-brand-200 bg-brand-50 text-brand-700"
+                : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
             }`}
           >
             {syncScroll ? <Link2 className="h-3.5 w-3.5" /> : <Link2Off className="h-3.5 w-3.5" />}
@@ -298,10 +300,10 @@ export default function StoreCompareView({
             <button
               type="button"
               onClick={() => setFitDesktop((f) => !f)}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+              className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold transition ${
                 fitDesktop
-                  ? "border-sky-500/40 bg-sky-500/15 text-sky-300"
-                  : "border-white/15 bg-white/5 text-slate-300 hover:bg-white/10"
+                  ? "border-zinc-300 bg-zinc-100 text-irroba-ink"
+                  : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
               }`}
             >
               {fitDesktop ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -314,7 +316,7 @@ export default function StoreCompareView({
             type="button"
             onClick={scrollBothToTop}
             title="Voltar ao topo"
-            className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-white/10"
+            className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
           >
             <ArrowUpToLine className="h-3.5 w-3.5" />
             Topo
@@ -324,7 +326,7 @@ export default function StoreCompareView({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center gap-1 rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/20"
+              className="inline-flex items-center gap-1 rounded-xl bg-irroba-ink px-2.5 py-1 text-xs font-semibold text-white hover:bg-zinc-800"
             >
               <X className="h-3.5 w-3.5" />
               Fechar Comparativo
@@ -336,11 +338,11 @@ export default function StoreCompareView({
       {/* Split Scrollable Panes (Full Height) */}
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden p-3 md:grid-cols-2">
         {/* LEFT: Current Store (Desktop or Mobile) */}
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-white/15 bg-slate-950 shadow-xl">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-slate-900 px-3.5 py-2 text-xs">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-amber-400" />
-              <span className="truncate font-bold text-slate-100">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-400" />
+              <span className="truncate font-heading font-bold text-irroba-ink">
                 Site Atual ({detectedPlatform}) · {currentDevice === "mobile" ? "Mobile" : "Desktop"}
               </span>
             </div>
@@ -350,7 +352,7 @@ export default function StoreCompareView({
                   type="button"
                   onClick={() => void requestMobileCapture(true)}
                   disabled={isCapturingMobile}
-                  className="inline-flex items-center gap-1 rounded bg-white/10 px-2 py-0.5 text-xs font-semibold text-amber-300 hover:bg-white/15 disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                 >
                   <RefreshCw className={`h-3 w-3 ${isCapturingMobile ? "animate-spin" : ""}`} />
                   Recapturar Mobile
@@ -360,7 +362,7 @@ export default function StoreCompareView({
                 href={sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-medium text-slate-400 hover:text-white"
+                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-brand-600"
               >
                 Abrir original
                 <ExternalLink className="h-3 w-3" />
@@ -386,13 +388,13 @@ export default function StoreCompareView({
                   className="block h-auto w-full"
                 />
               ) : (
-                <div className="flex h-full flex-col items-center justify-center p-8 text-center text-sm text-slate-500">
-                  <p className="font-semibold text-slate-700">Captura da loja atual indisponível</p>
+                <div className="flex h-full flex-col items-center justify-center p-8 text-center text-sm text-zinc-500">
+                  <p className="font-semibold text-zinc-700">Captura da loja atual indisponível</p>
                   <a
                     href={sourceUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 text-xs text-emerald-600 underline"
+                    className="mt-2 text-xs font-semibold text-brand-600 underline"
                   >
                     Abrir {sourceUrl} em nova aba
                   </a>
@@ -400,7 +402,7 @@ export default function StoreCompareView({
               )}
             </div>
           ) : (
-            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-900/90 p-3">
+            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-zinc-100 p-3">
               <div
                 style={{
                   width: `${mobileOuterWidth}px`,
@@ -408,11 +410,11 @@ export default function StoreCompareView({
                   transform: mobileScale < 1 ? `scale(${mobileScale})` : undefined,
                   transformOrigin: "top center",
                 }}
-                className="flex max-h-full flex-col overflow-hidden rounded-[30px] border-[8px] border-slate-950 bg-white shadow-2xl ring-1 ring-white/15"
+                className="flex max-h-full flex-col overflow-hidden rounded-[30px] border-[8px] border-irroba-ink bg-white shadow-xl"
               >
                 {/* Smartphone top speaker bar */}
-                <div className="flex h-5 shrink-0 items-center justify-center bg-slate-950">
-                  <span className="h-1.5 w-16 rounded-full bg-slate-800" />
+                <div className="flex h-5 shrink-0 items-center justify-center bg-irroba-ink">
+                  <span className="h-1.5 w-16 rounded-full bg-zinc-700" />
                 </div>
 
                 {isCapturingMobile && !mobileImgSrc && (
@@ -423,13 +425,13 @@ export default function StoreCompareView({
                 )}
 
                 {!mobileImgSrc && !isCapturingMobile && imgSrc && (
-                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-medium text-slate-600">
+                  <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-medium text-zinc-600">
                     <span>Captura adaptada</span>
                     {slug && (
                       <button
                         type="button"
                         onClick={() => void requestMobileCapture(true)}
-                        className="font-semibold text-emerald-700 hover:underline"
+                        className="font-semibold text-brand-600 hover:underline"
                       >
                         Tentar captura mobile
                       </button>
@@ -458,20 +460,20 @@ export default function StoreCompareView({
                       className="block h-auto w-full"
                     />
                   ) : isCapturingMobile ? (
-                    <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-xs text-slate-500">
-                      <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
-                      <p className="font-semibold text-slate-700">
+                    <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-xs text-zinc-500">
+                      <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
+                      <p className="font-semibold text-zinc-700">
                         Carregando versão mobile de {storeName}...
                       </p>
                     </div>
                   ) : (
-                    <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-slate-500">
-                      <p className="font-semibold text-slate-700">Captura mobile indisponível</p>
+                    <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-zinc-500">
+                      <p className="font-semibold text-zinc-700">Captura mobile indisponível</p>
                       <a
                         href={sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-2 text-xs text-emerald-600 underline"
+                        className="mt-2 text-xs font-semibold text-brand-600 underline"
                       >
                         Abrir {sourceUrl} em nova aba
                       </a>
@@ -484,15 +486,15 @@ export default function StoreCompareView({
         </section>
 
         {/* RIGHT: Interactive Irroba LIME Proposal (Desktop or Mobile) */}
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-emerald-500/40 bg-slate-950 shadow-xl">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-emerald-500/20 bg-emerald-950/60 px-3.5 py-2 text-xs">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-brand-200 bg-white shadow-sm">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-brand-200/70 bg-brand-50 px-3.5 py-2 text-xs">
             <div className="flex min-w-0 items-center gap-2">
-              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
-              <span className="truncate font-bold text-emerald-200">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" />
+              <span className="truncate font-heading font-bold text-brand-800">
                 Proposta Irroba · Tema LIME ({currentDevice === "mobile" ? "Mobile" : "Interativo"})
               </span>
             </div>
-            <span className="shrink-0 rounded bg-emerald-500/20 px-2 py-0.5 text-xs font-semibold text-emerald-300">
+            <span className="shrink-0 rounded-lg bg-brand-500 px-2 py-0.5 font-heading text-[11px] font-bold text-white">
               {currentDevice === "mobile"
                 ? `Mobile ${MOBILE_TARGET_WIDTH}px${mobileScale < 1 ? ` (${Math.round(mobileScale * 100)}%)` : ""}`
                 : desktopScale < 1
@@ -528,7 +530,7 @@ export default function StoreCompareView({
           ) : (
             <div
               ref={rightContainerRef}
-              className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-slate-900/90 p-3"
+              className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-brand-50/40 p-3"
             >
               <div
                 style={{
@@ -537,11 +539,11 @@ export default function StoreCompareView({
                   transform: mobileScale < 1 ? `scale(${mobileScale})` : undefined,
                   transformOrigin: "top center",
                 }}
-                className="flex max-h-full flex-col overflow-hidden rounded-[30px] border-[8px] border-slate-950 bg-white shadow-2xl ring-1 ring-emerald-400/30"
+                className="flex max-h-full flex-col overflow-hidden rounded-[30px] border-[8px] border-irroba-ink bg-white shadow-xl ring-1 ring-brand-500/30"
               >
                 {/* Smartphone top speaker bar */}
-                <div className="flex h-5 shrink-0 items-center justify-center bg-slate-950">
-                  <span className="h-1.5 w-16 rounded-full bg-slate-800" />
+                <div className="flex h-5 shrink-0 items-center justify-center bg-irroba-ink">
+                  <span className="h-1.5 w-16 rounded-full bg-zinc-700" />
                 </div>
 
                 <iframe

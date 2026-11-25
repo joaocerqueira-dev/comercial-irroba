@@ -178,7 +178,7 @@ export function AnnouncementBarControls({
                     },
                   }))
                 }
-                className="w-full accent-emerald-600"
+                className="w-full accent-brand-500"
               />
             </div>
 
