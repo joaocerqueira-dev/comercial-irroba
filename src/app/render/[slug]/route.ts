@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
 import { getPreviewWithBlueprint } from "@/lib/previews/repository";
+import { RENDER_CSP } from "@/lib/security/preview-isolation";
 
 export async function GET(
   _req: NextRequest,
@@ -14,7 +15,7 @@ export async function GET(
       result.status === "not_found" ? "<h1>Preview não encontrado</h1>" : "<h1>Blueprint inválido</h1>",
       {
         status: result.status === "not_found" ? 404 : 500,
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+        headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": RENDER_CSP },
       }
     );
   }
@@ -25,6 +26,8 @@ export async function GET(
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
+      // HTML gerado por IA a partir de outra loja: CSP restritiva + sandbox (origem opaca)
+      "Content-Security-Policy": RENDER_CSP,
     },
   });
 }

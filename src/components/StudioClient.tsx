@@ -5,6 +5,7 @@ import Link from "next/link";
 import { copyToClipboard } from "@/lib/client/clipboard";
 import { computeUnsaved, type StudioSaveSnapshot } from "@/lib/client/unsavedChanges";
 import { useLatest } from "@/lib/client/useLatest";
+import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
 import { useTimeout } from "@/lib/client/useTimeout";
 import { useRouter } from "next/navigation";
 import {
@@ -130,6 +131,12 @@ export default function StudioClient({
   const copiedTimeout = useTimeout();
   const savedNoticeTimeout = useTimeout();
 
+  // Estado da prévia que sobrevive à recompilação do srcDoc (antes ficava em window.name).
+  const previewViewStateRef = useRef<{ scrollY?: number; slideIdx?: number }>({});
+
+  // O iframe roda em sandbox sem allow-same-origin: a origem dele é "null" e não há como nomeá-la
+  // no targetOrigin, por isso "*". O alvo é a contentWindow do nosso próprio iframe e o conteúdo
+  // enviado (modo/seleção do inspetor) não é sensível.
   const postToPreview = useCallback((payload: Record<string, unknown>) => {
     try {
       previewIframeRef.current?.contentWindow?.postMessage(payload, "*");
@@ -164,8 +171,12 @@ export default function StudioClient({
     }
   }, [inspectMode, postToPreview]);
 
+  const inspectModeRef = useLatest(inspectMode);
+  const selectedElementRef = useLatest(selectedElement);
+
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
+      // Com sandbox a origem é "null": a checagem é pela source (a janela do nosso iframe)
       if (
         !previewIframeRef.current ||
         e.source !== previewIframeRef.current.contentWindow ||
@@ -181,8 +192,22 @@ export default function StudioClient({
         productId?: string;
         showcaseIdx?: number;
         subIndex?: number;
+        scrollY?: unknown;
+        slideIdx?: unknown;
       };
-      if (msg.type === "irb-studio:hover") {
+      if (msg.type === "irb-studio:ready") {
+        postToPreview({
+          type: "irb-studio:set-state",
+          inspectMode: inspectModeRef.current,
+          activeSelection: selectedElementRef.current,
+          ...previewViewStateRef.current,
+        });
+      } else if (msg.type === "irb-studio:state") {
+        const next = { ...previewViewStateRef.current };
+        if (typeof msg.scrollY === "number" && Number.isFinite(msg.scrollY)) next.scrollY = msg.scrollY;
+        if (typeof msg.slideIdx === "number" && Number.isFinite(msg.slideIdx)) next.slideIdx = msg.slideIdx;
+        previewViewStateRef.current = next;
+      } else if (msg.type === "irb-studio:hover") {
         setHoveredPreviewLabel(msg.label ?? null);
       } else if (msg.type === "irb-studio:select" && msg.targetId && INSPECTOR_META[msg.targetId]) {
         setSelectedElement({
@@ -198,7 +223,7 @@ export default function StudioClient({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, []);
+  }, [postToPreview, inspectModeRef, selectedElementRef]);
 
   useEffect(() => {
     if (!hasUnsavedChanges) return;
@@ -2992,14 +3017,9 @@ export default function StudioClient({
               <iframe
                 ref={previewIframeRef}
                 srcDoc={liveHtml}
-                onLoad={() => {
-                  postToPreview({ type: "irb-studio:set-mode", inspectMode });
-                  postToPreview({
-                    type: "irb-studio:set-active",
-                    selection: selectedElement,
-                    scrollIntoView: false,
-                  });
-                }}
+                // Sem allow-same-origin: o HTML gerado não alcança o DOM/cookies do app.
+                // O estado inicial chega por postMessage (irb-studio:ready → set-state).
+                sandbox={PREVIEW_IFRAME_SANDBOX}
                 title="Preview Irroba LIME"
                 className={`h-full rounded-xl bg-white shadow-xl transition-all duration-300 ${
                   device === "mobile" ? "w-[390px] rounded-[28px] border-8 border-irroba-ink" : "w-full"

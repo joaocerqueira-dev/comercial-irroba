@@ -13,6 +13,7 @@ import {
 import StoreCompareView from "./StoreCompareView";
 import { IrrobaLogo } from "./ui/IrrobaLogo";
 import { Modal } from "./ui/Modal";
+import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
 
 interface PreviewViewerClientProps {
   slug: string;
@@ -154,6 +155,7 @@ export default function PreviewViewerClient({
         <main className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-zinc-200/70 p-0 sm:p-2.5">
           <iframe
             src={`/render/${slug}`}
+            sandbox={PREVIEW_IFRAME_SANDBOX}
             title={`Prévia Irroba - ${storeName}`}
             className={`h-full bg-white shadow-2xl transition-all duration-300 ${
               device === "mobile"

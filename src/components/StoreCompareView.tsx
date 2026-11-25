@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
 import {
   ArrowUpToLine,
   ExternalLink,
@@ -190,83 +191,66 @@ export default function StoreCompareView({
     }, 100);
   }, []);
 
+  // O iframe da proposta roda em sandbox sem allow-same-origin: o pai não lê o documento dele.
+  // A sincronização usa postMessage com o runtime do compiler: ele emite
+  // { type: "irroba-scroll", ratio } e obedece { type: "irroba-scroll-to", ratio }.
+  // targetOrigin "*" porque a origem do iframe é opaca ("null") e não pode ser nomeada; o alvo é
+  // a contentWindow do nosso próprio iframe e a mensagem (uma fração de rolagem) não é sensível.
+  const postToProposal = useCallback((msg: Record<string, unknown>) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(msg, "*");
+    } catch {
+      // ignore detached iframe
+    }
+  }, []);
+
   const handleLeftScroll = useCallback(() => {
     if (!syncScroll || scrollLockRef.current === "right") return;
     const leftEl = leftScrollRef.current;
-    const win = iframeRef.current?.contentWindow;
-    const doc = iframeRef.current?.contentDocument;
-    if (!leftEl || !win || !doc) return;
+    if (!leftEl || !iframeRef.current?.contentWindow) return;
 
     const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
     if (leftMax <= 0) return;
-    const pct = leftEl.scrollTop / leftMax;
-
-    const docEl = doc.documentElement;
-    const rightMax = (docEl?.scrollHeight || doc.body?.scrollHeight || 0) - win.innerHeight;
-    if (rightMax <= 0) return;
+    const ratio = leftEl.scrollTop / leftMax;
 
     scrollLockRef.current = "left";
-    win.scrollTo({ top: Math.round(pct * rightMax), behavior: "auto" });
+    postToProposal({ type: "irroba-scroll-to", ratio });
     releaseLockSoon();
-  }, [syncScroll, releaseLockSoon]);
+  }, [syncScroll, releaseLockSoon, postToProposal]);
 
-  // Bind reverse scroll sync (right iframe -> left full-page screenshot)
+  // Sincronização reversa (iframe da proposta -> captura da loja atual à esquerda)
   const syncScrollRef = useRef(syncScroll);
   useEffect(() => {
     syncScrollRef.current = syncScroll;
   }, [syncScroll]);
-  const iframeCleanupRef = useRef<(() => void) | null>(null);
 
-  const attachIframeScrollListener = useCallback(() => {
-    iframeCleanupRef.current?.();
-    iframeCleanupRef.current = null;
-    const win = iframeRef.current?.contentWindow;
-    const doc = iframeRef.current?.contentDocument;
-    if (!win || !doc) return;
-
-    const onRightScroll = () => {
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      // Com sandbox a origem é "null": só aceitamos mensagens da janela do nosso iframe
+      const win = iframeRef.current?.contentWindow;
+      if (!win || e.source !== win) return;
+      const msg = e.data as { type?: unknown; ratio?: unknown } | null;
+      if (!msg || typeof msg !== "object" || msg.type !== "irroba-scroll") return;
+      const ratio = typeof msg.ratio === "number" && Number.isFinite(msg.ratio) ? msg.ratio : null;
+      if (ratio === null) return;
       if (!syncScrollRef.current || scrollLockRef.current === "left") return;
       const leftEl = leftScrollRef.current;
       if (!leftEl) return;
-
-      const docEl = doc.documentElement;
-      const rightMax = (docEl?.scrollHeight || doc.body?.scrollHeight || 0) - win.innerHeight;
-      if (rightMax <= 0) return;
-      const pct = win.scrollY / rightMax;
 
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       if (leftMax <= 0) return;
 
       scrollLockRef.current = "right";
-      leftEl.scrollTop = Math.round(pct * leftMax);
+      leftEl.scrollTop = Math.round(Math.min(1, Math.max(0, ratio)) * leftMax);
       releaseLockSoon();
     };
-
-    win.addEventListener("scroll", onRightScroll, { passive: true });
-    iframeCleanupRef.current = () => {
-      try {
-        win.removeEventListener("scroll", onRightScroll);
-      } catch {
-        // ignore detached iframe
-      }
-    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, [releaseLockSoon]);
-
-  useEffect(() => {
-    attachIframeScrollListener();
-    return () => {
-      iframeCleanupRef.current?.();
-      iframeCleanupRef.current = null;
-    };
-  }, [attachIframeScrollListener, proposalSrc, proposalSrcDoc, currentDevice]);
 
   const scrollBothToTop = () => {
     leftScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    try {
-      iframeRef.current?.contentWindow?.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      // ignore
-    }
+    postToProposal({ type: "irroba-scroll-to", ratio: 0, smooth: true });
   };
 
   const desktopScale =
@@ -560,7 +544,7 @@ export default function StoreCompareView({
                 ref={iframeRef}
                 src={proposalSrc}
                 srcDoc={proposalSrcDoc}
-                onLoad={attachIframeScrollListener}
+                sandbox={PREVIEW_IFRAME_SANDBOX}
                 title={`Proposta Irroba LIME - ${storeName}`}
                 style={
                   desktopScale < 1
@@ -598,7 +582,7 @@ export default function StoreCompareView({
                   ref={iframeRef}
                   src={proposalSrc}
                   srcDoc={proposalSrcDoc}
-                  onLoad={attachIframeScrollListener}
+                  sandbox={PREVIEW_IFRAME_SANDBOX}
                   title={`Proposta Irroba LIME Mobile - ${storeName}`}
                   style={{ width: `${MOBILE_TARGET_WIDTH}px`, height: "100%" }}
                   className="block min-h-0 flex-1 border-0 bg-white"

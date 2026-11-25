@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { chromium } from "playwright";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
 import { compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
+import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
 import { makeSampleExtracted } from "./fixtures";
 
 // Fumaça E2E: abre a vitrine compilada num Chromium real (sem rede) e checa erros de JS.
@@ -40,32 +41,46 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
       await page.route("**/*", (r) =>
         r.request().url().startsWith("data:") ? r.continue() : r.abort()
       );
-      await page.setContent(studioHtml, { waitUntil: "domcontentloaded" });
-
-      await page.evaluate(() => {
+      // Como no Studio: iframe sandbox sem allow-same-origin; o inspetor fala com o pai só por
+      // postMessage e o pai filtra pela source (a origem do iframe é "null").
+      await page.setContent(
+        `<iframe id="f" sandbox="${PREVIEW_IFRAME_SANDBOX}" style="width:1280px;height:900px;border:0"></iframe>`
+      );
+      await page.evaluate((html) => {
         (window as unknown as { __selectedMsgs: unknown[] }).__selectedMsgs = [];
+        const f = document.getElementById("f") as HTMLIFrameElement;
         window.addEventListener("message", (e) => {
-          if (e.data && e.data.type === "irb-studio:select") {
+          if (e.source === f.contentWindow && e.data && e.data.type === "irb-studio:select") {
             (window as unknown as { __selectedMsgs: unknown[] }).__selectedMsgs.push(e.data);
           }
         });
-      });
+        f.srcdoc = html;
+      }, studioHtml);
+      const frameHandle = await page.waitForSelector("#f");
+      let frame = await frameHandle.contentFrame();
+      for (let i = 0; i < 50 && !(await frame?.$("#irb-studio-hover-title")); i++) {
+        await page.waitForTimeout(20);
+        frame = await frameHandle.contentFrame();
+      }
+      if (!frame) throw new Error("iframe sem conteúdo");
+      const studio = frame;
+      await studio.waitForLoadState("load");
 
-      await page.locator(".overlineModule").hover();
-      expect(await page.locator("#irb-studio-hover-title").textContent()).toContain(
+      await studio.locator(".overlineModule").hover();
+      expect(await studio.locator("#irb-studio-hover-title").textContent()).toContain(
         "Barra de Aviso"
       );
 
-      await page.locator(".headerContent_logo").hover();
-      expect(await page.locator("#irb-studio-hover-title").textContent()).toContain("Logotipo");
+      await studio.locator(".headerContent_logo").hover();
+      expect(await studio.locator("#irb-studio-hover-title").textContent()).toContain("Logotipo");
 
-      await page.locator('[data-irb-section="hero"]').hover();
-      expect(await page.locator("#irb-studio-hover-title").textContent()).toContain(
+      await studio.locator('[data-irb-section="hero"]').hover();
+      expect(await studio.locator("#irb-studio-hover-title").textContent()).toContain(
         "Banner Principal"
       );
 
-      await page.locator(".headerContent_logo").click();
-      await page.waitForTimeout(50);
+      await studio.locator(".headerContent_logo").click();
+      await page.waitForTimeout(100);
 
       const msgs = await page.evaluate(
         () => (window as unknown as { __selectedMsgs: Array<{ targetId: string }> }).__selectedMsgs

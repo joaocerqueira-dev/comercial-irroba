@@ -132,4 +132,70 @@ describe("StoreCompareView", () => {
       expect(mobileImg.getAttribute("src")).toBe("/api/captures/loja-x-mobile-full.jpg");
     });
   });
+
+  describe("rolagem sincronizada por postMessage (iframe em sandbox)", () => {
+    const setup = () => {
+      render(
+        <StoreCompareView
+          storeName="Loja X"
+          sourceUrl="https://loja.com.br"
+          detectedPlatform="Nuvemshop"
+          fullScreenshotPath="/api/captures/x-full.jpg"
+          screenshotPath="/api/captures/x.png"
+          proposalSrcDoc="<html><body>ok</body></html>"
+        />
+      );
+      const iframe = document.querySelector("iframe") as HTMLIFrameElement;
+      const left = screen.getByAltText(/Página completa atual de Loja X/).parentElement as HTMLDivElement;
+      Object.defineProperty(left, "scrollHeight", { configurable: true, value: 2100 });
+      Object.defineProperty(left, "clientHeight", { configurable: true, value: 100 });
+      return { iframe, left };
+    };
+
+    it("iframe sem allow-same-origin", () => {
+      const { iframe } = setup();
+      const flags = (iframe.getAttribute("sandbox") ?? "").split(/\s+/);
+      expect(flags).toContain("allow-scripts");
+      expect(flags).toContain("allow-popups");
+      expect(flags).not.toContain("allow-same-origin");
+    });
+
+    it("aplica irroba-scroll vindo do iframe e ignora mensagens de outra source", () => {
+      const { iframe, left } = setup();
+      expect(iframe.contentWindow).toBeTruthy();
+
+      fireEvent(
+        window,
+        new MessageEvent("message", { data: { type: "irroba-scroll", ratio: 0.5 }, source: window })
+      );
+      expect(left.scrollTop).toBe(0);
+
+      fireEvent(
+        window,
+        new MessageEvent("message", {
+          data: { type: "irroba-scroll", ratio: 0.5 },
+          source: iframe.contentWindow,
+        })
+      );
+      expect(left.scrollTop).toBe(1000);
+
+      // Tipo/valor inválidos são ignorados
+      fireEvent(
+        window,
+        new MessageEvent("message", {
+          data: { type: "irroba-scroll", ratio: "x" },
+          source: iframe.contentWindow,
+        })
+      );
+      expect(left.scrollTop).toBe(1000);
+    });
+
+    it("rolagem da captura envia irroba-scroll-to ao iframe", () => {
+      const { iframe, left } = setup();
+      const post = vi.spyOn(iframe.contentWindow!, "postMessage");
+      left.scrollTop = 500;
+      fireEvent.scroll(left);
+      expect(post).toHaveBeenCalledWith({ type: "irroba-scroll-to", ratio: 0.25 }, "*");
+    });
+  });
 });

@@ -806,28 +806,25 @@ function buildStudioInspectorSnippet(): string {
       const activeBox = document.getElementById('irb-studio-active-box');
       const activeBadge = document.getElementById('irb-studio-active-badge');
 
-      function readSavedState() {
+      // O iframe roda em sandbox sem allow-same-origin (origem "null"): fala com o pai só por
+      // postMessage e aceita mensagens só de window.parent. O estado que sobrevive à recompilação
+      // do srcDoc (rolagem e slide) fica no pai, que o devolve em 'irb-studio:set-state' após o
+      // 'irb-studio:ready'. O envio usa targetOrigin '*' porque o pai é quem nos embute e a nossa
+      // origem opaca não permite nomear a dele; nada sensível sai por aqui.
+      function postToParent(msg) {
         try {
-          if (!window.name) return {};
-          const parsed = JSON.parse(window.name);
-          return parsed && typeof parsed === 'object' && parsed.__irbStudio ? parsed.__irbStudio : {};
-        } catch {
-          return {};
-        }
-      }
-
-      function writeSavedState(patch) {
-        try {
-          const prev = readSavedState();
-          window.name = JSON.stringify({ __irbStudio: Object.assign({}, prev, patch) });
+          if (window.parent && window.parent !== window) window.parent.postMessage(msg, '*');
         } catch {
           // ignore
         }
       }
 
-      const initial = readSavedState();
-      let inspectMode = initial.inspectMode !== false;
-      let activeSelection = initial.activeSelection || null;
+      function writeSavedState(patch) {
+        postToParent(Object.assign({ type: 'irb-studio:state' }, patch));
+      }
+
+      let inspectMode = true;
+      let activeSelection = null;
       let hoveredMatch = null;
       let sidebarHoverTargetId = null;
 
@@ -846,12 +843,10 @@ function buildStudioInspectorSnippet(): string {
         writeSavedState({ slideIdx: norm });
       }
 
-      if (typeof initial.slideIdx === 'number') {
-        applySlideIndex(initial.slideIdx);
-      }
-      if (typeof initial.scrollY === 'number' && initial.scrollY > 0) {
-        window.scrollTo(0, initial.scrollY);
-        requestAnimationFrame(() => window.scrollTo(0, initial.scrollY));
+      function restoreScroll(y) {
+        if (typeof y !== 'number' || !(y > 0)) return;
+        window.scrollTo(0, y);
+        requestAnimationFrame(() => window.scrollTo(0, y));
       }
 
       function findElementForSelection(sel) {
@@ -1098,14 +1093,11 @@ function buildStudioInspectorSnippet(): string {
           const prevEl = hoveredMatch ? hoveredMatch.el : null;
           hoveredMatch = match;
           if ((match ? match.el : null) !== prevEl) {
-            window.parent.postMessage(
-              {
-                type: 'irb-studio:hover',
-                targetId: match ? match.targetId : null,
-                label: match ? match.label : null,
-              },
-              '*'
-            );
+            postToParent({
+              type: 'irb-studio:hover',
+              targetId: match ? match.targetId : null,
+              label: match ? match.label : null,
+            });
           }
           refreshOverlays();
         },
@@ -1115,7 +1107,7 @@ function buildStudioInspectorSnippet(): string {
       document.addEventListener('mouseleave', () => {
         hoveredMatch = null;
         hideHover();
-        window.parent.postMessage({ type: 'irb-studio:hover', targetId: null, label: null }, '*');
+        postToParent({ type: 'irb-studio:hover', targetId: null, label: null });
       });
 
       document.addEventListener(
@@ -1155,9 +1147,8 @@ function buildStudioInspectorSnippet(): string {
               subIndex: updatedSlide,
             };
             activeSelection = payload;
-            writeSavedState({ activeSelection: payload });
             refreshOverlays();
-            window.parent.postMessage(Object.assign({ type: 'irb-studio:select' }, payload), '*');
+            postToParent(Object.assign({ type: 'irb-studio:select' }, payload));
           }, isInteractiveControl ? 20 : 0);
         },
         true
@@ -1182,17 +1173,23 @@ function buildStudioInspectorSnippet(): string {
       window.addEventListener('resize', refreshOverlays, { passive: true });
 
       window.addEventListener('message', (e) => {
+        if (e.source !== window.parent) return;
         const msg = e.data;
         if (!msg || typeof msg !== 'object') return;
 
-        if (msg.type === 'irb-studio:set-mode') {
+        if (msg.type === 'irb-studio:set-state') {
+          if (typeof msg.inspectMode === 'boolean') inspectMode = msg.inspectMode;
+          activeSelection = msg.activeSelection || null;
+          syncBodyClass();
+          if (typeof msg.slideIdx === 'number') applySlideIndex(msg.slideIdx);
+          restoreScroll(msg.scrollY);
+          refreshOverlays();
+        } else if (msg.type === 'irb-studio:set-mode') {
           inspectMode = Boolean(msg.inspectMode);
-          writeSavedState({ inspectMode });
           syncBodyClass();
           refreshOverlays();
         } else if (msg.type === 'irb-studio:set-active') {
           activeSelection = msg.selection || null;
-          writeSavedState({ activeSelection });
           if (msg.scrollIntoView && activeSelection) {
             const el = findElementForSelection(activeSelection);
             if (el) {
@@ -1213,6 +1210,7 @@ function buildStudioInspectorSnippet(): string {
       });
 
       refreshOverlays();
+      postToParent({ type: 'irb-studio:ready' });
     })();
   </script>`;
 }
@@ -2815,7 +2813,7 @@ export function compileStorefrontDocument(
           <span>Subtotal</span>
           <span id="irb-cart-total">R$ 0,00</span>
         </div>
-        <button type="button" onclick="alert('Checkout Transparente Irroba pronto para conversão!')" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
+        <button type="button" onclick="this.textContent='Checkout Transparente Irroba pronto para conversão ✓'" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
       </div>
     </div>
   </div>
@@ -3446,6 +3444,38 @@ export function compileStorefrontDocument(
       if (accountModalEl) {
         accountModalEl.addEventListener('click', (e) => {
           if (e.target === accountModalEl) accountModalEl.classList.remove('open');
+        });
+      }
+
+      // Rolagem sincronizada com o pai (comparativo). O iframe roda em sandbox sem
+      // allow-same-origin, então o pai não lê o documento: o runtime informa a fração rolada
+      // ('irroba-scroll') e obedece 'irroba-scroll-to' vindo só de window.parent.
+      if (window.parent && window.parent !== window) {
+        const scrollMax = () =>
+          Math.max(0, (document.documentElement.scrollHeight || document.body.scrollHeight || 0) - window.innerHeight);
+        let scrollRaf = false;
+        window.addEventListener('scroll', () => {
+          if (scrollRaf) return;
+          scrollRaf = true;
+          requestAnimationFrame(() => {
+            scrollRaf = false;
+            const max = scrollMax();
+            if (max <= 0) return;
+            try {
+              window.parent.postMessage({ type: 'irroba-scroll', ratio: Math.min(1, Math.max(0, window.scrollY / max)) }, '*');
+            } catch {
+              // ignore
+            }
+          });
+        }, { passive: true });
+        window.addEventListener('message', (e) => {
+          if (e.source !== window.parent) return;
+          const msg = e.data;
+          if (!msg || typeof msg !== 'object' || msg.type !== 'irroba-scroll-to') return;
+          const ratio = Number(msg.ratio);
+          if (!Number.isFinite(ratio)) return;
+          const top = Math.round(Math.min(1, Math.max(0, ratio)) * scrollMax());
+          window.scrollTo({ top, behavior: msg.smooth ? 'smooth' : 'auto' });
         });
       }
     })();
