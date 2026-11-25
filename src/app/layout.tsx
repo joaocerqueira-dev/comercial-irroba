@@ -1,5 +1,34 @@
 import type { Metadata } from "next";
+import { Instrument_Serif, Inter, Montserrat, Nunito } from "next/font/google";
 import "./globals.css";
+
+// next/font baixa as fontes no `next build` e as serve do próprio app (sem <link> para o Google
+// em runtime). Por isso o build (CI e docker build) precisa de rede: ver docs/deploy.md.
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-inter",
+});
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-montserrat",
+});
+const nunito = Nunito({
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  display: "swap",
+  variable: "--font-nunito",
+});
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--font-instrument-serif",
+});
 
 export const metadata: Metadata = {
   title: "Irroba Preview AI · Gerador Comercial",
@@ -13,16 +42,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=Montserrat:wght@500;600;700;800&family=Nunito:wght@700;800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html
+      lang="pt-BR"
+      className={`${inter.variable} ${montserrat.variable} ${nunito.variable} ${instrumentSerif.variable}`}
+    >
       <body className="min-h-screen bg-irroba-surface font-sans text-irroba-ink antialiased selection:bg-brand-500/15 selection:text-brand-800">
         {children}
       </body>

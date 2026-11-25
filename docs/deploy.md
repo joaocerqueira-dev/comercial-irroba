@@ -15,6 +15,12 @@ Na inicialização, o entrypoint (`docker/entrypoint.sh`) roda `prisma db push -
 
 A imagem usa `mcr.microsoft.com/playwright:<versão>-noble` e roda como `pwuser` (não-root), o que permite manter o sandbox do Chromium. Ao atualizar o pacote `playwright`, atualize também a tag da imagem no `Dockerfile` (`ARG PLAYWRIGHT_IMAGE`).
 
+## Build precisa de rede (fontes)
+
+As fontes do app (Inter, Montserrat, Nunito e Instrument Serif) vêm do `next/font/google` em `src/app/layout.tsx`. O `next build` baixa os arquivos do Google Fonts e os embute no bundle; em runtime o app serve as fontes do próprio domínio, sem chamar o Google. Por isso o `docker compose build` e a CI precisam de acesso a `fonts.googleapis.com` e `fonts.gstatic.com` durante o build. Sem rede, o build falha ao buscar as fontes.
+
+Para build offline, troque para `next/font/local` com os arquivos `.woff2` versionados no repositório (mesmas variáveis `--font-*`, que o `tailwind.config.ts` e o `globals.css` usam).
+
 ## Volumes e backup
 
 | Volume | Caminho no container | Conteúdo |
