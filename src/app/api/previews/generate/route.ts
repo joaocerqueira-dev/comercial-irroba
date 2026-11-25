@@ -11,11 +11,15 @@ import { buildStoreBlueprint } from "@/lib/ai/architect";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
+import { captureMobileStoreScreenshots } from "@/lib/scraper/mobile-screenshot";
+import { BrowserBusyError, limitAuthenticated, withBrowserSlot } from "@/lib/net/rate-limit";
 
 export const runtime = "nodejs";
 /** Orçamento total da geração (extração + IA + imagem). */
 export const maxDuration = 300;
 const GENERATION_BUDGET_MS = 270_000;
+/** Espera máxima por uma vaga de navegador antes de desistir. */
+const BROWSER_SLOT_WAIT_MS = 90_000;
 
 const GenerateRequestSchema = z.object({
   url: z.string().min(4, "Informe a URL da loja"),
@@ -52,6 +56,9 @@ function slugifyHostname(rawUrl: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const limited = limitAuthenticated(req, "generate");
+  if (limited) return limited;
+
   const body = await req.json().catch(() => null);
   const parsed = GenerateRequestSchema.safeParse(body);
 
@@ -121,15 +128,39 @@ export async function POST(req: NextRequest) {
           progress: 25,
         });
 
-        const extracted = await extractStoreFromUrl(normalizedUrl, slug, {
-          signal: budget,
-          onProgress: (p) =>
+        // Uma vaga de navegador cobre a extração e a captura mobile (sem aninhar com a arte IA)
+        const extracted = await withBrowserSlot(
+          async () => {
+            const data = await extractStoreFromUrl(normalizedUrl, slug, {
+              signal: budget,
+              onProgress: (p) =>
+                safeSend("progress", {
+                  step: p.step,
+                  message: p.message,
+                  progress: Math.round(25 + p.fraction * 35),
+                }),
+            });
+            budget.throwIfAborted();
+
+            // Etapa extra: screenshot mobile do site original. Falha não interrompe a geração.
             safeSend("progress", {
-              step: p.step,
-              message: p.message,
-              progress: Math.round(25 + p.fraction * 35),
-            }),
-        });
+              step: "mobile",
+              message: "Capturando a versão mobile do site atual...",
+              progress: 61,
+            });
+            const mobile = await captureMobileStoreScreenshots(normalizedUrl, slug, {
+              signal: budget,
+            }).catch(() => null);
+            if (mobile) {
+              data.mobileScreenshotPath = mobile.mobileScreenshotPath;
+              data.mobileFullScreenshotPath = mobile.mobileFullScreenshotPath;
+            } else {
+              console.warn(`[generate] Captura mobile indisponível para ${normalizedUrl}`);
+            }
+            return data;
+          },
+          { signal: budget, timeoutMs: BROWSER_SLOT_WAIT_MS }
+        );
         budget.throwIfAborted();
 
         const extractionWarning = buildExtractionWarning(extracted);
@@ -168,7 +199,8 @@ export async function POST(req: NextRequest) {
                 aspectRatio: "16:9",
                 sourceStoreUrl: normalizedUrl,
                 slotLabel: blueprint.sections.hero.headline,
-              })
+              }),
+              { signal: budget }
             );
             blueprint.sections.hero.imageUrl = generatedHero.imageUrl;
             if (firstHero) {
@@ -219,7 +251,9 @@ export async function POST(req: NextRequest) {
         const rawMessage = err instanceof Error ? err.message : "Falha inesperada ao analisar a loja";
         const friendlyMessage = req.signal.aborted
           ? "Geração cancelada."
-          : budget.aborted
+          : err instanceof BrowserBusyError
+            ? err.message
+            : budget.aborted
             ? "A geração passou do tempo máximo. Tente novamente."
             : formatFriendlyScrapeError(rawMessage);
         console.error("[generate] Erro ao analisar loja:", rawMessage);

@@ -3011,6 +3011,7 @@ export default function StudioClient({
           <main className="flex min-h-0 flex-1 overflow-hidden">
             <StoreCompareView
               slug={slug}
+              previewId={id}
               storeName={bp.brand.name}
               sourceUrl={sourceUrl}
               detectedPlatform={detectedPlatform}

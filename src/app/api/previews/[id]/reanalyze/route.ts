@@ -2,11 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ExtractedStoreDataSchema } from "@/lib/types/blueprint";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
+import { limitAuthenticated } from "@/lib/net/rate-limit";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  // Só Gemini (sem Playwright): entra no rate limit, mas não no semáforo do navegador
+  const limited = limitAuthenticated(req, "reanalyze");
+  if (limited) return limited;
+
   const { id } = await context.params;
   const preview = await prisma.storePreview.findUnique({ where: { id } });
 

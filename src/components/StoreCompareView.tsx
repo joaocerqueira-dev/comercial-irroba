@@ -17,6 +17,11 @@ import {
 
 interface StoreCompareViewProps {
   slug?: string;
+  /**
+   * Só no Studio (área autenticada): habilita a (re)captura mobile via
+   * POST /api/previews/[id]/mobile-capture. Sem ele (preview público), só lê o cache.
+   */
+  previewId?: string;
   storeName: string;
   sourceUrl: string;
   detectedPlatform: string;
@@ -36,6 +41,7 @@ const MOBILE_TARGET_WIDTH = 390;
 
 export default function StoreCompareView({
   slug,
+  previewId,
   storeName,
   sourceUrl,
   detectedPlatform,
@@ -100,9 +106,13 @@ export default function StoreCompareView({
     setMobileImgSrc(mobileFullScreenshotPath || mobileScreenshotPath);
   }, [mobileFullScreenshotPath, mobileScreenshotPath]);
 
+  const canRecapture = Boolean(previewId);
+
   const requestMobileCapture = useCallback(
     async (force = false) => {
       if (!slug) return;
+      // Recaptura forçada só existe no Studio
+      if (force && !previewId) return;
       if (!force && attemptedMobileSlugsRef.current.has(slug)) return;
       attemptedMobileSlugsRef.current.add(slug);
       mobileCaptureAbortRef.current?.abort();
@@ -111,11 +121,21 @@ export default function StoreCompareView({
       setIsCapturingMobile(true);
       setMobileCaptureFailed(false);
       try {
-        const res = await fetch(`/api/captures/mobile/${encodeURIComponent(slug)}`, {
-          method: "POST",
-          signal: controller.signal,
-        });
-        if (!res.ok) {
+        let res: Response | null = null;
+        if (!force) {
+          // Primeiro o cache público (nunca dispara o navegador no servidor)
+          res = await fetch(`/api/captures/mobile/${encodeURIComponent(slug)}`, {
+            signal: controller.signal,
+          });
+          if (res.status === 404 && previewId) res = null;
+        }
+        if (!res && previewId) {
+          res = await fetch(`/api/previews/${encodeURIComponent(previewId)}/mobile-capture`, {
+            method: "POST",
+            signal: controller.signal,
+          });
+        }
+        if (!res || !res.ok) {
           setMobileCaptureFailed(true);
           return;
         }
@@ -143,7 +163,7 @@ export default function StoreCompareView({
         if (mobileCaptureAbortRef.current === null) setIsCapturingMobile(false);
       }
     },
-    [slug]
+    [slug, previewId]
   );
 
   useEffect(() => {
@@ -375,7 +395,7 @@ export default function StoreCompareView({
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {currentDevice === "mobile" && mobileCaptureFailed && slug && (
+              {currentDevice === "mobile" && mobileCaptureFailed && slug && canRecapture && (
                 <button
                   type="button"
                   onClick={() => void requestMobileCapture(true)}
@@ -455,7 +475,7 @@ export default function StoreCompareView({
                 {!mobileImgSrc && !isCapturingMobile && imgSrc && (
                   <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-medium text-zinc-600">
                     <span>Captura adaptada</span>
-                    {slug && (
+                    {slug && canRecapture && (
                       <button
                         type="button"
                         onClick={() => void requestMobileCapture(true)}

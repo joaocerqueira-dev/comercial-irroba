@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
+import { BrowserBusyError, limitAuthenticated } from "@/lib/net/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -24,6 +25,9 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const limited = limitAuthenticated(req, "ai-image");
+  if (limited) return limited;
+
   const { id } = await context.params;
   const preview = await prisma.storePreview.findUnique({ where: { id } });
   if (!preview) {
@@ -63,11 +67,15 @@ export async function POST(
         sourceImageUrl: body.sourceImageUrl,
         sourceStoreUrl: preview.sourceUrl,
         slotLabel: body.slotLabel,
-      })
+      }),
+      { signal: req.signal }
     );
 
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof BrowserBusyError) {
+      return NextResponse.json({ error: err.message }, { status: 503, headers: { "Retry-After": "10" } });
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Erro ao processar imagem com IA" },
       { status: 500 }
