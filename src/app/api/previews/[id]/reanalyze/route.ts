@@ -52,7 +52,7 @@ export async function POST(
   if (mode !== "gemini") {
     return NextResponse.json(
       {
-        error: `${aiError || "Gemini 3.5 temporariamente indisponível."} O layout atual foi preservado sem alterações.`,
+        error: `${aiError || "Gemini temporariamente indisponível."} O layout atual foi preservado sem alterações.`,
         preserved: true,
       },
       { status: 503 }

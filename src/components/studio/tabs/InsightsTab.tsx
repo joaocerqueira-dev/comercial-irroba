@@ -56,8 +56,8 @@ export function InsightsTab({ studio }: { studio: StudioState }) {
             <Sparkles className="h-3.5 w-3.5" />
           )}
           {isReanalyzing
-            ? "Analisando identidade com Gemini 3.5..."
-            : "Reanalisar Identidade com Gemini 3.5"}
+            ? "Analisando identidade com Gemini..."
+            : "Reanalisar Identidade com Gemini"}
         </button>
 
         {pendingReanalysis && (

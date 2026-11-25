@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { chromiumLaunchOptions } from "@/lib/scraper/browser";
 import { chromium, type Browser, type Frame, type Page } from "playwright";
 import sharp from "sharp";
 import { NextRequest } from "next/server";
@@ -15,7 +16,7 @@ import { GET as renderGET } from "@/app/render/[slug]/route";
 // Isolamento do preview: iframe sandbox sem allow-same-origin num Chromium real (sem rede).
 let canLaunch = true;
 try {
-  const b = await chromium.launch({ headless: true });
+  const b = await chromium.launch(chromiumLaunchOptions());
   await b.close();
 } catch {
   canLaunch = false;
@@ -104,7 +105,7 @@ describe("GET /render/[slug]", () => {
 describe.skipIf(!canLaunch)("E2E: isolamento do iframe de prévia", () => {
   it("o iframe sandbox não acessa parent.document nem cookies, e o runtime roda sem erros sob a CSP", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const { frame, errors } = await openParentWithRender(browser, compileStorefrontDocument(bp));
 
@@ -151,7 +152,7 @@ describe.skipIf(!canLaunch)("E2E: isolamento do iframe de prévia", () => {
 
   it("rolagem: o iframe avisa o pai (irroba-scroll) e obedece irroba-scroll-to", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const { page, frame } = await openParentWithRender(browser, compileStorefrontDocument(bp));
       await page.evaluate(() => {
@@ -197,7 +198,7 @@ describe.skipIf(!canLaunch)("E2E: isolamento do iframe de prévia", () => {
   it("o inspetor ignora comandos de outra janela e aceita os do pai (set-state após ready)", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     const studioHtml = compileStorefrontDocument(bp, undefined, { studioInspector: true });
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       // Um segundo iframe sandbox (ex.: conteúdo hostil) tenta comandar o inspetor do primeiro
       const attacker = `<iframe id="evil" sandbox="allow-scripts" srcdoc="<script>
@@ -233,7 +234,7 @@ describe.skipIf(!canLaunch)("E2E: isolamento do iframe de prévia", () => {
   it("o inspetor envia irb-studio:ready e irb-studio:state ao pai", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     const studioHtml = compileStorefrontDocument(bp, undefined, { studioInspector: true });
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       await page.route("**/*", (r) => (r.request().url().startsWith("data:") ? r.continue() : r.abort()));

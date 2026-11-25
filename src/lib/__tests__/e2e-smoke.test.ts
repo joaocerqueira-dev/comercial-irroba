@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { chromiumLaunchOptions } from "@/lib/scraper/browser";
 import { chromium } from "playwright";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
 import { compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
@@ -8,7 +9,7 @@ import { makeSampleExtracted } from "./fixtures";
 // Fumaça E2E: abre a vitrine compilada num Chromium real (sem rede) e checa erros de JS.
 let canLaunch = true;
 try {
-  const b = await chromium.launch({ headless: true });
+  const b = await chromium.launch(chromiumLaunchOptions());
   await b.close();
 } catch {
   canLaunch = false;
@@ -18,7 +19,7 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
   it("carrega sem erros de script e com um único h1", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     const html = compileStorefrontDocument(bp);
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage();
       const errors: string[] = [];
@@ -35,7 +36,7 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
   it("exibe nome dos elementos no hover e dispara seleção ao clicar no modo Studio Irroba", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     const studioHtml = compileStorefrontDocument(bp, undefined, { studioInspector: true });
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       await page.route("**/*", (r) =>
@@ -105,7 +106,7 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
     };
 
     const html = compileStorefrontDocument(bp);
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
       await page.route("**/*", (r) =>

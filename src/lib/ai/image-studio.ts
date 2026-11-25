@@ -520,7 +520,7 @@ export async function processAiImageRequest(
     };
   }
 
-  // 2) Guaranteed HD fallback: Gemini 3.5 Art Direction + Playwright High-Res PNG rendering
+  // 2) Guaranteed HD fallback: Gemini Art Direction + Playwright High-Res PNG rendering
   const { spec, modelUsed } = await getGeminiArtDirection(req, Boolean(sourceImage));
   const pngBuffer = await renderArtStudioPng(req, sourceImage, spec, width, height, options.signal);
 

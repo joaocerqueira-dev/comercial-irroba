@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
         safeSend("progress", {
           step: "architect",
           message: hasGeminiKey
-            ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com Gemini 3.5 Flash...`
+            ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com Gemini...`
             : `Plataforma: ${extracted.detectedPlatform}. Montando layout adaptado ao Tema LIME da Irroba...`,
           progress: 65,
         });

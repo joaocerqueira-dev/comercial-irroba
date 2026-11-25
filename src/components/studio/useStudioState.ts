@@ -296,7 +296,7 @@ export function useStudioState({
         setActionError(
           data.error ||
             (data.aiError
-              ? `Gemini 3.5 indisponível: ${data.aiError}`
+              ? `Gemini indisponível: ${data.aiError}`
               : "Falha ao reanalisar com Gemini. O layout atual foi preservado.")
         );
         return;
@@ -304,15 +304,15 @@ export function useStudioState({
       if (data.mode && data.mode !== "gemini") {
         setActionError(
           data.aiError
-            ? `Gemini 3.5 indisponível: ${data.aiError} O layout atual foi preservado.`
-            : "Gemini 3.5 indisponível. O layout atual foi preservado."
+            ? `Gemini indisponível: ${data.aiError} O layout atual foi preservado.`
+            : "Gemini indisponível. O layout atual foi preservado."
         );
         return;
       }
       // Não aplica direto: o usuário escolhe entre substituir tudo ou só a paleta
       setPendingReanalysis({ blueprint: data.blueprint, mode: data.mode || "gemini" });
       if (data.aiError) {
-        setActionError(`Gemini 3.5 indisponível: ${data.aiError}`);
+        setActionError(`Gemini indisponível: ${data.aiError}`);
       }
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Erro ao conectar com Gemini");
