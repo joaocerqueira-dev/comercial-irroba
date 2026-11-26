@@ -78,9 +78,25 @@ export function formatBrl(value: number): string {
   }).format(value);
 }
 
+/**
+ * Começo de célula que uma planilha leria como fórmula. O CSV vai para a importação do
+ * Irroba (não para uma planilha), então texto comum como "- Tecido" ou "+ brinde" não
+ * ganha apóstrofo: `+`/`-` só contam quando seguidos de algo que não seja espaço nem letra
+ * (dígito, `(`, `=`...). `=`, `@`, tab e CR no início sempre contam.
+ */
+const CSV_FORMULA_PREFIX_RE = /^(?:[=@\t\r]|[+-][^\s\p{L}])/u;
+
 export function escapeCsvCell(value: string | number | undefined | null): string {
-  const str = String(value ?? "");
-  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes(";")) {
+  let str = String(value ?? "");
+  // CSV injection: texto que começa como fórmula ganha um apóstrofo (números ficam como estão)
+  if (typeof value === "string" && CSV_FORMULA_PREFIX_RE.test(str)) str = `'${str}`;
+  if (
+    str.includes(",") ||
+    str.includes('"') ||
+    str.includes("\n") ||
+    str.includes("\r") ||
+    str.includes(";")
+  ) {
     return `"${str.replaceAll('"', '""')}"`;
   }
   return str;

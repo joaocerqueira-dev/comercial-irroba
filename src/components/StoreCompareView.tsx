@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
 import {
   ArrowUpToLine,
   ExternalLink,
@@ -17,6 +18,11 @@ import {
 
 interface StoreCompareViewProps {
   slug?: string;
+  /**
+   * Só no Studio (área autenticada): habilita a (re)captura mobile via
+   * POST /api/previews/[id]/mobile-capture. Sem ele (preview público), só lê o cache.
+   */
+  previewId?: string;
   storeName: string;
   sourceUrl: string;
   detectedPlatform: string;
@@ -36,6 +42,7 @@ const MOBILE_TARGET_WIDTH = 390;
 
 export default function StoreCompareView({
   slug,
+  previewId,
   storeName,
   sourceUrl,
   detectedPlatform,
@@ -74,6 +81,23 @@ export default function StoreCompareView({
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const scrollLockRef = useRef<"left" | "right" | null>(null);
   const lockTimerRef = useRef<number | null>(null);
+  const mobileCaptureAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      if (lockTimerRef.current) window.clearTimeout(lockTimerRef.current);
+    },
+    []
+  );
+
+  // Captura mobile em andamento é cancelada no unmount ou quando o slug muda
+  useEffect(
+    () => () => {
+      mobileCaptureAbortRef.current?.abort();
+      mobileCaptureAbortRef.current = null;
+    },
+    [slug]
+  );
 
   useEffect(() => {
     setImgSrc(fullScreenshotPath || screenshotPath);
@@ -83,18 +107,36 @@ export default function StoreCompareView({
     setMobileImgSrc(mobileFullScreenshotPath || mobileScreenshotPath);
   }, [mobileFullScreenshotPath, mobileScreenshotPath]);
 
+  const canRecapture = Boolean(previewId);
+
   const requestMobileCapture = useCallback(
     async (force = false) => {
       if (!slug) return;
+      // Recaptura forçada só existe no Studio
+      if (force && !previewId) return;
       if (!force && attemptedMobileSlugsRef.current.has(slug)) return;
       attemptedMobileSlugsRef.current.add(slug);
+      mobileCaptureAbortRef.current?.abort();
+      const controller = new AbortController();
+      mobileCaptureAbortRef.current = controller;
       setIsCapturingMobile(true);
       setMobileCaptureFailed(false);
       try {
-        const res = await fetch(`/api/captures/mobile/${encodeURIComponent(slug)}`, {
-          method: "POST",
-        });
-        if (!res.ok) {
+        let res: Response | null = null;
+        if (!force) {
+          // Primeiro o cache público (nunca dispara o navegador no servidor)
+          res = await fetch(`/api/captures/mobile/${encodeURIComponent(slug)}`, {
+            signal: controller.signal,
+          });
+          if (res.status === 404 && previewId) res = null;
+        }
+        if (!res && previewId) {
+          res = await fetch(`/api/previews/${encodeURIComponent(previewId)}/mobile-capture`, {
+            method: "POST",
+            signal: controller.signal,
+          });
+        }
+        if (!res || !res.ok) {
           setMobileCaptureFailed(true);
           return;
         }
@@ -110,12 +152,19 @@ export default function StoreCompareView({
           setMobileCaptureFailed(true);
         }
       } catch {
+        if (controller.signal.aborted) {
+          // Abortada: permite nova tentativa se voltar a este slug
+          attemptedMobileSlugsRef.current.delete(slug);
+          return;
+        }
         setMobileCaptureFailed(true);
       } finally {
-        setIsCapturingMobile(false);
+        if (mobileCaptureAbortRef.current === controller) mobileCaptureAbortRef.current = null;
+        // Só a requisição mais recente controla o spinner
+        if (mobileCaptureAbortRef.current === null) setIsCapturingMobile(false);
       }
     },
-    [slug]
+    [slug, previewId]
   );
 
   useEffect(() => {
@@ -142,83 +191,66 @@ export default function StoreCompareView({
     }, 100);
   }, []);
 
+  // O iframe da proposta roda em sandbox sem allow-same-origin: o pai não lê o documento dele.
+  // A sincronização usa postMessage com o runtime do compiler: ele emite
+  // { type: "irroba-scroll", ratio } e obedece { type: "irroba-scroll-to", ratio }.
+  // targetOrigin "*" porque a origem do iframe é opaca ("null") e não pode ser nomeada; o alvo é
+  // a contentWindow do nosso próprio iframe e a mensagem (uma fração de rolagem) não é sensível.
+  const postToProposal = useCallback((msg: Record<string, unknown>) => {
+    try {
+      iframeRef.current?.contentWindow?.postMessage(msg, "*");
+    } catch {
+      // ignore detached iframe
+    }
+  }, []);
+
   const handleLeftScroll = useCallback(() => {
     if (!syncScroll || scrollLockRef.current === "right") return;
     const leftEl = leftScrollRef.current;
-    const win = iframeRef.current?.contentWindow;
-    const doc = iframeRef.current?.contentDocument;
-    if (!leftEl || !win || !doc) return;
+    if (!leftEl || !iframeRef.current?.contentWindow) return;
 
     const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
     if (leftMax <= 0) return;
-    const pct = leftEl.scrollTop / leftMax;
-
-    const docEl = doc.documentElement;
-    const rightMax = (docEl?.scrollHeight || doc.body?.scrollHeight || 0) - win.innerHeight;
-    if (rightMax <= 0) return;
+    const ratio = leftEl.scrollTop / leftMax;
 
     scrollLockRef.current = "left";
-    win.scrollTo({ top: Math.round(pct * rightMax), behavior: "auto" });
+    postToProposal({ type: "irroba-scroll-to", ratio });
     releaseLockSoon();
-  }, [syncScroll, releaseLockSoon]);
+  }, [syncScroll, releaseLockSoon, postToProposal]);
 
-  // Bind reverse scroll sync (right iframe -> left full-page screenshot)
+  // Sincronização reversa (iframe da proposta -> captura da loja atual à esquerda)
   const syncScrollRef = useRef(syncScroll);
   useEffect(() => {
     syncScrollRef.current = syncScroll;
   }, [syncScroll]);
-  const iframeCleanupRef = useRef<(() => void) | null>(null);
 
-  const attachIframeScrollListener = useCallback(() => {
-    iframeCleanupRef.current?.();
-    iframeCleanupRef.current = null;
-    const win = iframeRef.current?.contentWindow;
-    const doc = iframeRef.current?.contentDocument;
-    if (!win || !doc) return;
-
-    const onRightScroll = () => {
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      // Com sandbox a origem é "null": só aceitamos mensagens da janela do nosso iframe
+      const win = iframeRef.current?.contentWindow;
+      if (!win || e.source !== win) return;
+      const msg = e.data as { type?: unknown; ratio?: unknown } | null;
+      if (!msg || typeof msg !== "object" || msg.type !== "irroba-scroll") return;
+      const ratio = typeof msg.ratio === "number" && Number.isFinite(msg.ratio) ? msg.ratio : null;
+      if (ratio === null) return;
       if (!syncScrollRef.current || scrollLockRef.current === "left") return;
       const leftEl = leftScrollRef.current;
       if (!leftEl) return;
-
-      const docEl = doc.documentElement;
-      const rightMax = (docEl?.scrollHeight || doc.body?.scrollHeight || 0) - win.innerHeight;
-      if (rightMax <= 0) return;
-      const pct = win.scrollY / rightMax;
 
       const leftMax = leftEl.scrollHeight - leftEl.clientHeight;
       if (leftMax <= 0) return;
 
       scrollLockRef.current = "right";
-      leftEl.scrollTop = Math.round(pct * leftMax);
+      leftEl.scrollTop = Math.round(Math.min(1, Math.max(0, ratio)) * leftMax);
       releaseLockSoon();
     };
-
-    win.addEventListener("scroll", onRightScroll, { passive: true });
-    iframeCleanupRef.current = () => {
-      try {
-        win.removeEventListener("scroll", onRightScroll);
-      } catch {
-        // ignore detached iframe
-      }
-    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, [releaseLockSoon]);
-
-  useEffect(() => {
-    attachIframeScrollListener();
-    return () => {
-      iframeCleanupRef.current?.();
-      iframeCleanupRef.current = null;
-    };
-  }, [attachIframeScrollListener, proposalSrc, proposalSrcDoc, currentDevice]);
 
   const scrollBothToTop = () => {
     leftScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    try {
-      iframeRef.current?.contentWindow?.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      // ignore
-    }
+    postToProposal({ type: "irroba-scroll-to", ratio: 0, smooth: true });
   };
 
   const desktopScale =
@@ -347,7 +379,7 @@ export default function StoreCompareView({
               </span>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {currentDevice === "mobile" && mobileCaptureFailed && slug && (
+              {currentDevice === "mobile" && mobileCaptureFailed && slug && canRecapture && (
                 <button
                   type="button"
                   onClick={() => void requestMobileCapture(true)}
@@ -427,7 +459,7 @@ export default function StoreCompareView({
                 {!mobileImgSrc && !isCapturingMobile && imgSrc && (
                   <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-1 text-[11px] font-medium text-zinc-600">
                     <span>Captura adaptada</span>
-                    {slug && (
+                    {slug && canRecapture && (
                       <button
                         type="button"
                         onClick={() => void requestMobileCapture(true)}
@@ -512,7 +544,7 @@ export default function StoreCompareView({
                 ref={iframeRef}
                 src={proposalSrc}
                 srcDoc={proposalSrcDoc}
-                onLoad={attachIframeScrollListener}
+                sandbox={PREVIEW_IFRAME_SANDBOX}
                 title={`Proposta Irroba LIME - ${storeName}`}
                 style={
                   desktopScale < 1
@@ -550,7 +582,7 @@ export default function StoreCompareView({
                   ref={iframeRef}
                   src={proposalSrc}
                   srcDoc={proposalSrcDoc}
-                  onLoad={attachIframeScrollListener}
+                  sandbox={PREVIEW_IFRAME_SANDBOX}
                   title={`Proposta Irroba LIME Mobile - ${storeName}`}
                   style={{ width: `${MOBILE_TARGET_WIDTH}px`, height: "100%" }}
                   className="block min-h-0 flex-1 border-0 bg-white"

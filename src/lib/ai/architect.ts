@@ -35,6 +35,7 @@ import {
   mapBorderRadius,
 } from "@/lib/layout-patterns";
 import {
+  sanitizeBlueprintImageUrls,
   StoreBlueprintSchema,
   type DesignInsight,
   type ExtractedStoreData,
@@ -51,7 +52,7 @@ export function ensureReadableForeground(bg: string, candidate?: string): string
 
 export function formatFriendlyAiError(raw: string): string {
   if (/503|UNAVAILABLE|high demand|overloaded/i.test(raw)) {
-    return "Servidores do Gemini 3.5 temporariamente sobrecarregados (503).";
+    return "Servidores do Gemini temporariamente sobrecarregados (503).";
   }
   if (/429|quota|RESOURCE_EXHAUSTED/i.test(raw)) {
     return "Limite temporário de requisições da API Gemini atingido.";
@@ -527,7 +528,8 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
     (slimExtracted ? 1 : 0) + (secondaryExtracted ? 1 : 0)
   );
 
-  return {
+  // Dados da extração podem trazer imagem que o schema rejeita (data:, URL longa)
+  return sanitizeBlueprintImageUrls<StoreBlueprint>({
     brand: {
       name: extracted.storeName,
       logoUrl: extracted.logoUrl || extracted.faviconUrl || "",
@@ -639,7 +641,7 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
       ...(extracted.contacts.cnpj ? { cnpj: extracted.contacts.cnpj } : {}),
     },
     designInsights,
-  };
+  });
 }
 
 export interface ArchitectResult {
@@ -1144,7 +1146,7 @@ Retorne APENAS um JSON válido com esta estrutura exata:
         category: "palette",
         severity: "suggestion",
         title: "Fallback heurístico ativado (Gemini indisponível)",
-        description: `Não foi possível concluir a análise visual com Gemini 3.5 Flash nesta tentativa: ${friendlyAiError} Clique em "Reanalisar Identidade com Gemini 3.5" para tentar novamente sem raspar o site do zero.`,
+        description: `Não foi possível concluir a análise visual com Gemini nesta tentativa: ${friendlyAiError} Clique em "Reanalisar Identidade com Gemini" para tentar novamente sem raspar o site do zero.`,
       },
       ...baseBlueprint.designInsights,
     ],

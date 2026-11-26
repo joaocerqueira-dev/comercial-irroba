@@ -63,6 +63,11 @@ describe("basic auth", () => {
     expect(isPublicPath("/api/captures/a.png")).toBe(true);
     expect(isPublicPath("/api/previews")).toBe(false);
   });
+  it("healthcheck é público só na rota exata", () => {
+    expect(isPublicPath("/api/health")).toBe(true);
+    expect(isPublicPath("/api/health/x")).toBe(false);
+    expect(isPublicPath("/api/healthz")).toBe(false);
+  });
 });
 
 describe("sanitizeCustomHtmlBlock & validateSunEditorHtml", () => {

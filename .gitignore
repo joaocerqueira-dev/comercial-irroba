@@ -7,3 +7,4 @@ public/captures/*
 .env
 .env.local
 tsconfig.tsbuildinfo
+node_modules

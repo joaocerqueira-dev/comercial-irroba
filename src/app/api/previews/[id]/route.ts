@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db";
 import { StoreBlueprintSchema } from "@/lib/types/blueprint";
 import { deletePreviewFiles, saveBlueprint } from "@/lib/previews/repository";
 
+const MAX_WHATSAPP_LENGTH = 32;
+
 export async function GET(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -40,13 +42,21 @@ export async function PATCH(
       ? (body.generationMode as string)
       : undefined;
 
-  const updated = await saveBlueprint(id, parsed.data, {
-    sellerWhatsapp:
-      typeof body?.sellerWhatsapp === "string" ? body.sellerWhatsapp.replace(/\D/g, "") || null : undefined,
-    generationMode,
-  });
+  if (typeof body?.sellerWhatsapp === "string" && body.sellerWhatsapp.length > MAX_WHATSAPP_LENGTH) {
+    return NextResponse.json({ error: "WhatsApp inválido" }, { status: 400 });
+  }
 
-  return NextResponse.json({ preview: updated });
+  try {
+    const updated = await saveBlueprint(id, parsed.data, {
+      sellerWhatsapp:
+        typeof body?.sellerWhatsapp === "string" ? body.sellerWhatsapp.replace(/\D/g, "") || null : undefined,
+      generationMode,
+    });
+    return NextResponse.json({ preview: updated });
+  } catch (err) {
+    console.error("[previews/patch] Falha ao salvar blueprint:", err);
+    return NextResponse.json({ error: "Não foi possível salvar o preview. Tente novamente." }, { status: 500 });
+  }
 }
 
 export async function DELETE(
@@ -62,10 +72,8 @@ export async function DELETE(
     if (code === "P2025") {
       return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
     }
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Falha ao excluir preview" },
-      { status: 500 }
-    );
+    console.error("[previews/delete] Falha ao excluir preview:", err);
+    return NextResponse.json({ error: "Falha ao excluir preview" }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }

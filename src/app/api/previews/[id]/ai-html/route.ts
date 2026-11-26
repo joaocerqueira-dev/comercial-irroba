@@ -8,6 +8,7 @@ import {
 } from "@/lib/ai/architect";
 import { sanitizeCustomHtmlBlock } from "@/lib/irroba-blocks/sanitize";
 import { GEMINI_TEXT_MODELS } from "@/lib/layout-patterns/ai";
+import { limitAuthenticated } from "@/lib/net/rate-limit";
 import { getPreviewWithBlueprint } from "@/lib/previews/repository";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 
@@ -52,6 +53,9 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const limited = limitAuthenticated(req, "ai-html");
+  if (limited) return limited;
+
   let body: z.infer<typeof BodySchema>;
   try {
     const raw = await req.json();
@@ -69,8 +73,14 @@ export async function POST(
   if (lookup.status === "not_found") {
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
+  if (lookup.status === "no_blueprint") {
+    return NextResponse.json({ error: "Blueprint ainda não gerado" }, { status: 400 });
+  }
   if (lookup.status === "invalid") {
-    return NextResponse.json({ error: "Blueprint inválido para este preview" }, { status: 400 });
+    return NextResponse.json(
+      { error: "O blueprint deste preview está em formato incompatível. Gere o preview novamente." },
+      { status: 409 }
+    );
   }
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -172,8 +182,13 @@ export async function POST(
       });
     } catch (err) {
       lastErrorMsg = err instanceof Error ? err.message : String(err);
+      // Cliente desistiu: não tenta os modelos seguintes
+      if (req.signal.aborted) break;
     }
   }
+
+  // Detalhe do erro só no log; o cliente recebe a mensagem amigável (sem err.message cru)
+  if (lastErrorMsg) console.error("[ai-html] Falha ao gerar HTML:", lastErrorMsg);
 
   return NextResponse.json(
     {

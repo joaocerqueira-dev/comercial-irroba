@@ -1,7 +1,6 @@
 import { GEMINI_DEFAULT_MODEL } from "@/lib/layout-patterns/ai";
 import { normalizeStoreUrl } from "@/lib/format/inputs";
 import { PREVIEW_STATUS } from "@/lib/previews/status";
-import crypto from "node:crypto";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
@@ -11,15 +10,22 @@ import { buildStoreBlueprint } from "@/lib/ai/architect";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
+import { captureMobileStoreScreenshots } from "@/lib/scraper/mobile-screenshot";
+import { BrowserBusyError, limitAuthenticated, withBrowserSlot } from "@/lib/net/rate-limit";
+import { deletePreviewFiles } from "@/lib/previews/repository";
+import { slugifyHostname } from "@/lib/previews/slug";
+import { cleanupStalePreviewsThrottled } from "@/lib/previews/maintenance";
 
 export const runtime = "nodejs";
 /** Orçamento total da geração (extração + IA + imagem). */
 export const maxDuration = 300;
 const GENERATION_BUDGET_MS = 270_000;
+/** Espera máxima por uma vaga de navegador antes de desistir. */
+const BROWSER_SLOT_WAIT_MS = 90_000;
 
 const GenerateRequestSchema = z.object({
-  url: z.string().min(4, "Informe a URL da loja"),
-  sellerWhatsapp: z.string().optional(),
+  url: z.string().min(4, "Informe a URL da loja").max(2048, "URL longa demais"),
+  sellerWhatsapp: z.string().max(32, "WhatsApp inválido").optional(),
 });
 
 function formatFriendlyScrapeError(raw: string): string {
@@ -36,22 +42,13 @@ function formatFriendlyScrapeError(raw: string): string {
   return "Não foi possível acessar a loja informada. Verifique a URL e tente novamente.";
 }
 
-function slugifyHostname(rawUrl: string): string {
-  try {
-    const u = new URL(rawUrl.startsWith("http") ? rawUrl : `https://${rawUrl}`);
-    const base = u.hostname
-      .replace(/^www\./, "")
-      .replace(/[^a-zA-Z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .toLowerCase();
-    const suffix = crypto.randomBytes(3).toString("hex");
-    return `${base || "loja"}-${suffix}`;
-  } catch {
-    return `loja-${crypto.randomBytes(4).toString("hex")}`;
-  }
-}
-
 export async function POST(req: NextRequest) {
+  const limited = limitAuthenticated(req, "generate");
+  if (limited) return limited;
+
+  // Best-effort, com throttle: remove gerações presas em "processing" (não bloqueia a resposta)
+  void cleanupStalePreviewsThrottled();
+
   const body = await req.json().catch(() => null);
   const parsed = GenerateRequestSchema.safeParse(body);
 
@@ -121,15 +118,39 @@ export async function POST(req: NextRequest) {
           progress: 25,
         });
 
-        const extracted = await extractStoreFromUrl(normalizedUrl, slug, {
-          signal: budget,
-          onProgress: (p) =>
+        // Uma vaga de navegador cobre a extração e a captura mobile (sem aninhar com a arte IA)
+        const extracted = await withBrowserSlot(
+          async () => {
+            const data = await extractStoreFromUrl(normalizedUrl, slug, {
+              signal: budget,
+              onProgress: (p) =>
+                safeSend("progress", {
+                  step: p.step,
+                  message: p.message,
+                  progress: Math.round(25 + p.fraction * 35),
+                }),
+            });
+            budget.throwIfAborted();
+
+            // Etapa extra: screenshot mobile do site original. Falha não interrompe a geração.
             safeSend("progress", {
-              step: p.step,
-              message: p.message,
-              progress: Math.round(25 + p.fraction * 35),
-            }),
-        });
+              step: "mobile",
+              message: "Capturando a versão mobile do site atual...",
+              progress: 61,
+            });
+            const mobile = await captureMobileStoreScreenshots(normalizedUrl, slug, {
+              signal: budget,
+            }).catch(() => null);
+            if (mobile) {
+              data.mobileScreenshotPath = mobile.mobileScreenshotPath;
+              data.mobileFullScreenshotPath = mobile.mobileFullScreenshotPath;
+            } else {
+              console.warn(`[generate] Captura mobile indisponível para ${normalizedUrl}`);
+            }
+            return data;
+          },
+          { signal: budget, timeoutMs: BROWSER_SLOT_WAIT_MS }
+        );
         budget.throwIfAborted();
 
         const extractionWarning = buildExtractionWarning(extracted);
@@ -143,7 +164,7 @@ export async function POST(req: NextRequest) {
         safeSend("progress", {
           step: "architect",
           message: hasGeminiKey
-            ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com Gemini 3.5 Flash...`
+            ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com Gemini...`
             : `Plataforma: ${extracted.detectedPlatform}. Montando layout adaptado ao Tema LIME da Irroba...`,
           progress: 65,
         });
@@ -168,7 +189,8 @@ export async function POST(req: NextRequest) {
                 aspectRatio: "16:9",
                 sourceStoreUrl: normalizedUrl,
                 slotLabel: blueprint.sections.hero.headline,
-              })
+              }),
+              { signal: budget }
             );
             blueprint.sections.hero.imageUrl = generatedHero.imageUrl;
             if (firstHero) {
@@ -219,7 +241,9 @@ export async function POST(req: NextRequest) {
         const rawMessage = err instanceof Error ? err.message : "Falha inesperada ao analisar a loja";
         const friendlyMessage = req.signal.aborted
           ? "Geração cancelada."
-          : budget.aborted
+          : err instanceof BrowserBusyError
+            ? err.message
+            : budget.aborted
             ? "A geração passou do tempo máximo. Tente novamente."
             : formatFriendlyScrapeError(rawMessage);
         console.error("[generate] Erro ao analisar loja:", rawMessage);
@@ -227,6 +251,11 @@ export async function POST(req: NextRequest) {
           await prisma.storePreview
             .delete({ where: { id: recordId } })
             .catch(() => undefined);
+          // Screenshots, espelhos e arte IA já gravados desta tentativa (mesma limpeza do DELETE)
+          await deletePreviewFiles({ id: recordId, slug }).catch((cleanupErr) => {
+            console.error("[generate] Falha ao limpar arquivos da geração:", cleanupErr);
+            return 0;
+          });
         }
         safeSend("error", { message: friendlyMessage });
       } finally {

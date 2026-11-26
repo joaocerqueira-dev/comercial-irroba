@@ -5,7 +5,7 @@ import { IrrobaLogo } from "@/components/ui/IrrobaLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatWhatsapp, hostnameOf, isValidWhatsapp, normalizeStoreUrl, pluralize } from "@/lib/format/inputs";
 import { readEventStream } from "@/lib/sse/readEventStream";
-import { copyToClipboard } from "@/lib/client/clipboard";
+import { useCopyToClipboard } from "@/components/ui/useCopyToClipboard";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -56,7 +56,7 @@ export default function HomePage() {
     }
     return [...map.values()];
   }, [previews]);
-  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const { copiedKey: copiedSlug, copy } = useCopyToClipboard(2000);
   const abortRef = useRef<AbortController | null>(null);
   const urlId = useId();
   const waId = useId();
@@ -121,6 +121,8 @@ export default function HomePage() {
           setStatusMessage("Preview gerado com sucesso!");
           await loadPreviews();
           router.push(`/studio/${String(payload.id)}`);
+          // Caso a navegação não desmonte a página, não deixa o formulário travado
+          setIsGenerating(false);
           return true;
         } else if (eventName === "error") {
           throw new Error(String(payload.message ?? "Falha na extração da loja"));
@@ -140,12 +142,9 @@ export default function HomePage() {
 
   const handleCopyClientLink = async (slug: string) => {
     const shareUrl = `${window.location.origin}/preview/${slug}`;
-    if (!(await copyToClipboard(shareUrl))) {
+    if (!(await copy(slug, shareUrl))) {
       window.prompt("Copie o link do cliente:", shareUrl);
-      return;
     }
-    setCopiedSlug(slug);
-    setTimeout(() => setCopiedSlug(null), 2000);
   };
 
   const handleDelete = async (id: string) => {

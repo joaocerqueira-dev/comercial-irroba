@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    image: irroba-preview-ai:latest
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      DATABASE_URL: file:/app/data/prod.db
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    volumes:
+      - app-data:/app/data
+      - app-captures:/app/public/captures
+    init: true
+    shm_size: 1gb
+    # Perfil seccomp do Playwright (padrão do Docker + clone/setns/unshare): o sandbox do
+    # Chromium como pwuser precisa dessas syscalls. Origem e atualização: docs/deploy.md.
+    security_opt:
+      - seccomp=./docker/seccomp-chromium.json
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  app-data:
+  app-captures:

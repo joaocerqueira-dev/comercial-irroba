@@ -9,7 +9,8 @@ export async function GET(
   const { id } = await context.params;
   const result = await getPreviewWithBlueprint({ id });
 
-  if (result.status === "not_found") {
+  // Sem blueprint ainda não há CSV para baixar: mesmo 404 de antes
+  if (result.status === "not_found" || result.status === "no_blueprint") {
     return new Response("Not found", { status: 404 });
   }
   if (result.status === "invalid") {

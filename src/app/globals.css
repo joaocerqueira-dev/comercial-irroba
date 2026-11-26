@@ -2,40 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * As CSS vars de cor (--irroba-*, --brand-*) são injetadas em :root pelo plugin do
+ * tailwind.config.ts a partir de src/lib/design-tokens.ts (fonte única). Elas guardam
+ * canais RGB ("234 25 31"); em CSS puro use rgb(var(--x)) ou rgb(var(--x) / 0.5).
+ * As vars --font-* vêm do next/font (src/app/layout.tsx).
+ */
 @layer base {
-  :root {
-    --irroba-red: #EA191F;
-    --irroba-red-soft: #F6A0A2;
-    --irroba-red-mid: #CC0E11;
-    --irroba-red-deep: #AE0203;
-    --irroba-red-crimson: #980101;
-    --irroba-red-maroon: #830000;
-    --irroba-surface: #F7F7F8;
-    --irroba-ink: #1F1F23;
-  }
-
   body {
-    font-family: "Inter", "Neue Haas Grotesk Display Pro", system-ui, -apple-system, sans-serif;
-    background-color: var(--irroba-surface);
-    color: var(--irroba-ink);
+    font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+    background-color: rgb(var(--irroba-surface));
+    color: rgb(var(--irroba-ink));
   }
 
   h1,
   h2,
   h3,
   h4 {
-    font-family: "Montserrat", "Inter", system-ui, -apple-system, sans-serif;
+    font-family: var(--font-montserrat), var(--font-inter), system-ui, -apple-system, sans-serif;
   }
 
   input[type="checkbox"],
   input[type="radio"],
   input[type="range"] {
-    accent-color: #EA191F;
+    accent-color: rgb(var(--irroba-red));
   }
 
-  /* Anel de foco visível para navegação por teclado no padrão Irroba (#EA191F) */
+  /* Anel de foco visível para navegação por teclado no padrão Irroba (vermelho institucional) */
   :focus-visible {
-    outline: 2px solid #EA191F;
+    outline: 2px solid rgb(var(--irroba-red));
     outline-offset: 2px;
+  }
+
+  /* Respeita a preferência do sistema por menos movimento. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

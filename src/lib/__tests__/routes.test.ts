@@ -27,6 +27,7 @@ vi.mock("@/lib/ai/architect", async (orig) => ({
 import { DELETE, PATCH } from "@/app/api/previews/[id]/route";
 import { POST as REANALYZE } from "@/app/api/previews/[id]/reanalyze/route";
 import { POST as AI_HTML } from "@/app/api/previews/[id]/ai-html/route";
+import { resetRateLimits } from "@/lib/net/rate-limit";
 
 const extracted = makeSampleExtracted();
 const ctx = (id = "abc") => ({ params: Promise.resolve({ id }) });
@@ -59,7 +60,8 @@ describe("DELETE /api/previews/[id]", () => {
     db.storePreview.delete.mockRejectedValueOnce(new Error("disco cheio"));
     const res = await DELETE(req(), ctx());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe("disco cheio");
+    // Detalhe interno só no log; o cliente recebe mensagem genérica
+    expect((await res.json()).error).toBe("Falha ao excluir preview");
   });
 });
 
@@ -81,21 +83,139 @@ describe("POST reanalyze", () => {
 });
 
 describe("GET /api/previews", () => {
-  it("remove arquivos dos previews presos em processing", async () => {
+  it("só lista: não apaga previews presos nem arquivos", async () => {
     const files = await import("@/lib/files/captures");
-    db.storePreview.findMany
-      .mockResolvedValueOnce([{ id: "old1", slug: "loja-x-aaaaaa" }]) // stale
-      .mockResolvedValueOnce([]) // referências de outros previews
-      .mockResolvedValueOnce([]); // listagem
+    db.storePreview.findMany.mockResolvedValueOnce([{ id: "p1", slug: "loja-a", status: "ready" }]);
     const { GET } = await import("@/app/api/previews/route");
     const res = await GET();
     expect(res.status).toBe(200);
+    expect((await res.json()).previews).toHaveLength(1);
+    expect(db.storePreview.findMany).toHaveBeenCalledTimes(1);
+    expect(db.storePreview.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "ready" } }));
+    expect(db.storePreview.deleteMany).not.toHaveBeenCalled();
+    expect(db.storePreview.delete).not.toHaveBeenCalled();
+    expect(files.deletePreviewCaptures).not.toHaveBeenCalled();
+  });
+});
+
+describe("cleanupStalePreviews (boot e generate)", () => {
+  it("remove arquivos dos previews presos em processing", async () => {
+    const files = await import("@/lib/files/captures");
+    const { cleanupStalePreviews } = await import("@/lib/previews/maintenance");
+    db.storePreview.findMany
+      .mockResolvedValueOnce([{ id: "old1", slug: "loja-x-aaaaaa" }]) // stale
+      .mockResolvedValueOnce([]); // referências de outros previews
+    expect(await cleanupStalePreviews()).toBe(1);
     expect(db.storePreview.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["old1"] } } });
     expect(files.deletePreviewCaptures).toHaveBeenCalledWith("loja-x-aaaaaa", "old1", expect.anything());
+    // Referências: mesmo começo de slug (espelhos antigos) OU mesmo começo de id (ai-/up- antigos)
+    expect(db.storePreview.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          OR: [{ slug: { startsWith: "loja-x-aaaaaa" } }, { id: { startsWith: "old1" } }],
+          NOT: { id: "old1" },
+        },
+      })
+    );
+  });
+
+  it("throttle: uma execução por janela, e nunca lança", async () => {
+    const m = await import("@/lib/previews/maintenance");
+    m.resetStaleCleanupThrottle();
+    db.storePreview.findMany.mockRejectedValueOnce(new Error("db fora"));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const t0 = 1_000_000_000;
+    await expect(m.cleanupStalePreviewsThrottled(t0)).resolves.toBe(0);
+    expect(db.storePreview.findMany).toHaveBeenCalledTimes(1);
+    await m.cleanupStalePreviewsThrottled(t0 + 1000);
+    expect(db.storePreview.findMany).toHaveBeenCalledTimes(1);
+    await m.cleanupStalePreviewsThrottled(t0 + m.STALE_CLEANUP_THROTTLE_MS + 1);
+    expect(db.storePreview.findMany).toHaveBeenCalledTimes(2);
+    errSpy.mockRestore();
+  });
+});
+
+describe("PATCH: limites e erros genéricos", () => {
+  it("400 para imagem data: ou URL longa demais no blueprint", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc" });
+    const bp = buildHeuristicBlueprint(extracted);
+    const withData = structuredClone(bp);
+    withData.sections.hero.imageUrl = "data:image/png;base64,AAAA";
+    expect((await PATCH(req({ blueprint: withData }), ctx())).status).toBe(400);
+    const tooLong = structuredClone(bp);
+    tooLong.brand.logoUrl = `https://cdn.exemplo.com/${"a".repeat(4100)}.png`;
+    expect((await PATCH(req({ blueprint: tooLong }), ctx())).status).toBe(400);
+    expect(db.storePreview.update).not.toHaveBeenCalled();
+  });
+
+  it("400 para WhatsApp acima de 32 caracteres", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc" });
+    const bp = buildHeuristicBlueprint(extracted);
+    const res = await PATCH(req({ blueprint: bp, sellerWhatsapp: "1".repeat(33) }), ctx());
+    expect(res.status).toBe(400);
+  });
+
+  it("500 com mensagem genérica quando o Prisma falha", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc" });
+    db.storePreview.update.mockRejectedValueOnce(new Error("SQLITE_BUSY: database is locked"));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await PATCH(req({ blueprint: buildHeuristicBlueprint(extracted) }), ctx());
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("SQLITE");
+    errSpy.mockRestore();
+  });
+});
+
+describe("reanalyze: signal e erro genérico", () => {
+  it("repassa um AbortSignal ao architect", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", extractedData: extracted });
+    ai.buildStoreBlueprint.mockResolvedValue({ blueprint: buildHeuristicBlueprint(extracted), mode: "gemini" });
+    await REANALYZE(req(), ctx());
+    const opts = ai.buildStoreBlueprint.mock.calls[0][1] as { signal?: AbortSignal };
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("exceção do architect vira 503 sem detalhe interno", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", extractedData: extracted });
+    ai.buildStoreBlueprint.mockRejectedValueOnce(new Error("GoogleGenAI: API key AIza... invalid"));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = await REANALYZE(req(), ctx());
+    expect(res.status).toBe(503);
+    expect(JSON.stringify(await res.json())).not.toContain("AIza");
+    errSpy.mockRestore();
   });
 });
 
 describe("POST /api/previews/[id]/ai-html", () => {
+  beforeEach(() => resetRateLimits());
+
+  it("responde 400 quando o preview ainda não tem blueprint", async () => {
+    db.storePreview.findUnique.mockResolvedValueOnce({
+      id: "abc",
+      slug: "loja-abc",
+      sourceUrl: "https://loja.exemplo.com.br/",
+      extractedData: extracted,
+      blueprint: null,
+    });
+    const res = await AI_HTML(req({ prompt: "Crie 3 cards de benefícios" }), ctx());
+    expect(res.status).toBe(400);
+  });
+
+  it("aplica rate limit (429) por usuário+IP", async () => {
+    process.env.RATE_LIMIT_PER_MIN = "2";
+    try {
+      // Corpo inválido: barato, mas ainda consome o balde
+      expect((await AI_HTML(req({ prompt: "ab" }), ctx())).status).toBe(400);
+      expect((await AI_HTML(req({ prompt: "ab" }), ctx())).status).toBe(400);
+      const limited = await AI_HTML(req({ prompt: "ab" }), ctx());
+      expect(limited.status).toBe(429);
+      expect(limited.headers.get("Retry-After")).toBeTruthy();
+    } finally {
+      delete process.env.RATE_LIMIT_PER_MIN;
+    }
+  });
+
   it("retorna 400 para corpo inválido e 404 quando preview não existe", async () => {
     const res400 = await AI_HTML(req({ prompt: "ab" }), ctx());
     expect(res400.status).toBe(400);

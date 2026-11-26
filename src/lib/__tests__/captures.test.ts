@@ -7,6 +7,8 @@ import {
   deletePreviewCaptures,
   legacyMirrorPrefix,
   mirrorFilePrefix,
+  aiImageFilePrefix,
+  legacyIdPrefixes,
   uploadFilePrefix,
 } from "@/lib/files/captures";
 
@@ -84,6 +86,46 @@ describe("deletePreviewCaptures", () => {
     const legacy = `${legacyMirrorPrefix(slugA)}abc123.jpg`;
     await touch(legacy);
     await deletePreviewCaptures(slugA, "previewAAAA", { capturesDir: dir });
+    expect(await exists(legacy)).toBe(true);
+  });
+
+  it("novos arquivos de IA/upload usam o id inteiro (CUIDs do mesmo instante não colidem)", () => {
+    const a = "cmwnj9k410aaaaaaaaaaaaaaa";
+    const b = "cmwnj9k410bbbbbbbbbbbbbbb";
+    expect(aiImageFilePrefix(a)).toBe(`ai-${a}-`);
+    expect(uploadFilePrefix(a)).toBe(`up-${a}-`);
+    expect(aiImageFilePrefix(b).startsWith(aiImageFilePrefix(a))).toBe(false);
+    expect(legacyIdPrefixes(a)).toEqual(legacyIdPrefixes(b));
+  });
+
+  it("prefixo antigo de 10 caracteres não apaga arquivo citado por outro preview", async () => {
+    const a = "cmwnj9k410aaaaaaaaaaaaaaa";
+    const b = "cmwnj9k410bbbbbbbbbbbbbbb";
+    const sharedAi = "ai-cmwnj9k410-1795096879914-70eacc3b3e.png"; // do preview B
+    const orphanAi = "ai-cmwnj9k410-1795097146146-6b7c13c2a5.png";
+    const sharedUp = "up-cmwnj9k410-1795097165929-a603baff8f.png"; // do preview B
+    const newB = `${aiImageFilePrefix(b)}1795106635723-9ba851118b.png`;
+    const newA = `${aiImageFilePrefix(a)}1795106635724-aaaaaaaaaa.png`;
+    for (const f of [sharedAi, orphanAi, sharedUp, newB, newA]) await touch(f);
+    await touch(`.thumbs/480-${sharedAi}.webp`);
+
+    const refs = collectCaptureRefs([
+      { hero: { imageUrl: `/api/captures/${sharedAi}` }, logo: `/api/captures/${sharedUp}` },
+    ]);
+    await deletePreviewCaptures(slugA, a, { referencedElsewhere: refs, capturesDir: dir });
+
+    expect(await exists(sharedAi)).toBe(true);
+    expect(await exists(`.thumbs/480-${sharedAi}.webp`)).toBe(true);
+    expect(await exists(sharedUp)).toBe(true);
+    expect(await exists(newB)).toBe(true);
+    expect(await exists(orphanAi)).toBe(false);
+    expect(await exists(newA)).toBe(false);
+  });
+
+  it("sem lista de referências, mantém arquivos de IA/upload com prefixo antigo", async () => {
+    const legacy = "ai-cmwnj9k410-1-abc.png";
+    await touch(legacy);
+    await deletePreviewCaptures(slugA, "cmwnj9k410aaaaaaaaaaaaaaa", { capturesDir: dir });
     expect(await exists(legacy)).toBe(true);
   });
 });

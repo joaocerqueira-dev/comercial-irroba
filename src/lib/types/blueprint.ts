@@ -1,6 +1,53 @@
 import { DEFAULT_COPY } from "@/lib/layout-patterns/copy";
 import { z } from "zod";
 
+/** Teto de URL de imagem no blueprint (URLs reais ficam bem abaixo disso). */
+export const MAX_IMAGE_URL_LENGTH = 4096;
+
+/**
+ * URL de imagem gravada no blueprint: http(s), caminho relativo (/api/captures/...) ou vazio.
+ * `data:` não é aceito: imagens do computador passam pelo upload (upload-image) e viram
+ * /api/captures/...; nenhum fluxo atual grava data: no blueprint.
+ */
+export const BlueprintImageUrlSchema = z
+  .string()
+  .max(MAX_IMAGE_URL_LENGTH, "URL de imagem longa demais")
+  .refine((v) => !/^\s*data:/i.test(v), "Imagens embutidas (data:) não são aceitas; use o upload.");
+
+export function isValidBlueprintImageUrl(value: unknown): value is string {
+  return BlueprintImageUrlSchema.safeParse(value).success;
+}
+
+/** Campos de imagem do blueprint: logoUrl e qualquer chave terminada em imageUrl. */
+const IMAGE_URL_KEY = /^logoUrl$|imageUrl$/i;
+/** Listas de imagens do blueprint (products[].images, benefitsBanner.siteImageUrls). */
+const IMAGE_LIST_KEY = /^images$|imageUrls$/i;
+
+/**
+ * Troca por "" as URLs de imagem que o BlueprintImageUrlSchema rejeitaria (data:, longas)
+ * e tira as inválidas das listas de imagens. Serve para dados vindos da página da loja e
+ * para blueprints antigos já gravados: uma imagem ruim não invalida o preview inteiro.
+ * Não muda nada além dos campos de imagem; devolve uma cópia.
+ */
+export function sanitizeBlueprintImageUrls<T>(value: T): T {
+  const walk = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(walk);
+    if (!node || typeof node !== "object") return node;
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+      if (IMAGE_URL_KEY.test(key) && typeof child === "string") {
+        out[key] = isValidBlueprintImageUrl(child) ? child : "";
+      } else if (IMAGE_LIST_KEY.test(key) && Array.isArray(child)) {
+        out[key] = child.filter((item) => typeof item !== "string" || isValidBlueprintImageUrl(item));
+      } else {
+        out[key] = walk(child);
+      }
+    }
+    return out;
+  };
+  return walk(value) as T;
+}
+
 export const ExtractedProductSchema = z.object({
   id: z.string().max(5000),
   title: z.string().max(5000),
@@ -114,7 +161,7 @@ export type DesignInsight = z.infer<typeof DesignInsightSchema>;
 
 export const HeroSlideSchema = z.object({
   id: z.string().max(5000),
-  imageUrl: z.string().max(4000000),
+  imageUrl: BlueprintImageUrlSchema,
   headline: z.string().max(5000),
   subheadline: z.string().max(5000),
   ctaText: z.string().max(5000),
@@ -127,7 +174,7 @@ export const MoodBannerSchema = z.object({
   id: z.string().max(5000),
   title: z.string().max(5000),
   subtitle: z.string().max(5000).default(""),
-  imageUrl: z.string().max(4000000),
+  imageUrl: BlueprintImageUrlSchema,
   href: z.string().max(5000).default("#vitrines"),
   enabled: z.boolean().default(true),
 });
@@ -198,7 +245,7 @@ export const CustomBannerSectionSchema = z.object({
   kind: z.literal("banner"),
   title: z.string().max(5000),
   mode: z.enum(["artwork", "editorial"]).default("editorial"),
-  imageUrl: z.string().max(4000000).default(""),
+  imageUrl: BlueprintImageUrlSchema.default(""),
   headline: z.string().max(5000).default(""),
   subheadline: z.string().max(5000).default(""),
   ctaText: z.string().max(5000).default("Ver Coleção"),
@@ -215,7 +262,7 @@ export const CustomSlimBannerSectionSchema = z.object({
   kind: z.literal("slimBanner"),
   title: z.string().max(5000),
   mode: z.enum(["image", "designed"]).default("designed"),
-  imageUrl: z.string().max(4000000).default(""),
+  imageUrl: BlueprintImageUrlSchema.default(""),
   badgeText: z.string().max(5000).default("DESTAQUE"),
   headline: z.string().max(5000).default(""),
   ctaText: z.string().max(5000).default("Aproveitar"),
@@ -272,7 +319,7 @@ export const CustomEditorialSplitSectionSchema = z.object({
   description: z.string().max(5000).default(""),
   ctaText: z.string().max(5000).default("Explorar"),
   ctaHref: z.string().max(5000).default("#vitrines"),
-  imageUrl: z.string().max(4000000).default(""),
+  imageUrl: BlueprintImageUrlSchema.default(""),
   imageSide: z.enum(["left", "right"]).default("left"),
   backgroundColor: z.string().max(5000).optional(),
   textColor: z.string().max(5000).optional(),
@@ -392,7 +439,7 @@ export function getNormalizedSectionLayout(
 export const StoreBlueprintSchema = z.object({
   brand: z.object({
     name: z.string().max(5000).min(1),
-    logoUrl: z.string().max(4000000),
+    logoUrl: BlueprintImageUrlSchema,
     niche: z.string().max(5000),
     tone: z.enum(["modern", "luxury", "vibrant", "minimal", "tech"]),
   }),
@@ -478,14 +525,14 @@ export const StoreBlueprintSchema = z.object({
       z.object({
         label: z.string().max(5000),
         href: z.string().max(5000),
-        imageUrl: z.string().max(4000000).optional(),
+        imageUrl: BlueprintImageUrlSchema.optional(),
       })
     ),
     hero: z.object({
       headline: z.string().max(5000),
       subheadline: z.string().max(5000),
       ctaText: z.string().max(5000),
-      imageUrl: z.string().max(4000000),
+      imageUrl: BlueprintImageUrlSchema,
     }),
     heroSlides: z.array(HeroSlideSchema).default([]),
     benefitsBanner: z
@@ -495,8 +542,8 @@ export const StoreBlueprintSchema = z.object({
           .default("generated-art"),
         backgroundColor: z.string().max(5000).default("#F4F4F5"),
         textColor: z.string().max(5000).default("#111827"),
-        siteImageUrls: z.array(z.string().max(4000000)).default([]),
-        customImageUrl: z.string().max(4000000).optional(),
+        siteImageUrls: z.array(BlueprintImageUrlSchema).default([]),
+        customImageUrl: BlueprintImageUrlSchema.optional(),
         maxHeightPx: z.number().min(36).max(400).optional(),
         maxWidthPx: z.number().min(280).max(1920).optional(),
         fullWidth: z.boolean().optional(),
@@ -507,7 +554,7 @@ export const StoreBlueprintSchema = z.object({
       .object({
         enabled: z.boolean().default(true),
         mode: z.enum(["image", "designed"]).default("designed"),
-        imageUrl: z.string().max(4000000).default(""),
+        imageUrl: BlueprintImageUrlSchema.default(""),
         badgeText: z.string().max(5000).default(DEFAULT_COPY.slimBadge),
         headline: z.string().max(5000).default("Ganhe 5% OFF no PIX e parcelamento sem juros"),
         ctaText: z.string().max(5000).default("Aproveitar"),
@@ -525,7 +572,7 @@ export const StoreBlueprintSchema = z.object({
       .object({
         enabled: z.boolean().default(true),
         mode: z.enum(["artwork", "editorial"]).default("editorial"),
-        imageUrl: z.string().max(4000000).default(""),
+        imageUrl: BlueprintImageUrlSchema.default(""),
         headline: z.string().max(5000).default("Descubra os mais desejados da coleção"),
         subheadline: z.string().max(5000).default("Qualidade, conforto e design selecionados para você."),
         ctaText: z.string().max(5000).default("Explorar Coleção"),
@@ -567,8 +614,8 @@ export const StoreBlueprintSchema = z.object({
         headline: z.string().max(5000).optional(),
         description: z.string().max(5000).optional(),
         ctaText: z.string().max(5000).optional(),
-        mainImageUrl: z.string().max(4000000).default(""),
-        insetImageUrl: z.string().max(4000000).default(""),
+        mainImageUrl: BlueprintImageUrlSchema.default(""),
+        insetImageUrl: BlueprintImageUrlSchema.default(""),
       })
       .optional(),
     newsletter: z
@@ -590,8 +637,8 @@ export const StoreBlueprintSchema = z.object({
       title: z.string().max(5000),
       price: z.number().nonnegative(),
       compareAtPrice: z.number().nonnegative().optional(),
-      imageUrl: z.string().max(4000000),
-      images: z.array(z.string().max(4000000)).default([]),
+      imageUrl: BlueprintImageUrlSchema,
+      images: z.array(BlueprintImageUrlSchema).default([]),
       category: z.string().max(5000),
       categories: z.array(z.string().max(5000)).default([]),
       installmentsText: z.string().max(5000).optional(),

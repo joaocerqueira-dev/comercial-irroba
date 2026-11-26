@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/db";
 import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
-import { collectCaptureRefs, deletePreviewCaptures, legacyMirrorPrefix } from "@/lib/files/captures";
-import { StoreBlueprintSchema, type StoreBlueprint } from "@/lib/types/blueprint";
+import {
+  collectCaptureRefs,
+  deletePreviewCaptures,
+  LEGACY_ID_PREFIX_LENGTH,
+  legacyMirrorPrefix,
+} from "@/lib/files/captures";
+import { sanitizeBlueprintImageUrls, StoreBlueprintSchema, type StoreBlueprint } from "@/lib/types/blueprint";
 
 type PreviewRow = NonNullable<Awaited<ReturnType<typeof prisma.storePreview.findUnique>>>;
 
@@ -10,15 +15,31 @@ export type PreviewLookup = { id: string } | { slug: string };
 export type PreviewWithBlueprint =
   | { status: "ok"; preview: PreviewRow; blueprint: StoreBlueprint }
   | { status: "not_found" }
+  /** O preview existe, mas o blueprint ainda não foi gerado (geração em andamento ou falhou). */
+  | { status: "no_blueprint"; preview: PreviewRow }
   | { status: "invalid"; preview: PreviewRow };
+
+/**
+ * Valida um blueprint lido do banco. Previews antigos podem ter imagens que o schema
+ * passou a rejeitar (data:, URL longa): nesse caso as imagens ruins são limpas e o resto
+ * do blueprint é aproveitado. A escrita (PATCH) continua estrita; o Studio recebe e
+ * reenvia esta versão já saneada.
+ */
+export function parseStoredBlueprint(raw: unknown): StoreBlueprint | null {
+  const strict = StoreBlueprintSchema.safeParse(raw);
+  if (strict.success) return strict.data;
+  const lenient = StoreBlueprintSchema.safeParse(sanitizeBlueprintImageUrls(raw));
+  return lenient.success ? lenient.data : null;
+}
 
 /** Busca um preview e valida o blueprint com zod. */
 export async function getPreviewWithBlueprint(where: PreviewLookup): Promise<PreviewWithBlueprint> {
   const preview = await prisma.storePreview.findUnique({ where });
-  if (!preview || !preview.blueprint) return { status: "not_found" };
-  const parsed = StoreBlueprintSchema.safeParse(preview.blueprint);
-  if (!parsed.success) return { status: "invalid", preview };
-  return { status: "ok", preview, blueprint: parsed.data };
+  if (!preview) return { status: "not_found" };
+  if (!preview.blueprint) return { status: "no_blueprint", preview };
+  const blueprint = parseStoredBlueprint(preview.blueprint);
+  if (!blueprint) return { status: "invalid", preview };
+  return { status: "ok", preview, blueprint };
 }
 
 /** Caminho público do screenshot de página inteira (com fallback para previews antigos). */
@@ -82,8 +103,14 @@ export async function saveBlueprint(
  */
 export async function deletePreviewFiles(preview: { id: string; slug: string }): Promise<number> {
   const slugPrefix = legacyMirrorPrefix(preview.slug).slice(2, -1);
+  // Quem pode citar arquivos com prefixo antigo: lojas com o mesmo começo de slug
+  // (espelhos m-<slug18>-) e previews com o mesmo começo de id (ai-/up-<id10>-).
+  const idPrefix = preview.id.slice(0, LEGACY_ID_PREFIX_LENGTH);
   const others = await prisma.storePreview.findMany({
-    where: { slug: { startsWith: slugPrefix }, NOT: { id: preview.id } },
+    where: {
+      OR: [{ slug: { startsWith: slugPrefix } }, { id: { startsWith: idPrefix } }],
+      NOT: { id: preview.id },
+    },
     select: { extractedData: true, blueprint: true, compiledExport: true },
   });
   const referencedElsewhere = collectCaptureRefs(

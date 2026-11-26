@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { chromiumLaunchOptions } from "@/lib/scraper/browser";
 import { chromium } from "playwright";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
 import { compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
+import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
 import { makeSampleExtracted } from "./fixtures";
-
-const LAUNCH_OPTS = {
-  headless: true,
-  args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
-};
 
 // Fumaça E2E: abre a vitrine compilada num Chromium real (sem rede) e checa erros de JS.
 let canLaunch = true;
 try {
-  const b = await chromium.launch(LAUNCH_OPTS);
+  const b = await chromium.launch(chromiumLaunchOptions());
   await b.close();
 } catch {
   canLaunch = false;
@@ -22,7 +19,7 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
   it("carrega sem erros de script e com um único h1", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     const html = compileStorefrontDocument(bp);
-    const browser = await chromium.launch(LAUNCH_OPTS);
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage();
       const errors: string[] = [];
@@ -39,38 +36,46 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
   it("exibe nome dos elementos no hover e dispara seleção ao clicar no modo Studio Irroba", async () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     const studioHtml = compileStorefrontDocument(bp, undefined, { studioInspector: true });
-    const browser = await chromium.launch(LAUNCH_OPTS);
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-      await page.route("**/*", (r) =>
-        r.request().url().startsWith("data:") ? r.continue() : r.abort()
+      await page.route("**/*", (r) => (r.request().url().startsWith("data:") ? r.continue() : r.abort()));
+      // Como no Studio: iframe sandbox sem allow-same-origin; o inspetor fala com o pai só por
+      // postMessage e o pai filtra pela source (a origem do iframe é "null").
+      await page.setContent(
+        `<iframe id="f" sandbox="${PREVIEW_IFRAME_SANDBOX}" style="width:1280px;height:900px;border:0"></iframe>`
       );
-      await page.setContent(studioHtml, { waitUntil: "domcontentloaded" });
-
-      await page.evaluate(() => {
+      await page.evaluate((html) => {
         (window as unknown as { __selectedMsgs: unknown[] }).__selectedMsgs = [];
+        const f = document.getElementById("f") as HTMLIFrameElement;
         window.addEventListener("message", (e) => {
-          if (e.data && e.data.type === "irb-studio:select") {
+          if (e.source === f.contentWindow && e.data && e.data.type === "irb-studio:select") {
             (window as unknown as { __selectedMsgs: unknown[] }).__selectedMsgs.push(e.data);
           }
         });
-      });
+        f.srcdoc = html;
+      }, studioHtml);
+      const frameHandle = await page.waitForSelector("#f");
+      let frame = await frameHandle.contentFrame();
+      for (let i = 0; i < 50 && !(await frame?.$("#irb-studio-hover-title")); i++) {
+        await page.waitForTimeout(20);
+        frame = await frameHandle.contentFrame();
+      }
+      if (!frame) throw new Error("iframe sem conteúdo");
+      const studio = frame;
+      await studio.waitForLoadState("load");
 
-      await page.locator(".overlineModule").hover();
-      expect(await page.locator("#irb-studio-hover-title").textContent()).toContain(
-        "Barra de Aviso"
-      );
+      await studio.locator(".overlineModule").hover();
+      expect(await studio.locator("#irb-studio-hover-title").textContent()).toContain("Barra de Aviso");
 
-      await page.locator(".headerContent_logo").hover();
-      expect(await page.locator("#irb-studio-hover-title").textContent()).toContain("Logotipo");
+      await studio.locator(".headerContent_logo").hover();
+      expect(await studio.locator("#irb-studio-hover-title").textContent()).toContain("Logotipo");
 
-      await page.locator('[data-irb-section="hero"]').hover();
-      expect(await page.locator("#irb-studio-hover-title").textContent()).toContain(
-        "Banner Principal"
-      );
+      await studio.locator('[data-irb-section="hero"]').hover();
+      expect(await studio.locator("#irb-studio-hover-title").textContent()).toContain("Banner Principal");
 
-      await page.locator(".headerContent_logo").click();
-      await page.waitForTimeout(50);
+      await studio.locator(".headerContent_logo").click();
+      await page.waitForTimeout(100);
 
       const msgs = await page.evaluate(
         () => (window as unknown as { __selectedMsgs: Array<{ targetId: string }> }).__selectedMsgs
@@ -95,12 +100,10 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
     };
 
     const html = compileStorefrontDocument(bp);
-    const browser = await chromium.launch(LAUNCH_OPTS);
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-      await page.route("**/*", (r) =>
-        r.request().url().startsWith("data:") ? r.continue() : r.abort()
-      );
+      await page.route("**/*", (r) => (r.request().url().startsWith("data:") ? r.continue() : r.abort()));
       await page.setContent(html, { waitUntil: "domcontentloaded" });
 
       // 1) Navbar background 100% transparente sem reduzir opacidade da logo
@@ -131,15 +134,15 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
 
       // 3) Barra de aviso rolando de Mensagem 1 para Mensagem 2 após 1s
       expect(
-        await page.locator('.overlineModule__slide[data-overline-idx="0"]').evaluate((el) =>
-          el.classList.contains("is-active")
-        )
+        await page
+          .locator('.overlineModule__slide[data-overline-idx="0"]')
+          .evaluate((el) => el.classList.contains("is-active"))
       ).toBe(true);
       await page.waitForTimeout(1150);
       expect(
-        await page.locator('.overlineModule__slide[data-overline-idx="1"]').evaluate((el) =>
-          el.classList.contains("is-active")
-        )
+        await page
+          .locator('.overlineModule__slide[data-overline-idx="1"]')
+          .evaluate((el) => el.classList.contains("is-active"))
       ).toBe(true);
     } finally {
       await browser.close();
@@ -197,22 +200,11 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
     ];
 
     const html = compileStorefrontDocument(bp, undefined, { studioInspector: true });
-    const browser = await chromium.launch(LAUNCH_OPTS);
+    const browser = await chromium.launch(chromiumLaunchOptions());
     try {
       const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-      await page.route("**/*", (r) =>
-        r.request().url().startsWith("data:") ? r.continue() : r.abort()
-      );
+      await page.route("**/*", (r) => (r.request().url().startsWith("data:") ? r.continue() : r.abort()));
       await page.setContent(html, { waitUntil: "domcontentloaded" });
-
-      await page.evaluate(() => {
-        (window as unknown as { __customMsgs: unknown[] }).__customMsgs = [];
-        window.addEventListener("message", (e) => {
-          if (e.data && e.data.type === "irb-studio:select") {
-            (window as unknown as { __customMsgs: unknown[] }).__customMsgs.push(e.data);
-          }
-        });
-      });
 
       // 1. Sem "Início" na navbar desktop e mobile drawer
       const desktopNavHasInicio = await page
@@ -226,34 +218,67 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
         );
       expect(desktopNavHasInicio).toBe(false);
 
-      const mobileNavHasInicio = await page.locator("#irb-mobile-drawer").evaluate((el) =>
-        Array.from(el.querySelectorAll("a, button")).some(
-          (item) => (item.textContent || "").trim().toLowerCase() === "início"
-        )
-      );
+      const mobileNavHasInicio = await page
+        .locator("#irb-mobile-drawer")
+        .evaluate((el) =>
+          Array.from(el.querySelectorAll("a, button")).some(
+            (item) => (item.textContent || "").trim().toLowerCase() === "início"
+          )
+        );
       expect(mobileNavHasInicio).toBe(false);
 
       // 2. Deslize horizontal da barra superior avança slide 0 -> slide 1
       await page.waitForTimeout(1150);
       expect(
-        await page.locator('.overlineModule__slide[data-overline-idx="1"]').evaluate((el) =>
-          el.classList.contains("is-active")
-        )
+        await page
+          .locator('.overlineModule__slide[data-overline-idx="1"]')
+          .evaluate((el) => el.classList.contains("is-active"))
       ).toBe(true);
 
-      // 3. Inspetor seleciona seção customizada
-      await page.locator('#e2e-custom-box').click();
-      await page.waitForFunction(
-        () =>
-          ((window as unknown as { __customMsgs?: Array<unknown> }).__customMsgs?.length ?? 0) > 0,
+      // 3. Inspetor seleciona seção customizada. Como no Studio: iframe sandbox sem
+      // allow-same-origin, e o inspetor só publica para window.parent (filtrado pela source).
+      const studioPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+      await studioPage.route("**/*", (r) =>
+        r.request().url().startsWith("data:") || r.request().url() === "about:srcdoc"
+          ? r.continue()
+          : r.abort()
+      );
+      await studioPage.setContent(
+        `<iframe id="f" sandbox="${PREVIEW_IFRAME_SANDBOX}" style="width:1440px;height:900px;border:0"></iframe>`
+      );
+      await studioPage.evaluate((studioHtml) => {
+        (window as unknown as { __customMsgs: unknown[] }).__customMsgs = [];
+        const f = document.getElementById("f") as HTMLIFrameElement;
+        window.addEventListener("message", (e) => {
+          if (e.source === f.contentWindow && e.data && e.data.type === "irb-studio:select") {
+            (window as unknown as { __customMsgs: unknown[] }).__customMsgs.push(e.data);
+          }
+        });
+        f.srcdoc = studioHtml;
+      }, html);
+      const customFrameHandle = await studioPage.waitForSelector("#f");
+      let customFrame = await customFrameHandle.contentFrame();
+      for (let i = 0; i < 50 && !(await customFrame?.$("#e2e-custom-box")); i++) {
+        await studioPage.waitForTimeout(20);
+        customFrame = await customFrameHandle.contentFrame();
+      }
+      if (!customFrame) throw new Error("iframe sem conteúdo");
+      await customFrame.waitForLoadState("load");
+      await customFrame.locator("#e2e-custom-box").click();
+      await studioPage.waitForFunction(
+        () => ((window as unknown as { __customMsgs?: Array<unknown> }).__customMsgs?.length ?? 0) > 0,
+        undefined,
         { timeout: 5000 }
       );
-      const customMsgs = await page.evaluate(
-        () => (window as unknown as { __customMsgs: Array<{ targetId?: string; customSectionId?: string }> }).__customMsgs
+      const customMsgs = await studioPage.evaluate(
+        () =>
+          (window as unknown as { __customMsgs: Array<{ targetId?: string; customSectionId?: string }> })
+            .__customMsgs
       );
-      expect(customMsgs.some((m) => m.targetId === "custom-section" && m.customSectionId === "custom-html-e2e")).toBe(
-        true
-      );
+      expect(
+        customMsgs.some((m) => m.targetId === "custom-section" && m.customSectionId === "custom-html-e2e")
+      ).toBe(true);
+      await studioPage.close();
 
       // 4. Rodapé LIME em 3 faixas
       expect(await page.locator(".footerContent--top").count()).toBe(1);
@@ -261,9 +286,7 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
       expect(await page.locator(".footer-legal-info").count()).toBe(1);
 
       // 5. Muda para modo navegação, abre categoria com filtro lateral esquerdo, alterna 3/4 cols, testa mobile drawer e volta pelo logo
-      await page.evaluate(() =>
-        window.postMessage({ type: "irb-studio:set-mode", inspectMode: false }, "*")
-      );
+      await page.evaluate(() => window.postMessage({ type: "irb-studio:set-mode", inspectMode: false }, "*"));
       await page.waitForTimeout(60);
 
       const firstNavLink = page.locator(".headerContent_navInline a, .headerContent_categories a").first();
@@ -278,9 +301,9 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
       expect((sidebarBox?.x ?? 9999) < (mainBox?.x ?? 0)).toBe(true);
 
       await page.locator('.js-changeGrid[data-grid-cols="4"]').click();
-      expect(
-        await page.locator("#irb-cat-grid").evaluate((el) => el.classList.contains("grid-cols-4"))
-      ).toBe(true);
+      expect(await page.locator("#irb-cat-grid").evaluate((el) => el.classList.contains("grid-cols-4"))).toBe(
+        true
+      );
 
       const beforeCount = parseInt((await page.locator("#irb-cat-count").textContent()) || "0", 10);
 
@@ -292,15 +315,15 @@ describe.skipIf(!canLaunch)("E2E: vitrine compilada", () => {
 
       await page.setViewportSize({ width: 390, height: 844 });
       await page.locator("#irb-open-cat-filters").click();
-      expect(
-        await page.locator("#irb-cat-sidebar").evaluate((el) => el.classList.contains("open"))
-      ).toBe(true);
+      expect(await page.locator("#irb-cat-sidebar").evaluate((el) => el.classList.contains("open"))).toBe(
+        true
+      );
       await page.locator("#irb-cat-filter-close").click();
 
       await page.locator("#irb-go-home-logo").click();
-      expect(
-        await page.locator("#irb-view-home").evaluate((el) => el.classList.contains("active"))
-      ).toBe(true);
+      expect(await page.locator("#irb-view-home").evaluate((el) => el.classList.contains("active"))).toBe(
+        true
+      );
     } finally {
       await browser.close();
     }

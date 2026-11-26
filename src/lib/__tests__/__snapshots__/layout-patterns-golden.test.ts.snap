@@ -2153,6 +2153,14 @@ exports[`layout patterns golden > fitness > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -2958,7 +2966,7 @@ exports[`layout patterns golden > fitness > html 1`] = `
           <span>Subtotal</span>
           <span id="irb-cart-total">R$ 0,00</span>
         </div>
-        <button type="button" onclick="alert('Checkout Transparente Irroba pronto para conversão!')" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
+        <button type="button" onclick="this.textContent='Checkout Transparente Irroba pronto para conversão ✓'" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
       </div>
     </div>
   </div>
@@ -3831,6 +3839,38 @@ exports[`layout patterns golden > fitness > html 1`] = `
       if (accountModalEl) {
         accountModalEl.addEventListener('click', (e) => {
           if (e.target === accountModalEl) accountModalEl.classList.remove('open');
+        });
+      }
+
+      // Rolagem sincronizada com o pai (comparativo). O iframe roda em sandbox sem
+      // allow-same-origin, então o pai não lê o documento: o runtime informa a fração rolada
+      // ('irroba-scroll') e obedece 'irroba-scroll-to' vindo só de window.parent.
+      if (window.parent && window.parent !== window) {
+        const scrollMax = () =>
+          Math.max(0, (document.documentElement.scrollHeight || document.body.scrollHeight || 0) - window.innerHeight);
+        let scrollRaf = false;
+        window.addEventListener('scroll', () => {
+          if (scrollRaf) return;
+          scrollRaf = true;
+          requestAnimationFrame(() => {
+            scrollRaf = false;
+            const max = scrollMax();
+            if (max <= 0) return;
+            try {
+              window.parent.postMessage({ type: 'irroba-scroll', ratio: Math.min(1, Math.max(0, window.scrollY / max)) }, '*');
+            } catch {
+              // ignore
+            }
+          });
+        }, { passive: true });
+        window.addEventListener('message', (e) => {
+          if (e.source !== window.parent) return;
+          const msg = e.data;
+          if (!msg || typeof msg !== 'object' || msg.type !== 'irroba-scroll-to') return;
+          const ratio = Number(msg.ratio);
+          if (!Number.isFinite(ratio)) return;
+          const top = Math.round(Math.min(1, Math.max(0, ratio)) * scrollMax());
+          window.scrollTo({ top, behavior: msg.smooth ? 'smooth' : 'auto' });
         });
       }
     })();
@@ -5806,6 +5846,14 @@ exports[`layout patterns golden > generic > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -6467,7 +6515,7 @@ exports[`layout patterns golden > generic > html 1`] = `
           <span>Subtotal</span>
           <span id="irb-cart-total">R$ 0,00</span>
         </div>
-        <button type="button" onclick="alert('Checkout Transparente Irroba pronto para conversão!')" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
+        <button type="button" onclick="this.textContent='Checkout Transparente Irroba pronto para conversão ✓'" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
       </div>
     </div>
   </div>
@@ -7340,6 +7388,38 @@ exports[`layout patterns golden > generic > html 1`] = `
       if (accountModalEl) {
         accountModalEl.addEventListener('click', (e) => {
           if (e.target === accountModalEl) accountModalEl.classList.remove('open');
+        });
+      }
+
+      // Rolagem sincronizada com o pai (comparativo). O iframe roda em sandbox sem
+      // allow-same-origin, então o pai não lê o documento: o runtime informa a fração rolada
+      // ('irroba-scroll') e obedece 'irroba-scroll-to' vindo só de window.parent.
+      if (window.parent && window.parent !== window) {
+        const scrollMax = () =>
+          Math.max(0, (document.documentElement.scrollHeight || document.body.scrollHeight || 0) - window.innerHeight);
+        let scrollRaf = false;
+        window.addEventListener('scroll', () => {
+          if (scrollRaf) return;
+          scrollRaf = true;
+          requestAnimationFrame(() => {
+            scrollRaf = false;
+            const max = scrollMax();
+            if (max <= 0) return;
+            try {
+              window.parent.postMessage({ type: 'irroba-scroll', ratio: Math.min(1, Math.max(0, window.scrollY / max)) }, '*');
+            } catch {
+              // ignore
+            }
+          });
+        }, { passive: true });
+        window.addEventListener('message', (e) => {
+          if (e.source !== window.parent) return;
+          const msg = e.data;
+          if (!msg || typeof msg !== 'object' || msg.type !== 'irroba-scroll-to') return;
+          const ratio = Number(msg.ratio);
+          if (!Number.isFinite(ratio)) return;
+          const top = Math.round(Math.min(1, Math.max(0, ratio)) * scrollMax());
+          window.scrollTo({ top, behavior: msg.smooth ? 'smooth' : 'auto' });
         });
       }
     })();
@@ -9501,6 +9581,14 @@ exports[`layout patterns golden > luxury > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -10306,7 +10394,7 @@ exports[`layout patterns golden > luxury > html 1`] = `
           <span>Subtotal</span>
           <span id="irb-cart-total">R$ 0,00</span>
         </div>
-        <button type="button" onclick="alert('Checkout Transparente Irroba pronto para conversão!')" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
+        <button type="button" onclick="this.textContent='Checkout Transparente Irroba pronto para conversão ✓'" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
       </div>
     </div>
   </div>
@@ -11179,6 +11267,38 @@ exports[`layout patterns golden > luxury > html 1`] = `
       if (accountModalEl) {
         accountModalEl.addEventListener('click', (e) => {
           if (e.target === accountModalEl) accountModalEl.classList.remove('open');
+        });
+      }
+
+      // Rolagem sincronizada com o pai (comparativo). O iframe roda em sandbox sem
+      // allow-same-origin, então o pai não lê o documento: o runtime informa a fração rolada
+      // ('irroba-scroll') e obedece 'irroba-scroll-to' vindo só de window.parent.
+      if (window.parent && window.parent !== window) {
+        const scrollMax = () =>
+          Math.max(0, (document.documentElement.scrollHeight || document.body.scrollHeight || 0) - window.innerHeight);
+        let scrollRaf = false;
+        window.addEventListener('scroll', () => {
+          if (scrollRaf) return;
+          scrollRaf = true;
+          requestAnimationFrame(() => {
+            scrollRaf = false;
+            const max = scrollMax();
+            if (max <= 0) return;
+            try {
+              window.parent.postMessage({ type: 'irroba-scroll', ratio: Math.min(1, Math.max(0, window.scrollY / max)) }, '*');
+            } catch {
+              // ignore
+            }
+          });
+        }, { passive: true });
+        window.addEventListener('message', (e) => {
+          if (e.source !== window.parent) return;
+          const msg = e.data;
+          if (!msg || typeof msg !== 'object' || msg.type !== 'irroba-scroll-to') return;
+          const ratio = Number(msg.ratio);
+          if (!Number.isFinite(ratio)) return;
+          const top = Math.round(Math.min(1, Math.max(0, ratio)) * scrollMax());
+          window.scrollTo({ top, behavior: msg.smooth ? 'smooth' : 'auto' });
         });
       }
     })();
@@ -13340,6 +13460,14 @@ exports[`layout patterns golden > tech > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -14145,7 +14273,7 @@ exports[`layout patterns golden > tech > html 1`] = `
           <span>Subtotal</span>
           <span id="irb-cart-total">R$ 0,00</span>
         </div>
-        <button type="button" onclick="alert('Checkout Transparente Irroba pronto para conversão!')" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
+        <button type="button" onclick="this.textContent='Checkout Transparente Irroba pronto para conversão ✓'" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
       </div>
     </div>
   </div>
@@ -15018,6 +15146,38 @@ exports[`layout patterns golden > tech > html 1`] = `
       if (accountModalEl) {
         accountModalEl.addEventListener('click', (e) => {
           if (e.target === accountModalEl) accountModalEl.classList.remove('open');
+        });
+      }
+
+      // Rolagem sincronizada com o pai (comparativo). O iframe roda em sandbox sem
+      // allow-same-origin, então o pai não lê o documento: o runtime informa a fração rolada
+      // ('irroba-scroll') e obedece 'irroba-scroll-to' vindo só de window.parent.
+      if (window.parent && window.parent !== window) {
+        const scrollMax = () =>
+          Math.max(0, (document.documentElement.scrollHeight || document.body.scrollHeight || 0) - window.innerHeight);
+        let scrollRaf = false;
+        window.addEventListener('scroll', () => {
+          if (scrollRaf) return;
+          scrollRaf = true;
+          requestAnimationFrame(() => {
+            scrollRaf = false;
+            const max = scrollMax();
+            if (max <= 0) return;
+            try {
+              window.parent.postMessage({ type: 'irroba-scroll', ratio: Math.min(1, Math.max(0, window.scrollY / max)) }, '*');
+            } catch {
+              // ignore
+            }
+          });
+        }, { passive: true });
+        window.addEventListener('message', (e) => {
+          if (e.source !== window.parent) return;
+          const msg = e.data;
+          if (!msg || typeof msg !== 'object' || msg.type !== 'irroba-scroll-to') return;
+          const ratio = Number(msg.ratio);
+          if (!Number.isFinite(ratio)) return;
+          const top = Math.round(Math.min(1, Math.max(0, ratio)) * scrollMax());
+          window.scrollTo({ top, behavior: msg.smooth ? 'smooth' : 'auto' });
         });
       }
     })();
@@ -17179,6 +17339,14 @@ exports[`layout patterns golden > vegan > html 1`] = `
       padding: 16px;
     }
     .irb-modal-backdrop.open { display: flex; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body class="page-common-home common-home theme-_lime">
@@ -17984,7 +18152,7 @@ exports[`layout patterns golden > vegan > html 1`] = `
           <span>Subtotal</span>
           <span id="irb-cart-total">R$ 0,00</span>
         </div>
-        <button type="button" onclick="alert('Checkout Transparente Irroba pronto para conversão!')" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
+        <button type="button" onclick="this.textContent='Checkout Transparente Irroba pronto para conversão ✓'" class="product-btn" style="padding:14px;font-size:14px;">Finalizar Compra (Demo)</button>
       </div>
     </div>
   </div>
@@ -18857,6 +19025,38 @@ exports[`layout patterns golden > vegan > html 1`] = `
       if (accountModalEl) {
         accountModalEl.addEventListener('click', (e) => {
           if (e.target === accountModalEl) accountModalEl.classList.remove('open');
+        });
+      }
+
+      // Rolagem sincronizada com o pai (comparativo). O iframe roda em sandbox sem
+      // allow-same-origin, então o pai não lê o documento: o runtime informa a fração rolada
+      // ('irroba-scroll') e obedece 'irroba-scroll-to' vindo só de window.parent.
+      if (window.parent && window.parent !== window) {
+        const scrollMax = () =>
+          Math.max(0, (document.documentElement.scrollHeight || document.body.scrollHeight || 0) - window.innerHeight);
+        let scrollRaf = false;
+        window.addEventListener('scroll', () => {
+          if (scrollRaf) return;
+          scrollRaf = true;
+          requestAnimationFrame(() => {
+            scrollRaf = false;
+            const max = scrollMax();
+            if (max <= 0) return;
+            try {
+              window.parent.postMessage({ type: 'irroba-scroll', ratio: Math.min(1, Math.max(0, window.scrollY / max)) }, '*');
+            } catch {
+              // ignore
+            }
+          });
+        }, { passive: true });
+        window.addEventListener('message', (e) => {
+          if (e.source !== window.parent) return;
+          const msg = e.data;
+          if (!msg || typeof msg !== 'object' || msg.type !== 'irroba-scroll-to') return;
+          const ratio = Number(msg.ratio);
+          if (!Number.isFinite(ratio)) return;
+          const top = Math.round(Math.min(1, Math.max(0, ratio)) * scrollMax());
+          window.scrollTo({ top, behavior: msg.smooth ? 'smooth' : 'auto' });
         });
       }
     })();

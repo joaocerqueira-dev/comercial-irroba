@@ -1,10 +1,10 @@
 import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
 import { getSharedBrowser } from "./browser";
-import { captureMobileStoreScreenshots } from "./mobile-screenshot";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import { mirrorFilePrefix } from "@/lib/files/captures";
-import { fetchPublic, followPublicRedirects } from "@/lib/net/safe-fetch";
+import { fetchPublic, followPublicRedirects, readTextCapped } from "@/lib/net/safe-fetch";
+import { gotoPublic, installSsrfGuard } from "./page-guard";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
@@ -15,21 +15,7 @@ import type {
   ExtractedProduct,
   ExtractedStoreData,
 } from "@/lib/types/blueprint";
-
-const BLOCKED_TRACKER_PATTERNS = [
-  "googletagmanager.com",
-  "google-analytics.com",
-  "analytics.google.com",
-  "connect.facebook.net",
-  "facebook.com/tr",
-  "static.hotjar.com",
-  "clarity.ms",
-  "analytics.tiktok.com",
-  "code.jivosite.com",
-  "d335luupugsy2.cloudfront.net",
-  "doubleclick.net",
-  "googlesyndication.com",
-];
+import { MAX_IMAGE_URL_LENGTH } from "@/lib/types/blueprint";
 
 function valueIsNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
@@ -136,6 +122,10 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
     if (!resolved.startsWith("http://") && !resolved.startsWith("https://")) {
       return undefined;
     }
+    // Mesmo teto do blueprint (BlueprintImageUrlSchema): URL maior derrubaria a validação
+    if (resolved.length > MAX_IMAGE_URL_LENGTH) {
+      return undefined;
+    }
     if (isPlaceholderImageUrl(resolved)) {
       return undefined;
     }
@@ -147,6 +137,30 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Passa todas as URLs de imagem da extração por resolveAssetUrl: o DOM ao vivo
+ * (img.currentSrc / img.src) entrega data:, blob: e URLs gigantes que o blueprint
+ * rejeitaria. Logo/favicon inválidos somem, banners inválidos saem da lista e
+ * imagens de produto inválidas viram "". Exportada para testes.
+ */
+export function normalizeExtractedImageUrls(store: ExtractedStoreData, baseUrl: string): void {
+  store.logoUrl = resolveAssetUrl(store.logoUrl, baseUrl);
+  store.faviconUrl = resolveAssetUrl(store.faviconUrl, baseUrl);
+  store.banners = store.banners.flatMap((b) => {
+    const imageUrl = resolveAssetUrl(b.imageUrl, baseUrl);
+    return imageUrl ? [{ ...b, imageUrl }] : [];
+  });
+  store.categories = store.categories.map((c) => ({ ...c, imageUrl: resolveAssetUrl(c.imageUrl, baseUrl) }));
+  store.products = store.products.map((p) => ({
+    ...p,
+    imageUrl: resolveAssetUrl(p.imageUrl, baseUrl) ?? "",
+    images: p.images.flatMap((img) => {
+      const resolved = resolveAssetUrl(img, baseUrl);
+      return resolved ? [resolved] : [];
+    }),
+  }));
 }
 
 const LAZY_IMG_ATTRS = [
@@ -785,15 +799,23 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
   };
 }
 
-async function tryShopifyProductsProbe(sourceUrl: string): Promise<ExtractedProduct[]> {
+/** Teto do JSON de produtos da Shopify (16 produtos cabem com folga). */
+const SHOPIFY_JSON_MAX_BYTES = 2 * 1024 * 1024;
+
+export async function tryShopifyProductsProbe(sourceUrl: string): Promise<ExtractedProduct[]> {
   try {
     const endpoint = new URL("/products.json?limit=16", sourceUrl).toString();
-    const res = await fetch(endpoint, {
+    // SSRF: fetchPublic revalida cada redirect
+    const res = await fetchPublic(endpoint, {
       headers: { "User-Agent": "Mozilla/5.0" },
       signal: AbortSignal.timeout(4000),
     });
-    if (!res.ok) return [];
-    const data = (await res.json()) as {
+    if (!res) return [];
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => undefined);
+      return [];
+    }
+    const data = JSON.parse(await readTextCapped(res, SHOPIFY_JSON_MAX_BYTES)) as {
       products?: Array<{
         id: number;
         title: string;
@@ -830,6 +852,34 @@ async function tryShopifyProductsProbe(sourceUrl: string): Promise<ExtractedProd
       .filter((item): item is ExtractedProduct => item !== null);
   } catch {
     return [];
+  }
+}
+
+/**
+ * Leitura rápida do HTML (sem navegador). SSRF: fetchPublic valida cada redirect;
+ * o corpo é cortado em 5 MB. Retorna html vazio em qualquer falha.
+ */
+export async function fetchStoreHtml(
+  url: string
+): Promise<{ html: string; headers: Record<string, string> }> {
+  const headers: Record<string, string> = {};
+  try {
+    const res = await fetchPublic(url, {
+      headers: {
+        "User-Agent": BROWSER_USER_AGENT,
+        Accept: "text/html,application/xhtml+xml",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res) return { html: "", headers };
+    const html = await readTextCapped(res);
+    res.headers.forEach((v, k) => {
+      headers[k.toLowerCase()] = v;
+    });
+    return { html, headers };
+  } catch {
+    // Playwright tenta o carregamento direto
+    return { html: "", headers };
   }
 }
 
@@ -870,24 +920,7 @@ export async function extractStoreFromUrl(
   const fullScreenshotPublicPath = `/api/captures/${fullScreenshotFile}`;
 
   // Layer 1: Fast HTTP probe
-  let fastHtml = "";
-  const fastHeaders: Record<string, string> = {};
-  try {
-    const res = await fetch(normalizedUrl, {
-      headers: {
-        "User-Agent":
-          BROWSER_USER_AGENT,
-        Accept: "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
-    fastHtml = await res.text();
-    res.headers.forEach((v, k) => {
-      fastHeaders[k.toLowerCase()] = v;
-    });
-  } catch {
-    // Playwright will attempt direct load
-  }
+  const { html: fastHtml, headers: fastHeaders } = await fetchStoreHtml(normalizedUrl);
 
   const fastPlatform = fastHtml ? detectPlatform(fastHtml, fastHeaders) : "Desconhecida";
 
@@ -934,20 +967,8 @@ export async function extractStoreFromUrl(
       pendingCaptures.push(task);
     });
 
-    await page.route("**/*", async (route) => {
-      const rawReqUrl = route.request().url();
-      const reqUrl = rawReqUrl.toLowerCase();
-      if (BLOCKED_TRACKER_PATTERNS.some((p) => reqUrl.includes(p))) {
-        return route.abort();
-      }
-      // SSRF: bloqueia qualquer requisição http(s) do navegador para rede interna
-      if (/^https?:/i.test(rawReqUrl) && !(await isPublicHttpUrl(rawReqUrl))) {
-        return route.abort("blockedbyclient");
-      }
-      return route.continue();
-    });
-
-    await page.goto(normalizedUrl, { waitUntil: "domcontentloaded", timeout: 22000 });
+    await installSsrfGuard(page);
+    await gotoPublic(page, normalizedUrl, { waitUntil: "domcontentloaded", timeout: 22000 });
     await page.waitForTimeout(2000);
 
     // Full-page progressive scroll to trigger all lazy-loaded banners, shelves, and footer
@@ -1349,6 +1370,7 @@ export async function extractStoreFromUrl(
 
     await enrichProductsByCategory(parsed, normalizedUrl);
     await Promise.allSettled(pendingCaptures);
+    normalizeExtractedImageUrls(parsed, normalizedUrl);
     await mirrorCriticalImages(
       parsed,
       normalizedUrl,
@@ -1364,15 +1386,6 @@ export async function extractStoreFromUrl(
       capturedImages
     );
 
-    const mobileCaptures = await captureMobileStoreScreenshots(normalizedUrl, slug, {
-      signal,
-      capturesDir,
-    }).catch(() => null);
-    if (mobileCaptures) {
-      parsed.mobileScreenshotPath = mobileCaptures.mobileScreenshotPath;
-      parsed.mobileFullScreenshotPath = mobileCaptures.mobileFullScreenshotPath;
-    }
-
     return parsed;
   } catch (error) {
     if (fastHtml) {
@@ -1384,6 +1397,7 @@ export async function extractStoreFromUrl(
       }
       await enrichProductsByCategory(fallback, normalizedUrl);
       report({ step: "fallback", message: "Navegador falhou; usando leitura rápida do HTML...", fraction: 0.5 });
+      normalizeExtractedImageUrls(fallback, normalizedUrl);
       await mirrorCriticalImages(fallback, normalizedUrl, capturesDir, slug);
       return fallback;
     }
@@ -1635,8 +1649,11 @@ async function enrichProductsByCategory(
         signal: AbortSignal.timeout(4500),
       });
       if (!res) throw new Error("URL interna bloqueada");
-      if (!res.ok) return { cat, products: [] as ExtractedProduct[] };
-      const html = await res.text();
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => undefined);
+        return { cat, products: [] as ExtractedProduct[] };
+      }
+      const html = await readTextCapped(res);
       const catData = extractStoreFromHtml(html, cat.href);
       return { cat, products: catData.products.slice(0, 8) };
     })

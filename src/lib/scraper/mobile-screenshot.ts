@@ -1,26 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { CAPTURES_DIR } from "@/lib/files/captures";
-import { assertPublicHttpUrl, isPublicHttpUrl } from "@/lib/net/safe-url";
+import { assertPublicHttpUrl } from "@/lib/net/safe-url";
 import { getSharedBrowser } from "./browser";
+import { gotoPublic, installSsrfGuard } from "./page-guard";
 
 const MOBILE_USER_AGENT =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
-
-const BLOCKED_TRACKER_PATTERNS = [
-  "googletagmanager.com",
-  "google-analytics.com",
-  "analytics.google.com",
-  "connect.facebook.net",
-  "facebook.com/tr",
-  "static.hotjar.com",
-  "clarity.ms",
-  "analytics.tiktok.com",
-  "code.jivosite.com",
-  "d335luupugsy2.cloudfront.net",
-  "doubleclick.net",
-  "googlesyndication.com",
-];
 
 export interface MobileScreenshotResult {
   mobileScreenshotPath: string;
@@ -62,13 +48,16 @@ export async function getCachedMobileScreenshots(
 export async function captureMobileStoreScreenshots(
   rawUrl: string,
   slug: string,
-  options: { signal?: AbortSignal; capturesDir?: string } = {}
+  options: { signal?: AbortSignal; capturesDir?: string; force?: boolean } = {}
 ): Promise<MobileScreenshotResult | null> {
   const safeSlug = path.basename(slug);
   const capturesDir = options.capturesDir ?? CAPTURES_DIR;
 
-  const cached = await getCachedMobileScreenshots(safeSlug, capturesDir);
-  if (cached) return cached;
+  // force: recaptura mesmo com arquivos em cache (rota autenticada do Studio)
+  if (!options.force) {
+    const cached = await getCachedMobileScreenshots(safeSlug, capturesDir);
+    if (cached) return cached;
+  }
 
   const existingJob = inFlightCaptures.get(safeSlug);
   if (existingJob) return existingJob;
@@ -98,19 +87,8 @@ export async function captureMobileStoreScreenshots(
       });
 
       const page = await context.newPage();
-      await page.route("**/*", async (route) => {
-        const rawReqUrl = route.request().url();
-        const reqUrl = rawReqUrl.toLowerCase();
-        if (BLOCKED_TRACKER_PATTERNS.some((p) => reqUrl.includes(p))) {
-          return route.abort();
-        }
-        if (/^https?:/i.test(rawReqUrl) && !(await isPublicHttpUrl(rawReqUrl))) {
-          return route.abort("blockedbyclient");
-        }
-        return route.continue();
-      });
-
-      await page.goto(normalizedUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
+      await installSsrfGuard(page);
+      await gotoPublic(page, normalizedUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
       await page.waitForTimeout(1500);
 
       await page.evaluate(async () => {

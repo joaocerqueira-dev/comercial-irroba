@@ -379,6 +379,14 @@ describe("XSS no documento compilado", () => {
     expect(studioHtml).toContain("Clique para editar");
   });
 
+  it("respeita prefers-reduced-motion e usa fonte de sistema no badge do inspetor", () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    const studioHtml = compileStorefrontDocument(bp, undefined, { studioInspector: true });
+    expect(compileStorefrontDocument(bp)).toContain("@media (prefers-reduced-motion: reduce)");
+    const badgeCss = studioHtml.slice(studioHtml.indexOf("#irb-studio-active-badge {"));
+    expect(badgeCss.slice(0, 300)).not.toContain("Montserrat");
+  });
+
   it("aplica posicionamento overlay/sticky, opacidade 100% transparente sem afetar logo, hover de links, tamanhos em PX nos banners, dropdown de conta e ticker na barra superior", () => {
     const bp = buildHeuristicBlueprint(makeSampleExtracted());
     bp.visualOverrides.header.position = "overlay";
