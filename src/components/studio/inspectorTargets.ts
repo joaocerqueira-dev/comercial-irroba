@@ -2,6 +2,7 @@ import type { SectionKey } from "@/lib/types/blueprint";
 
 export type InspectorTargetId =
   | SectionKey
+  | "custom-section"
   | "announcement"
   | "header"
   | "header-logo"
@@ -18,6 +19,7 @@ export interface InspectorSelection {
   productId?: string;
   showcaseIdx?: number;
   subIndex?: number;
+  customSectionId?: string;
 }
 
 export interface InspectorMeta {
@@ -132,5 +134,10 @@ export const INSPECTOR_META: Record<InspectorTargetId, InspectorMeta> = {
     id: "pdp",
     title: "Página de Produto (PDP)",
     irrobaRef: "Descrição do Produto · #pageProductEditor",
+  },
+  "custom-section": {
+    id: "custom-section",
+    title: "Seção Personalizada",
+    irrobaRef: "Construtor Dinâmico · HomePage",
   },
 };

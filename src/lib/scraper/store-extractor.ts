@@ -58,18 +58,55 @@ export function parseBrlPrice(raw: string | number | undefined | null): number |
   return undefined;
 }
 
+const PLACEHOLDER_PATH_REGEX =
+  /(?:^|[/._-])(blank|spacer|pixel|1x1|loading|loader|no[-_]?image|sem[-_]?imagem|placeholder)(?:[/._-]|$)/i;
+
+const NON_CONTENT_ASSET_REGEX =
+  /(?:^|[/_.-])(icons?|logos?|favicon|sprite|badges?|selos?|bandeiras?|payments?|pagamentos?)(?:$|[/_.-])|(?:^|[/_.-])whatsapp[-_.]?(?:icon|btn|button|logo|float|widget|svg)(?:$|[/_.-])|(?:^|[/_.-])(?:pix[-_.]?(?:icon|logo)|visa|mastercard|hipercard|amex|american[-_]?express|boleto|reclame[-_.]?aqui|ebit|google[-_.]?safe|selo[-_.]?seguranca)(?:$|[/_.-])|(?:^|[/._-])(?:pix|elo)\.(?:png|webp|jpg|jpeg|svg|gif)(?:$|\?)/i;
+
+/** Returns true when the raw URL is an uninterpolated template token or placeholder image. */
+export function isPlaceholderImageUrl(raw: string | undefined | null): boolean {
+  if (!raw) return true;
+  const trimmed = raw.trim();
+  if (!trimmed) return true;
+  if (
+    trimmed.startsWith("data:image/svg+xml") ||
+    trimmed.startsWith("data:image/gif")
+  ) {
+    return true;
+  }
+  if (
+    /\$[a-z_][a-z0-9_]*|\{\{|\}\}|\$\{|%7b%7b|%24image/i.test(trimmed) ||
+    /^(?:undefined|null)$/i.test(trimmed) ||
+    /\/(?:undefined|null)(?:\?.*)?$/i.test(trimmed)
+  ) {
+    return true;
+  }
+  const withoutQuery = trimmed.split("?")[0] ?? trimmed;
+  return PLACEHOLDER_PATH_REGEX.test(withoutQuery);
+}
+
+/** Returns true for theme icons, logos, payment badges, or chat widgets (never rejecting user-uploaded whatsapp-image photos). */
+export function isNonContentAssetUrl(url: string): boolean {
+  if (!url) return true;
+  if (/whatsapp(?:[-_. ]|%20)?image/i.test(url)) {
+    return /(?:^|[/_.-])(favicon|sprite|badges?|selos?)(?:$|[/_.-])/i.test(url);
+  }
+  return NON_CONTENT_ASSET_REGEX.test(url);
+}
+
 export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: string): string | undefined {
   if (!rawUrl) return undefined;
   let trimmed = rawUrl.trim();
-  if (!trimmed || trimmed.startsWith("data:image/svg+xml") || trimmed.startsWith("data:image/gif")) {
+  if (isPlaceholderImageUrl(trimmed)) {
     return undefined;
   }
   // Parse srcset candidates safely (only split on commas followed by a URL / whitespace, not Cloudinary transforms)
   if (/\s\d+[wx]\b/.test(trimmed)) {
     const candidates = trimmed
-      .split(/,\s+(?=(?:https?:|\/\/|\/))/)
+      .split(/,\s*(?=(?:https?:|\/\/|\/))/)
       .map((part) => {
-        const tokens = part.trim().split(/\s+/);
+        const tokens = part.trim().replace(/,$/, "").split(/\s+/);
         const url = tokens[0] ?? "";
         const desc = tokens[1] ?? "";
         const score = desc.endsWith("w")
@@ -79,12 +116,17 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
             : 0;
         return { url, score };
       })
-      .filter((c) => Boolean(c.url))
+      .filter((c) => Boolean(c.url) && !isPlaceholderImageUrl(c.url))
       .sort((a, b) => b.score - a.score);
-    trimmed = candidates[0]?.url ?? trimmed;
+    trimmed = candidates[0]?.url ?? "";
+    if (!trimmed) return undefined;
   } else if (trimmed.includes(", http")) {
-    const parts = trimmed.split(/,\s+/).map((p) => p.trim().split(/\s+/)[0]).filter(Boolean);
+    const parts = trimmed
+      .split(/,\s+/)
+      .map((p) => p.trim().split(/\s+/)[0])
+      .filter((u) => Boolean(u) && !isPlaceholderImageUrl(u));
     trimmed = parts[parts.length - 1] ?? parts[0] ?? "";
+    if (!trimmed) return undefined;
   }
   if (trimmed.startsWith("//")) {
     trimmed = `https:${trimmed}`;
@@ -94,14 +136,67 @@ export function resolveAssetUrl(rawUrl: string | undefined | null, baseUrl: stri
     if (!resolved.startsWith("http://") && !resolved.startsWith("https://")) {
       return undefined;
     }
-    // Upgrade small Nuvemshop thumbnails (-240-0, -320-0, -480-0) to higher resolution
+    if (isPlaceholderImageUrl(resolved)) {
+      return undefined;
+    }
+    // Upgrade small Nuvemshop thumbnails (-240-0, -320-0, -480-0) to higher resolution while keeping query string
     if (/mitiendanube\.com/i.test(resolved)) {
-      resolved = resolved.replace(/-(?:240|320|480)-0\.(webp|jpg|jpeg|png)$/i, "-1024-1024.$1");
+      resolved = resolved.replace(/-(?:240|320|480)-0\.(webp|jpg|jpeg|png)(\?.*)?$/i, "-1024-1024.$1$2");
     }
     return resolved;
   } catch {
     return undefined;
   }
+}
+
+const LAZY_IMG_ATTRS = [
+  "data-src",
+  "data-lazy",
+  "data-lazy-src",
+  "data-original",
+  "data-ll-src",
+  "data-flickity-lazyload",
+  "data-splide-lazy",
+  "data-zoom-image",
+  "data-image",
+  "data-srcset",
+  "srcset",
+  "src",
+] as const;
+
+function extractBestImgUrl(
+  $: cheerio.CheerioAPI,
+  containerOrImg: ReturnType<cheerio.CheerioAPI>,
+  baseUrl: string
+): string | undefined {
+  if (containerOrImg.closest("template, script").length > 0) return undefined;
+  const imgEl = containerOrImg.is("img") ? containerOrImg : containerOrImg.find("img").first();
+  if (!imgEl.length || imgEl.closest("template, script").length > 0) return undefined;
+
+  const candidates: Array<string | undefined> = [];
+  const picture = imgEl.closest("picture");
+  if (picture.length > 0) {
+    candidates.push(picture.find("source.src-desktop").attr("data-srcset"));
+    candidates.push(picture.find("source.src-desktop").attr("srcset"));
+    picture.find('source[media*="min-width"]').each((_, srcEl) => {
+      candidates.push($(srcEl).attr("data-srcset"));
+      candidates.push($(srcEl).attr("srcset"));
+    });
+    picture.find("source").each((_, srcEl) => {
+      candidates.push($(srcEl).attr("data-srcset"));
+      candidates.push($(srcEl).attr("srcset"));
+    });
+  }
+
+  for (const attr of LAZY_IMG_ATTRS) {
+    candidates.push(imgEl.attr(attr));
+  }
+
+  for (const raw of candidates) {
+    const resolved = resolveAssetUrl(raw, baseUrl);
+    if (resolved) return resolved;
+  }
+  return undefined;
 }
 
 function extractProductsFromJsonLd($: cheerio.CheerioAPI, baseUrl: string): ExtractedProduct[] {
@@ -203,27 +298,23 @@ function collectBannersFromSelector(
   const result: ExtractedBanner[] = [];
   $(selector).each((_, el) => {
     if (result.length >= limit) return;
-    const imgEl = $(el).is("img") ? $(el) : $(el).find("img").first();
-    const raw =
-      imgEl.attr("data-src") ||
-      imgEl.attr("src") ||
-      imgEl.attr("data-original") ||
-      imgEl.attr("data-srcset") ||
-      imgEl.attr("srcset");
-    const imageUrl = resolveAssetUrl(raw, sourceUrl);
+    const node = $(el);
+    if (node.closest("template, script").length > 0) return;
+    const imageUrl = extractBestImgUrl($, node, sourceUrl);
     if (
       !imageUrl ||
       seen.has(imageUrl) ||
       imageUrl === logoUrl ||
-      /icon|logo|badge|selo|whatsapp|pix|visa|master|elo|payment/i.test(imageUrl)
+      isNonContentAssetUrl(imageUrl)
     ) {
       return;
     }
+    const imgEl = node.is("img") ? node : node.find("img").first();
     seen.add(imageUrl);
-    const parentLink = imgEl.closest("a");
+    const parentLink = imgEl.length ? imgEl.closest("a") : node.closest("a");
     const alt = imgEl.attr("alt")?.trim() || parentLink.attr("aria-label")?.trim() || parentLink.attr("title")?.trim();
     const label =
-      $(el).find("h3, h4, span, p").first().text().replace(/\s+/g, " ").trim() || alt;
+      node.find("h3, h4, span, p").first().text().replace(/\s+/g, " ").trim() || alt;
     result.push({
       imageUrl,
       alt,
@@ -270,10 +361,13 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
   let logoUrl: string | undefined;
   for (const sel of logoSelectors) {
     const el = $(sel).first();
-    const candidate =
-      el.attr("data-src") || el.attr("src") || el.attr("data-original") || el.attr("srcset");
-    const resolved = resolveAssetUrl(candidate, sourceUrl);
-    if (resolved && !/whatsapp|flag|bandeira|pix|visa|master|elo/i.test(resolved)) {
+    const resolved = el.length ? extractBestImgUrl($, el, sourceUrl) : undefined;
+    if (
+      resolved &&
+      !/flag|bandeira|badges?|selos?|(?:^|[/_.-])whatsapp[-_.]?(?:icon|btn|button|logo|float|widget)|(?:^|[/_.-])(?:pix|visa|mastercard|hipercard|elo)(?:$|[/_.-])/i.test(
+        resolved
+      )
+    ) {
       logoUrl = resolved;
       break;
     }
@@ -282,7 +376,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     logoUrl = resolveAssetUrl($('meta[property="og:image"]').attr("content"), sourceUrl) ?? faviconUrl;
   }
 
-  // Categories from nav (supports classic nav and modern Nuvemshop .header_nav_link)
+  // Categories from nav (supports classic nav, modern Nuvemshop, and Loja Integrada)
   const categories: ExtractedStoreData["categories"] = [];
   const seenCats = new Set<string>();
   const navSelectors = [
@@ -294,6 +388,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     ".js-nav-list-link",
     ".nav-desktop a",
     ".menu > li > a",
+    ".menu.superior .nivel-um > li > a",
     "nav[role='navigation'] a",
     "header a[href]",
     ".header a[href]",
@@ -368,20 +463,16 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
   // Banners by slot
   const seenBanners = new Set<string>();
-  // Tema Irroba: carrossel principal (.banner-v2.banner-carousel .item)
+  // Tema Irroba / banners carrossel principal
   const irrobaHero: ExtractedBanner[] = [];
-  $(".banner-v2.banner-carousel .item").each((_, el) => {
+  $(".banner-v2.banner-carousel .item, .bannerModule .item, #slideshow .item, .full-banner .item").each((_, el) => {
     if (irrobaHero.length >= 3) return;
     const item = $(el);
+    if (item.closest("template, script").length > 0) return;
     const link = item.find("a").first();
     const img = item.find("picture img, img").first();
-    const raw =
-      item.find("source.src-desktop").attr("srcset") ||
-      img.attr("data-src") ||
-      img.attr("src") ||
-      img.attr("srcset");
-    const imageUrl = resolveAssetUrl(raw, sourceUrl);
-    if (!imageUrl || seenBanners.has(imageUrl) || imageUrl === logoUrl) return;
+    const imageUrl = extractBestImgUrl($, item, sourceUrl);
+    if (!imageUrl || seenBanners.has(imageUrl) || imageUrl === logoUrl || isNonContentAssetUrl(imageUrl)) return;
     seenBanners.add(imageUrl);
     const alt = link.attr("aria-label")?.trim() || img.attr("alt")?.trim() || undefined;
     const rawHref = link.attr("href");
@@ -397,7 +488,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     ...irrobaHero,
     ...collectBannersFromSelector(
       $,
-      "[data-store='home-hero'] img, .js-home-slider img, .hero-slider img, [class*='hero'] img",
+      "[data-store='home-hero'] img, .js-home-slider img, .hero-slider img, [class*='hero'] img, .secao-banners .flexslider .slides li",
       "hero",
       sourceUrl,
       logoUrl,
@@ -421,7 +512,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
   const slimBanners = collectBannersFromSelector(
     $,
-    "[data-store*='slim'] img, [class*='banner-slim'] img, [class*='slim-banner'] img",
+    "[data-store*='slim'] img, [class*='banner-slim'] img, [class*='slim-banner'] img, .banner.tarja",
     "slim",
     sourceUrl,
     logoUrl,
@@ -441,7 +532,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
   const secondaryBanners = collectBannersFromSelector(
     $,
-    "[data-store*='banner-full'] img, [class*='banner-full'] img, [class*='secondary-banner'] img",
+    "[data-store*='banner-full'] img, [class*='banner-full'] img, [class*='secondary-banner'] img, .banner.cheio",
     "secondary",
     sourceUrl,
     logoUrl,
@@ -531,7 +622,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     const price = parseBrlPrice(card.find(".caption p.price, .caption .price-new, .caption .price").first().text());
     const compareAtPrice = parseBrlPrice(card.find(".caption .price-old, .caption del, .caption s").first().text());
     const imgEl = card.find(".image img").first();
-    const imageUrl = resolveAssetUrl(imgEl.attr("data-src") || imgEl.attr("src"), sourceUrl);
+    const imageUrl = extractBestImgUrl($, imgEl, sourceUrl);
     const auxUrl = resolveAssetUrl(imgEl.attr("data-aux-src"), sourceUrl);
     const productUrl = resolveAssetUrl(
       card.find(".image a[href]").first().attr("href") || nameLink.attr("href"),
@@ -575,6 +666,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
     ".product-item",
     ".product-card",
     ".product-block",
+    ".listagem-item",
     "li.product",
     ".grid-item",
     "[class*='product-card']",
@@ -589,7 +681,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
       const title =
         card
           .find(
-            ".js-item-name, .product_card_name, .item-name, .product-title, .product-name, h2, h3, h4, [class*='title'], [class*='name']"
+            ".js-item-name, .product_card_name, .item-name, .product-title, .product-name, .nome-produto, h2, h3, h4, [class*='title'], [class*='name']"
           )
           .first()
           .text()
@@ -598,13 +690,13 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
 
       const priceText = card
         .find(
-          ".js-price-display, .product_card_price_now, .price, .product-price, [class*='price_now'], [class*='price-current'], [class*='sale-price'], [class*='price']:not([class*='compare']):not([class*='old'])"
+          ".js-price-display, .product_card_price_now, .preco-promocional, .preco-venda, .price, .product-price, [class*='price_now'], [class*='price-current'], [class*='sale-price'], [class*='price']:not([class*='compare']):not([class*='old'])"
         )
         .first()
         .text();
       const compareText = card
         .find(
-          ".js-compare-price-display, .product_card_price_old, .compare-price, .old-price, del, s, [class*='compare'], [class*='old']"
+          ".js-compare-price-display, .product_card_price_old, .preco-cheio, .compare-price, .old-price, del, s, [class*='compare'], [class*='old']"
         )
         .first()
         .text();
@@ -613,13 +705,7 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
       const compareAtPrice = parseBrlPrice(compareText);
 
       const imgEl = card.find("img").first();
-      const rawImg =
-        imgEl.attr("data-src") ||
-        imgEl.attr("data-srcset") ||
-        imgEl.attr("src") ||
-        imgEl.attr("data-original") ||
-        imgEl.attr("srcset");
-      const imageUrl = resolveAssetUrl(rawImg, sourceUrl);
+      const imageUrl = extractBestImgUrl($, imgEl, sourceUrl);
       const productUrl = resolveAssetUrl(card.find("a").first().attr("href"), sourceUrl);
 
       if (title && title.length > 2 && imageUrl && price && !seenProducts.has(title.toLowerCase())) {
@@ -648,7 +734,29 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
   const whatsappHref = $('a[href*="wa.me"], a[href*="whatsapp.com"]').first().attr("href");
   const waDigits = whatsappHref?.match(/(\d{10,13})/)?.[1];
   const instagramHref = $('a[href*="instagram.com"]').first().attr("href");
+  const facebookHref = $('a[href*="facebook.com"]')
+    .filter((_, el) => {
+      const href = $(el).attr("href") || "";
+      return !/sharer|facebook\.com\/tr/i.test(href);
+    })
+    .first()
+    .attr("href");
+  const facebookResolved = resolveAssetUrl(facebookHref, sourceUrl);
   const mailtoHref = $('a[href^="mailto:"]').first().attr("href");
+  const telHref = $('a[href^="tel:"]').first().attr("href");
+  const rawPhone = telHref ? telHref.replace(/^tel:/i, "").trim() : undefined;
+  const cleanPhone = rawPhone && rawPhone.replace(/\D/g, "").length >= 8 ? rawPhone : undefined;
+  const footerText = $("footer").text() || $("body").text();
+  const cnpjMatch =
+    $("footer").text().match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/) ??
+    footerText.match(/\b\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}\b/);
+  const cnpj = cnpjMatch?.[0];
+  const addressRaw = $("footer address, footer [class*='address'], footer [class*='endereco']")
+    .first()
+    .text()
+    .replace(/\s+/g, " ")
+    .trim();
+  const address = addressRaw.length >= 10 && addressRaw.length <= 160 ? addressRaw : undefined;
 
   return {
     sourceUrl,
@@ -669,6 +777,10 @@ export function extractStoreFromHtml(html: string, sourceUrl: string): Extracted
       whatsapp: waDigits,
       instagram: instagramHref,
       email: mailtoHref?.replace(/^mailto:/i, "").split("?")[0],
+      ...(facebookResolved ? { facebook: facebookResolved } : {}),
+      ...(cleanPhone ? { phone: cleanPhone } : {}),
+      ...(address ? { address } : {}),
+      ...(cnpj ? { cnpj } : {}),
     },
   };
 }
@@ -794,6 +906,34 @@ export async function extractStoreFromUrl(
     });
 
     const page = await context.newPage();
+    const capturedImages = new Map<string, { buf: Buffer; ct: string }>();
+    const pendingCaptures: Promise<void>[] = [];
+    let capturedBytes = 0;
+
+    page.on("response", (response) => {
+      if (capturedBytes >= 35_000_000) return;
+      const reqType = response.request().resourceType();
+      const ct = (response.headers()["content-type"] || "").toLowerCase();
+      if (reqType !== "image" && !ct.startsWith("image/")) return;
+      if (ct.includes("svg")) return;
+      if (!response.ok()) return;
+      const respUrl = response.url();
+      if (!respUrl.startsWith("http://") && !respUrl.startsWith("https://")) return;
+
+      const task = (async () => {
+        try {
+          const buf = await response.body();
+          if (buf.length < 300 || buf.length > 3_500_000) return;
+          if (capturedBytes + buf.length > 35_000_000) return;
+          capturedImages.set(respUrl, { buf, ct });
+          capturedBytes += buf.length;
+        } catch {
+          // Ignore streamed or aborted responses
+        }
+      })();
+      pendingCaptures.push(task);
+    });
+
     await page.route("**/*", async (route) => {
       const rawReqUrl = route.request().url();
       const reqUrl = rawReqUrl.toLowerCase();
@@ -916,7 +1056,27 @@ export async function extractStoreFromUrl(
         }
       }
 
-      // Classify live rendered banner images by geometry & position
+      // Classify live rendered banner images by geometry & position (incl. hidden carousel slides & CSS backgrounds)
+      const isPlaceholderDomSrc = (u: string): boolean => {
+        if (!u) return true;
+        if (u.startsWith("data:image/svg+xml") || u.startsWith("data:image/gif")) return true;
+        if (/\$[a-z_][a-z0-9_]*|\{\{|\}\}|\$\{|%7b%7b|%24image/i.test(u)) return true;
+        const noQuery = u.split("?")[0] ?? u;
+        return /(?:^|[/._-])(blank|spacer|pixel|1x1|loading|loader|no[-_]?image|sem[-_]?imagem|placeholder)(?:[/._-]|$)/i.test(
+          noQuery
+        );
+      };
+
+      const isNonContentDomSrc = (u: string): boolean => {
+        if (!u) return true;
+        if (/whatsapp(?:[-_. ]|%20)?image/i.test(u)) {
+          return /(?:^|[/_.-])(favicon|sprite|badges?|selos?)(?:$|[/_.-])/i.test(u);
+        }
+        return /(?:^|[/_.-])(icons?|logos?|favicon|sprite|badges?|selos?|bandeiras?|payments?|pagamentos?)(?:$|[/_.-])|(?:^|[/_.-])whatsapp[-_.]?(?:icon|btn|button|logo|float|widget|svg)(?:$|[/_.-])|(?:^|[/_.-])(?:pix[-_.]?(?:icon|logo)|visa|mastercard|hipercard|amex|american[-_]?express|boleto|reclame[-_.]?aqui|ebit|google[-_.]?safe|selo[-_.]?seguranca)(?:$|[/_.-])|(?:^|[/._-])(?:pix|elo)\.(?:png|webp|jpg|jpeg|svg|gif)(?:$|\?)/i.test(
+          u
+        );
+      };
+
       const seenSrcs = new Set<string>();
       const classifiedBanners: Array<{
         imageUrl: string;
@@ -926,22 +1086,48 @@ export async function extractStoreFromUrl(
         label?: string;
       }> = [];
 
-      const imgs = Array.from(document.querySelectorAll<HTMLImageElement>("main img, section img"));
+      const imgs = Array.from(document.querySelectorAll<HTMLImageElement>("img"));
       for (const img of imgs) {
-        const src = img.currentSrc || img.src;
-        if (!src || seenSrcs.has(src)) continue;
-        if (/icon|logo|badge|selo|whatsapp|pix|visa|master|elo/i.test(src)) continue;
+        const rawSrc =
+          img.currentSrc ||
+          img.getAttribute("data-src") ||
+          img.getAttribute("data-lazy") ||
+          img.getAttribute("data-lazy-src") ||
+          img.getAttribute("data-original") ||
+          img.src;
+        if (!rawSrc || isPlaceholderDomSrc(rawSrc) || isNonContentDomSrc(rawSrc)) continue;
+        let src = rawSrc;
+        try {
+          src = new URL(rawSrc, document.baseURI).toString();
+        } catch {
+          continue;
+        }
+        if (!/^https?:/i.test(src) || seenSrcs.has(src)) continue;
         if (
           img.closest(
-            ".product_card, .js-item-product, .product-item, .product-card, .product-thumb, footer, [data-store*='benefit'], .home_benefits, .benefits"
+            "header, nav, footer, template, script, noscript, [class*='cookie'], [class*='modal'], [class*='popup'], [class*='chat'], [class*='drawer'], .product_card, .js-item-product, .product-item, .product-card, .product-thumb, .listagem-item, [data-store*='benefit'], .home_benefits, .benefits"
           )
         ) {
           continue;
         }
         const rect = img.getBoundingClientRect();
-        const absTop = rect.top + window.scrollY;
-        const w = rect.width;
-        const h = rect.height;
+        const slideContainer = img.closest(
+          ".owl-item, .swiper-slide, .slick-slide, .flexslider .slides li, .banner-v2 .item, .carousel-item"
+        );
+        const carouselRoot = slideContainer?.closest(
+          ".owl-carousel, .swiper, .swiper-container, .slick-slider, .flexslider, .banner-carousel, .carousel"
+        );
+        const carouselRect = carouselRoot ? carouselRoot.getBoundingClientRect() : null;
+        let w = rect.width;
+        let h = rect.height;
+        let absTop = rect.top + window.scrollY;
+        if (w < 10 && slideContainer) {
+          w = img.naturalWidth || carouselRect?.width || 0;
+          h = img.naturalHeight || carouselRect?.height || 0;
+          if (carouselRect) {
+            absTop = carouselRect.top + window.scrollY;
+          }
+        }
         if (w < 160 || h < 70) continue;
 
         const aspect = w / h;
@@ -970,6 +1156,54 @@ export async function extractStoreFromUrl(
             slot: "mood",
             label: containerText && containerText.length <= 42 ? containerText : alt,
           });
+        }
+      }
+
+      // Inspect CSS background-image banners
+      const bgContainers = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          "[class*='banner'], [class*='hero'], [class*='slide'], [data-store*='banner'], .full-banner, .banner-v2"
+        )
+      );
+      for (const el of bgContainers) {
+        if (
+          el.closest(
+            "header, nav, footer, template, script, noscript, [class*='cookie'], [class*='modal'], [class*='popup'], [class*='chat'], [class*='drawer'], .product_card, .js-item-product, .product-item, .product-card, .product-thumb, .listagem-item, [data-store*='benefit'], .home_benefits, .benefits"
+          )
+        ) {
+          continue;
+        }
+        const bg = getComputedStyle(el).backgroundImage;
+        const urlMatch = bg && bg !== "none" ? bg.match(/url\(["']?([^"')]+)["']?\)/i) : null;
+        if (!urlMatch) continue;
+        const rawBgUrl = urlMatch[1]?.trim();
+        if (!rawBgUrl || isPlaceholderDomSrc(rawBgUrl) || isNonContentDomSrc(rawBgUrl)) continue;
+        let resolvedBg: string;
+        try {
+          resolvedBg = new URL(rawBgUrl, document.baseURI).toString();
+        } catch {
+          continue;
+        }
+        if (!/^https?:/i.test(resolvedBg) || seenSrcs.has(resolvedBg)) continue;
+        const rect = el.getBoundingClientRect();
+        const w = rect.width;
+        const h = rect.height;
+        if (w < 580 || h < 140) continue;
+        const absTop = rect.top + window.scrollY;
+        const aspect = w / h;
+        const linkEl = el.closest("a") ?? el.querySelector("a");
+        const href = linkEl?.getAttribute("href") || undefined;
+        const alt =
+          linkEl?.getAttribute("aria-label")?.trim() || el.getAttribute("aria-label")?.trim() || undefined;
+        if (aspect >= 3.2) {
+          seenSrcs.add(resolvedBg);
+          classifiedBanners.push({ imageUrl: resolvedBg, alt, href, slot: "slim" });
+        } else if (h >= 180 && absTop < 1050) {
+          seenSrcs.add(resolvedBg);
+          classifiedBanners.push({ imageUrl: resolvedBg, alt, href, slot: "hero" });
+        } else if (h >= 160 && absTop >= 1050) {
+          seenSrcs.add(resolvedBg);
+          classifiedBanners.push({ imageUrl: resolvedBg, alt, href, slot: "secondary" });
         }
       }
 
@@ -1114,12 +1348,20 @@ export async function extractStoreFromUrl(
     };
 
     await enrichProductsByCategory(parsed, normalizedUrl);
-    await mirrorCriticalImages(parsed, normalizedUrl, capturesDir, slug, page.request, (done, total) =>
-      report({
-        step: "images",
-        message: `Copiando imagens da loja (${done}/${total})...`,
-        fraction: 0.6 + 0.32 * (total ? done / total : 1),
-      })
+    await Promise.allSettled(pendingCaptures);
+    await mirrorCriticalImages(
+      parsed,
+      normalizedUrl,
+      capturesDir,
+      slug,
+      page.request,
+      (done, total) =>
+        report({
+          step: "images",
+          message: `Copiando imagens da loja (${done}/${total})...`,
+          fraction: 0.6 + 0.32 * (total ? done / total : 1),
+        }),
+      capturedImages
     );
 
     const mobileCaptures = await captureMobileStoreScreenshots(normalizedUrl, slug, {
@@ -1153,19 +1395,57 @@ export async function extractStoreFromUrl(
   }
 }
 
+function isInvalidImagePayload(buf: Buffer): boolean {
+  const head = buf.subarray(0, 64).toString("utf8").trimStart().toLowerCase();
+  return head.startsWith("<svg") || head.startsWith("<!doctype") || head.startsWith("<html");
+}
+
+function detectExtFromMagicBytes(buf: Buffer): string | null {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return ".jpg";
+  if (buf.length >= 4 && buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) {
+    return ".png";
+  }
+  if (buf.length >= 4 && buf.subarray(0, 4).toString("ascii") === "GIF8") return ".gif";
+  if (
+    buf.length >= 12 &&
+    buf.subarray(0, 4).toString("ascii") === "RIFF" &&
+    buf.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return ".webp";
+  }
+  if (
+    buf.length >= 12 &&
+    buf.subarray(4, 8).toString("ascii") === "ftyp" &&
+    (buf.subarray(8, 12).toString("ascii") === "avif" ||
+      buf.subarray(8, 12).toString("ascii") === "avis")
+  ) {
+    return ".avif";
+  }
+  return null;
+}
+
 /** Retorna null para SVG: SVG pode carregar script e não é espelhado. */
-function extFromContentType(ct: string, url: string): string | null {
+function extFromContentType(ct: string, url: string, buf?: Buffer): string | null {
   const lower = ct.toLowerCase();
   if (lower.includes("svg")) return null;
   if (/\.svg$/i.test(url.split("?")[0] ?? "")) return null;
+  if (buf && isInvalidImagePayload(buf)) return null;
   if (lower.includes("webp")) return ".webp";
   if (lower.includes("png")) return ".png";
   if (lower.includes("jpeg") || lower.includes("jpg")) return ".jpg";
   if (lower.includes("gif")) return ".gif";
   if (lower.includes("avif")) return ".avif";
+  if ((!lower || lower.includes("octet-stream")) && buf) {
+    const detected = detectExtFromMagicBytes(buf);
+    if (detected) return detected;
+  }
   const pathExt = path.extname(url.split("?")[0] ?? "").toLowerCase();
   if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"].includes(pathExt)) {
     return pathExt === ".jpeg" ? ".jpg" : pathExt;
+  }
+  if (buf) {
+    const detected = detectExtFromMagicBytes(buf);
+    if (detected) return detected;
   }
   return ".jpg";
 }
@@ -1177,7 +1457,8 @@ export async function mirrorCriticalImages(
   capturesDir: string,
   slug: string,
   pwRequest?: APIRequestContext,
-  onImageProgress?: (done: number, total: number) => void
+  onImageProgress?: (done: number, total: number) => void,
+  capturedImages?: Map<string, { buf: Buffer; ct: string }>
 ): Promise<void> {
   const urlsToMirror = new Set<string>();
   const addUrl = (u?: string) => {
@@ -1188,19 +1469,23 @@ export async function mirrorCriticalImages(
 
   addUrl(store.logoUrl);
   for (const b of store.banners) addUrl(b.imageUrl);
-  for (const c of store.categories.slice(0, 8)) addUrl(c.imageUrl);
+  // Prioritize primary imageUrl of all products before categories & secondary gallery images
+  for (const p of store.products.slice(0, 48)) addUrl(p.imageUrl);
+  for (const c of store.categories.slice(0, 12)) addUrl(c.imageUrl);
   for (const p of store.products.slice(0, 28)) {
-    addUrl(p.imageUrl);
     if (p.images[1]) addUrl(p.images[1]);
   }
 
-  const urlList = Array.from(urlsToMirror).slice(0, 48);
+  const urlList = Array.from(urlsToMirror).slice(0, 90);
   const localMap = new Map<string, string>();
+  const brokenUrls = new Set<string>();
 
   const downloadOne = async (rawUrl: string): Promise<void> => {
+    // SSRF: valida antes de qualquer acesso (inclusive cache) e não remove do array se bloqueado
+    if (!(await isPublicHttpUrl(rawUrl))) return;
+
     const hash = crypto.createHash("sha1").update(rawUrl).digest("hex").slice(0, 12);
     const tryDownload = async (candidateUrl: string): Promise<{ buf: Buffer; ct: string } | null> => {
-      // SSRF: valida antes de qualquer requisição (Playwright ou fetch)
       if (!(await isPublicHttpUrl(candidateUrl))) return null;
       try {
         if (pwRequest) {
@@ -1212,7 +1497,7 @@ export async function mirrorCriticalImages(
                   Referer: refererUrl,
                   Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
                 },
-                timeout: 4500,
+                timeout: 7000,
                 maxRedirects: 0,
               }),
             (r) => ({ status: r.status(), location: r.headers()["location"] })
@@ -1224,7 +1509,7 @@ export async function mirrorCriticalImages(
             return null;
           }
           const buf = await res.body();
-          if (buf.length < 300) return null;
+          if (buf.length < 300 || isInvalidImagePayload(buf)) return null;
           return { buf, ct };
         }
       } catch {
@@ -1238,7 +1523,7 @@ export async function mirrorCriticalImages(
             Referer: refererUrl,
             Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
           },
-          signal: AbortSignal.timeout(4500),
+          signal: AbortSignal.timeout(7000),
         });
         if (!res || !res.ok) return null;
         const ct = res.headers.get("content-type") || "";
@@ -1246,24 +1531,36 @@ export async function mirrorCriticalImages(
           return null;
         }
         const buf = Buffer.from(await res.arrayBuffer());
-        if (buf.length < 300) return null;
+        if (buf.length < 300 || isInvalidImagePayload(buf)) return null;
         return { buf, ct };
       } catch {
         return null;
       }
     };
 
-    let downloaded = await tryDownload(rawUrl);
-    // If upgraded -1024-1024 Nuvemshop URL returned 404, gracefully retry -640-0 / -480-0
-    if (!downloaded && /-1024-1024\.(webp|jpg|jpeg|png)$/i.test(rawUrl)) {
-      downloaded =
-        (await tryDownload(rawUrl.replace(/-1024-1024\./i, "-640-0."))) ??
-        (await tryDownload(rawUrl.replace(/-1024-1024\./i, "-480-0.")));
+    const cached = capturedImages?.get(rawUrl);
+    let downloaded: { buf: Buffer; ct: string } | null =
+      cached && cached.buf.length >= 300 && !isInvalidImagePayload(cached.buf) ? cached : null;
+
+    if (!downloaded) {
+      downloaded = await tryDownload(rawUrl);
+      // If upgraded -1024-1024 Nuvemshop URL returned 404, gracefully retry -640-0 / -480-0
+      if (!downloaded && /-1024-1024\.(webp|jpg|jpeg|png)(\?.*)?$/i.test(rawUrl)) {
+        downloaded =
+          (await tryDownload(rawUrl.replace(/-1024-1024\./i, "-640-0."))) ??
+          (await tryDownload(rawUrl.replace(/-1024-1024\./i, "-480-0.")));
+      }
     }
 
-    if (!downloaded) return;
-    const ext = extFromContentType(downloaded.ct, rawUrl);
-    if (!ext) return;
+    if (!downloaded) {
+      brokenUrls.add(rawUrl);
+      return;
+    }
+    const ext = extFromContentType(downloaded.ct, rawUrl, downloaded.buf);
+    if (!ext) {
+      brokenUrls.add(rawUrl);
+      return;
+    }
     const filename = `${mirrorFilePrefix(slug)}${hash}${ext}`;
     const diskPath = path.join(capturesDir, filename);
     await fs.writeFile(diskPath, downloaded.buf);
@@ -1280,10 +1577,12 @@ export async function mirrorCriticalImages(
   const remap = (u?: string): string | undefined => (u ? localMap.get(u) ?? u : u);
 
   store.logoUrl = remap(store.logoUrl);
-  store.banners = store.banners.map((b) => ({
+  const mappedBanners = store.banners.map((b) => ({
     ...b,
     imageUrl: localMap.get(b.imageUrl) ?? b.imageUrl,
   }));
+  const healthyBanners = mappedBanners.filter((b) => !brokenUrls.has(b.imageUrl));
+  store.banners = healthyBanners.length > 0 ? healthyBanners : mappedBanners;
   store.categories = store.categories.map((c) => ({
     ...c,
     imageUrl: remap(c.imageUrl),

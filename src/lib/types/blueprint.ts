@@ -74,8 +74,11 @@ export const ExtractedStoreDataSchema = z.object({
   contacts: z.object({
     whatsapp: z.string().max(5000).optional(),
     instagram: z.string().max(5000).optional(),
+    facebook: z.string().max(5000).optional(),
     email: z.string().max(5000).optional(),
     phone: z.string().max(5000).optional(),
+    address: z.string().max(5000).optional(),
+    cnpj: z.string().max(5000).optional(),
   }),
   /** Avisos da extração (ex.: nenhum produto/banner lido). */
   extractionWarnings: z.array(z.string().max(500)).optional(),
@@ -144,11 +147,156 @@ export const SectionKeySchema = z.enum([
 
 export type SectionKey = z.infer<typeof SectionKeySchema>;
 
+const BUILTIN_SECTION_KEYS = new Set<string>(SectionKeySchema.options);
+
+export function isBuiltinSectionKey(id: string): id is SectionKey {
+  return BUILTIN_SECTION_KEYS.has(id);
+}
+
+export const CustomSectionKindSchema = z.enum([
+  "html",
+  "banner",
+  "slimBanner",
+  "showcase",
+  "gallery",
+  "tarja",
+  "editorialSplit",
+]);
+
+export type CustomSectionKind = z.infer<typeof CustomSectionKindSchema>;
+
+export const CUSTOM_SECTION_MODULE_LABELS: Record<CustomSectionKind, string> = {
+  html: "Conteúdo HTML",
+  banner: "Banner Versão 2",
+  slimBanner: "Banner Versão 2 (Slim)",
+  showcase: "Listas de Produtos",
+  gallery: "Conteúdo HTML · Galeria",
+  tarja: "Tarja Informativa",
+  editorialSplit: "Conteúdo HTML · Editorial",
+};
+
+export const CUSTOM_SECTION_TYPE_LABELS: Record<CustomSectionKind, string> = {
+  html: "Bloco HTML Personalizado (IA)",
+  banner: "Banner de Campanha",
+  slimBanner: "Banner Slim Promocional",
+  showcase: "Lista de Produtos / Vitrine",
+  gallery: "Galeria de Cards",
+  tarja: "Tarja de Benefícios",
+  editorialSplit: "Bloco Editorial (Texto + Imagem)",
+};
+
+export const CustomHtmlSectionSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.literal("html"),
+  title: z.string().max(5000),
+  width: z.enum(["container", "full"]).default("full"),
+  html: z.string().max(150000),
+});
+
+export const CustomBannerSectionSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.literal("banner"),
+  title: z.string().max(5000),
+  mode: z.enum(["artwork", "editorial"]).default("editorial"),
+  imageUrl: z.string().max(4000000).default(""),
+  headline: z.string().max(5000).default(""),
+  subheadline: z.string().max(5000).default(""),
+  ctaText: z.string().max(5000).default("Ver Coleção"),
+  ctaHref: z.string().max(5000).default("#vitrines"),
+  backgroundColor: z.string().max(5000).optional(),
+  textColor: z.string().max(5000).optional(),
+  heightPx: z.number().min(120).max(1000).optional(),
+  widthPx: z.number().min(280).max(2560).optional(),
+  objectFit: z.enum(["cover", "contain", "fill"]).optional(),
+});
+
+export const CustomSlimBannerSectionSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.literal("slimBanner"),
+  title: z.string().max(5000),
+  mode: z.enum(["image", "designed"]).default("designed"),
+  imageUrl: z.string().max(4000000).default(""),
+  badgeText: z.string().max(5000).default("DESTAQUE"),
+  headline: z.string().max(5000).default(""),
+  ctaText: z.string().max(5000).default("Aproveitar"),
+  backgroundColor: z.string().max(5000).optional(),
+  textColor: z.string().max(5000).optional(),
+  heightPx: z.number().min(40).max(600).optional(),
+  widthPx: z.number().min(280).max(2560).optional(),
+  objectFit: z.enum(["cover", "contain", "fill"]).optional(),
+});
+
+export const CustomShowcaseSectionSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.literal("showcase"),
+  title: z.string().max(5000),
+  subtitle: z.string().max(5000).optional(),
+  categoryFilter: z.string().max(5000).optional(),
+  productIds: z.array(z.string().max(5000)).default([]),
+  limit: z.number().min(1).max(24).default(8),
+});
+
+export const CustomGallerySectionSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.literal("gallery"),
+  title: z.string().max(5000),
+  subtitle: z.string().max(5000).optional(),
+  columns: z.union([z.literal(2), z.literal(3), z.literal(4)]).default(3),
+  cardHeightPx: z.number().min(180).max(900).optional(),
+  items: z.array(MoodBannerSchema).default([]),
+});
+
+export const CustomTarjaSectionSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.literal("tarja"),
+  title: z.string().max(5000),
+  backgroundColor: z.string().max(5000).optional(),
+  textColor: z.string().max(5000).optional(),
+  items: z
+    .array(
+      z.object({
+        icon: z.string().max(500),
+        title: z.string().max(5000),
+        subtitle: z.string().max(5000),
+      })
+    )
+    .default([]),
+});
+
+export const CustomEditorialSplitSectionSchema = z.object({
+  id: z.string().min(1).max(120),
+  kind: z.literal("editorialSplit"),
+  title: z.string().max(5000),
+  eyebrow: z.string().max(5000).default("Destaque"),
+  headline: z.string().max(5000),
+  description: z.string().max(5000).default(""),
+  ctaText: z.string().max(5000).default("Explorar"),
+  ctaHref: z.string().max(5000).default("#vitrines"),
+  imageUrl: z.string().max(4000000).default(""),
+  imageSide: z.enum(["left", "right"]).default("left"),
+  backgroundColor: z.string().max(5000).optional(),
+  textColor: z.string().max(5000).optional(),
+});
+
+export const CustomSectionSchema = z.discriminatedUnion("kind", [
+  CustomHtmlSectionSchema,
+  CustomBannerSectionSchema,
+  CustomSlimBannerSectionSchema,
+  CustomShowcaseSectionSchema,
+  CustomGallerySectionSchema,
+  CustomTarjaSectionSchema,
+  CustomEditorialSplitSectionSchema,
+]);
+
+export type CustomSection = z.infer<typeof CustomSectionSchema>;
+
 export const SectionConfigSchema = z.object({
-  id: SectionKeySchema,
+  id: z.string().min(1).max(120),
   label: z.string().max(5000),
   irrobaModule: z.string().max(5000),
   enabled: z.boolean().default(true),
+  isCustom: z.boolean().optional(),
+  customKind: CustomSectionKindSchema.optional(),
 });
 
 export type SectionConfig = z.infer<typeof SectionConfigSchema>;
@@ -167,23 +315,77 @@ export const DEFAULT_SECTION_LAYOUT: SectionConfig[] = [
 ];
 
 export function getNormalizedSectionLayout(
-  layout?: SectionConfig[]
+  layout?: SectionConfig[],
+  customSections?: CustomSection[]
 ): SectionConfig[] {
+  const customById = new Map<string, CustomSection>(
+    (customSections ?? []).map((cs) => [cs.id, cs])
+  );
+  const hasCustomCatalog = customSections !== undefined;
+
   if (!layout || layout.length === 0) {
-    return DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s }));
+    const base = DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s }));
+    for (const cs of customSections ?? []) {
+      base.push({
+        id: cs.id,
+        label: cs.title,
+        irrobaModule: CUSTOM_SECTION_MODULE_LABELS[cs.kind],
+        enabled: true,
+        isCustom: true,
+        customKind: cs.kind,
+      });
+    }
+    return base;
   }
-  const seen = new Set<SectionKey>();
+
+  const seen = new Set<string>();
   const normalized: SectionConfig[] = [];
+
   for (const item of layout) {
     if (seen.has(item.id)) continue;
-    seen.add(item.id);
-    normalized.push({ ...item });
+    if (isBuiltinSectionKey(item.id)) {
+      seen.add(item.id);
+      normalized.push({ ...item });
+      continue;
+    }
+    if (hasCustomCatalog) {
+      const matched = customById.get(item.id);
+      if (!matched) continue;
+      seen.add(item.id);
+      normalized.push({
+        ...item,
+        label: matched.title || item.label,
+        irrobaModule: CUSTOM_SECTION_MODULE_LABELS[matched.kind],
+        isCustom: true,
+        customKind: matched.kind,
+      });
+    } else if (item.isCustom) {
+      seen.add(item.id);
+      normalized.push({ ...item });
+    }
   }
+
   for (const def of DEFAULT_SECTION_LAYOUT) {
     if (!seen.has(def.id)) {
+      seen.add(def.id);
       normalized.push({ ...def });
     }
   }
+
+  for (const cs of customSections ?? []) {
+    if (!seen.has(cs.id)) {
+      seen.add(cs.id);
+      normalized.push({
+        id: cs.id,
+        label: cs.title,
+        irrobaModule: CUSTOM_SECTION_MODULE_LABELS[cs.kind],
+        enabled: true,
+        isCustom: true,
+        customKind: cs.kind,
+      });
+    }
+  }
+
   return normalized;
 }
 
@@ -378,6 +580,9 @@ export const StoreBlueprintSchema = z.object({
       })
       .optional(),
     layout: z.array(SectionConfigSchema).optional(),
+    customSections: z.array(CustomSectionSchema).optional(),
+    editorialGalleryCustomHtml: z.string().max(150000).optional(),
+    editorialLookbookCustomHtml: z.string().max(150000).optional(),
   }),
   products: z.array(
     z.object({
@@ -398,7 +603,33 @@ export const StoreBlueprintSchema = z.object({
     aboutText: z.string().max(5000),
     whatsapp: z.string().max(5000).optional(),
     instagram: z.string().max(5000).optional(),
+    facebook: z.string().max(5000).optional(),
     email: z.string().max(5000).optional(),
+    phone: z.string().max(5000).optional(),
+    address: z.string().max(5000).optional(),
+    openingHours: z.string().max(5000).optional(),
+    ownerName: z.string().max(5000).optional(),
+    cnpj: z.string().max(5000).optional(),
+    cityState: z.string().max(5000).optional(),
+    institutionalLinks: z
+      .array(
+        z.object({
+          label: z.string().max(500),
+          href: z.string().max(2000).default("#"),
+        })
+      )
+      .optional(),
+    accountLinks: z
+      .array(
+        z.object({
+          label: z.string().max(500),
+          href: z.string().max(2000).default("#"),
+        })
+      )
+      .optional(),
+    showPaymentSeals: z.boolean().optional(),
+    showShippingSeals: z.boolean().optional(),
+    showSecuritySeals: z.boolean().optional(),
     legalText: z.string().max(5000).optional(),
   }),
   designInsights: z.array(DesignInsightSchema).default([]),
