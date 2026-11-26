@@ -48,7 +48,8 @@ const fixtures: Record<string, ExtractedStoreData> = {
 
 describe("layout patterns golden", () => {
   vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  // Meio do ano: o ano do rodapé não depende do fuso (CI roda em UTC, dev em -03).
+  vi.setSystemTime(new Date("2025-06-15T12:00:00Z"));
   for (const [name, ex] of Object.entries(fixtures)) {
     it(name, () => {
       const bp = buildHeuristicBlueprint(ex);

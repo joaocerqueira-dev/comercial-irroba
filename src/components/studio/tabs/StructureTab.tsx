@@ -1,11 +1,29 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Pencil, RotateCcw } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  Eye,
+  EyeOff,
+  GripVertical,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+  X,
+} from "lucide-react";
 import { AiImageSlot } from "@/components/studio/AiImageSlot";
 import { AnnouncementBarControls } from "@/components/studio/AnnouncementBarControls";
 import { FONT_OPTIONS } from "@/components/studio/fontOptions";
 import { Field } from "@/components/ui/Field";
-import type { StoreBlueprint } from "@/lib/types/blueprint";
+import {
+  CUSTOM_SECTION_MODULE_LABELS,
+  CUSTOM_SECTION_TYPE_LABELS,
+  CustomSectionKindSchema,
+  isBuiltinSectionKey,
+  type StoreBlueprint,
+} from "@/lib/types/blueprint";
 import type { StudioState } from "@/components/studio/useStudioState";
 import { CategoryMenuPanel } from "./CategoryMenuPanel";
 
@@ -22,10 +40,16 @@ export function StructureTab({ studio }: { studio: StudioState }) {
     selectAndFocusElement,
     hoverSidebarTarget,
     sectionLayout,
+    toSectionSelection,
     updateBp,
     moveSection,
     toggleSection,
     resetSectionLayout,
+    addSectionOpen,
+    setAddSectionOpen,
+    addCustomSection,
+    duplicateCustomSection,
+    deleteCustomSection,
   } = studio;
 
   return (
@@ -54,9 +78,7 @@ export function StructureTab({ studio }: { studio: StudioState }) {
               type="button"
               onMouseEnter={() => hoverSidebarTarget(item.id)}
               onMouseLeave={() => hoverSidebarTarget(null)}
-              onClick={() =>
-                selectAndFocusElement({ targetId: item.id, label: item.label }, true)
-              }
+              onClick={() => selectAndFocusElement({ targetId: item.id, label: item.label }, true)}
               className="flex flex-col items-start rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-left transition hover:border-brand-300 hover:bg-brand-50/50"
             >
               <span className="font-semibold text-irroba-ink">{item.label}</span>
@@ -70,158 +92,212 @@ export function StructureTab({ studio }: { studio: StudioState }) {
 
       {/* 1. Manipulador de Seções da Página Inicial */}
       <div className="space-y-2.5 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div>
             <div className="font-bold text-zinc-900">Seções da Página Inicial</div>
             <div className="text-xs text-zinc-500">
-              Clique em qualquer seção para editar, arraste para reordenar ou oculte
+              Clique em qualquer seção para editar, arraste para reordenar ou adicione novas
             </div>
           </div>
-          <button aria-label="Restaurar ordem padrão"
-            type="button"
-            onClick={resetSectionLayout}
-            title="Restaurar ordem padrão"
-            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-50"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Padrão
-          </button>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setAddSectionOpen((v) => !v)}
+              aria-expanded={addSectionOpen}
+              className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              Adicionar
+            </button>
+            <button
+              aria-label="Restaurar ordem padrão"
+              type="button"
+              onClick={resetSectionLayout}
+              title="Restaurar ordem padrão"
+              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-50"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Padrão
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-1.5">
-          {sectionLayout.map((sec, idx) => (
-            <div
-              key={sec.id}
-              draggable
-              onMouseEnter={() => hoverSidebarTarget(sec.id)}
-              onMouseLeave={() => hoverSidebarTarget(null)}
-              onDragStart={(e) => {
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", String(idx));
-                dragSectionIdxRef.current = idx;
-                setDragSectionIdx(idx);
-              }}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                setDragOverIdx((prev) => (prev === idx ? prev : idx));
-              }}
-              onDragLeave={(e) => {
-                if (
-                  e.relatedTarget instanceof Node &&
-                  e.currentTarget.contains(e.relatedTarget)
-                ) {
-                  return;
-                }
-                setDragOverIdx((prev) => (prev === idx ? null : prev));
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                const raw = e.dataTransfer.getData("text/plain");
-                const from =
-                  raw !== "" && !Number.isNaN(Number(raw))
-                    ? Number(raw)
-                    : dragSectionIdxRef.current;
-                if (
-                  from !== null &&
-                  from >= 0 &&
-                  from < sectionLayout.length &&
-                  from !== idx
-                ) {
-                  moveSection(from, idx);
-                }
-                dragSectionIdxRef.current = null;
-                setDragSectionIdx(null);
-                setDragOverIdx(null);
-              }}
-              onDragEnd={() => {
-                dragSectionIdxRef.current = null;
-                setDragSectionIdx(null);
-                setDragOverIdx(null);
-              }}
-              className={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 transition ${
-                sec.enabled ? "text-irroba-ink" : "text-zinc-400"
-              } ${
-                dragOverIdx === idx && dragSectionIdx !== idx
-                  ? "border-brand-500 bg-brand-50"
-                  : sec.enabled
-                    ? "border-zinc-200 bg-white hover:border-brand-300"
-                    : "border-dashed border-zinc-200 bg-zinc-100/80"
-              } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-brand-400" : ""}`}
-            >
-              <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-zinc-400" />
+        {addSectionOpen && (
+          <div className="space-y-1.5 rounded-xl border border-brand-200 bg-white p-2.5 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                Escolha o tipo de seção
+              </span>
               <button
                 type="button"
-                draggable={false}
-                onClick={() =>
-                  selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
-                }
-                className="min-w-0 flex-1 text-left"
-                title={`Editar ${sec.label}`}
+                onClick={() => setAddSectionOpen(false)}
+                aria-label="Fechar lista de tipos de seção"
+                className="rounded p-0.5 text-zinc-400 hover:text-zinc-600"
               >
-                <div className="truncate font-semibold leading-tight hover:text-brand-600">
-                  {sec.label}
-                </div>
-                <div className="truncate text-xs font-medium uppercase tracking-wide text-zinc-400">
-                  {sec.irrobaModule}
-                </div>
+                <X className="h-3.5 w-3.5" />
               </button>
-              <div className="flex shrink-0 items-center gap-0.5">
-                <button
-                  type="button"
-                  draggable={false}
-                  onClick={() =>
-                    selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
-                  }
-                  aria-label={`Editar ${sec.label}`}
-                  title={`Editar ${sec.label}`}
-                  className="rounded-lg p-1 text-zinc-500 hover:bg-brand-50 hover:text-brand-600"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  draggable={false}
-                  disabled={idx === 0}
-                  onClick={() => moveSection(idx, idx - 1)}
-                  aria-label="Mover para cima"
-                  title="Mover para cima"
-                  className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
-                >
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  draggable={false}
-                  disabled={idx === sectionLayout.length - 1}
-                  onClick={() => moveSection(idx, idx + 1)}
-                  aria-label="Mover para baixo"
-                  title="Mover para baixo"
-                  className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
-                >
-                  <ArrowDown className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  draggable={false}
-                  onClick={() => toggleSection(sec.id)}
-                  aria-label={sec.enabled ? "Ocultar seção" : "Exibir seção"}
-                  title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
-                  className={`rounded-lg p-1 ${
-                    sec.enabled
-                      ? "text-brand-500 hover:bg-brand-50"
-                      : "text-zinc-400 hover:bg-zinc-200"
-                  }`}
-                >
-                  {sec.enabled ? (
-                    <Eye className="h-3.5 w-3.5" />
-                  ) : (
-                    <EyeOff className="h-3.5 w-3.5" />
-                  )}
-                </button>
-              </div>
             </div>
-          ))}
+            <div className="grid grid-cols-1 gap-1">
+              {CustomSectionKindSchema.options.map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  onClick={() => addCustomSection(kind)}
+                  className="flex items-center justify-between rounded-lg border border-zinc-200 px-2.5 py-2 text-left text-xs hover:border-brand-400 hover:bg-brand-50/60"
+                >
+                  <div>
+                    <div className="font-semibold text-zinc-800">{CUSTOM_SECTION_TYPE_LABELS[kind]}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-zinc-400">
+                      {CUSTOM_SECTION_MODULE_LABELS[kind]}
+                    </div>
+                  </div>
+                  <Plus className="h-3.5 w-3.5 shrink-0 text-brand-600" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          {sectionLayout.map((sec, idx) => {
+            const isCustom = !isBuiltinSectionKey(sec.id);
+            const selPayload = toSectionSelection(sec);
+            return (
+              <div
+                key={sec.id}
+                draggable
+                onMouseEnter={() => hoverSidebarTarget(selPayload)}
+                onMouseLeave={() => hoverSidebarTarget(null)}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", String(idx));
+                  dragSectionIdxRef.current = idx;
+                  setDragSectionIdx(idx);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setDragOverIdx((prev) => (prev === idx ? prev : idx));
+                }}
+                onDragLeave={(e) => {
+                  if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) {
+                    return;
+                  }
+                  setDragOverIdx((prev) => (prev === idx ? null : prev));
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const raw = e.dataTransfer.getData("text/plain");
+                  const from =
+                    raw !== "" && !Number.isNaN(Number(raw)) ? Number(raw) : dragSectionIdxRef.current;
+                  if (from !== null && from >= 0 && from < sectionLayout.length && from !== idx) {
+                    moveSection(from, idx);
+                  }
+                  dragSectionIdxRef.current = null;
+                  setDragSectionIdx(null);
+                  setDragOverIdx(null);
+                }}
+                onDragEnd={() => {
+                  dragSectionIdxRef.current = null;
+                  setDragSectionIdx(null);
+                  setDragOverIdx(null);
+                }}
+                className={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 transition ${
+                  sec.enabled ? "text-irroba-ink" : "text-zinc-400"
+                } ${
+                  dragOverIdx === idx && dragSectionIdx !== idx
+                    ? "border-brand-500 bg-brand-50"
+                    : sec.enabled
+                      ? "border-zinc-200 bg-white hover:border-brand-300"
+                      : "border-dashed border-zinc-200 bg-zinc-100/80"
+                } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-brand-400" : ""}`}
+              >
+                <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-zinc-400" />
+                <button
+                  type="button"
+                  draggable={false}
+                  onClick={() => selectAndFocusElement(selPayload, true)}
+                  className="min-w-0 flex-1 text-left"
+                  title={`Editar ${sec.label}`}
+                >
+                  <div className="truncate font-semibold leading-tight hover:text-brand-600">{sec.label}</div>
+                  <div className="truncate text-xs font-medium uppercase tracking-wide text-zinc-400">
+                    {sec.irrobaModule}
+                  </div>
+                </button>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button
+                    type="button"
+                    draggable={false}
+                    onClick={() => selectAndFocusElement(selPayload, true)}
+                    aria-label={`Editar ${sec.label}`}
+                    title={`Editar ${sec.label}`}
+                    className="rounded-lg p-1 text-zinc-500 hover:bg-brand-50 hover:text-brand-600"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  {isCustom && (
+                    <>
+                      <button
+                        type="button"
+                        draggable={false}
+                        onClick={() => duplicateCustomSection(sec.id)}
+                        aria-label={`Duplicar ${sec.label}`}
+                        title="Duplicar seção"
+                        className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        draggable={false}
+                        onClick={() => deleteCustomSection(sec.id)}
+                        aria-label={`Excluir ${sec.label}`}
+                        title="Excluir seção"
+                        className="rounded-lg p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    draggable={false}
+                    disabled={idx === 0}
+                    onClick={() => moveSection(idx, idx - 1)}
+                    aria-label="Mover para cima"
+                    title="Mover para cima"
+                    className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    draggable={false}
+                    disabled={idx === sectionLayout.length - 1}
+                    onClick={() => moveSection(idx, idx + 1)}
+                    aria-label="Mover para baixo"
+                    title="Mover para baixo"
+                    className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
+                  >
+                    <ArrowDown className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    draggable={false}
+                    onClick={() => toggleSection(sec.id)}
+                    aria-label={sec.enabled ? "Ocultar seção" : "Exibir seção"}
+                    title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
+                    className={`rounded-lg p-1 ${
+                      sec.enabled ? "text-brand-500 hover:bg-brand-50" : "text-zinc-400 hover:bg-zinc-200"
+                    }`}
+                  >
+                    {sec.enabled ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -327,10 +403,7 @@ export function StructureTab({ studio }: { studio: StudioState }) {
           previewId={id}
           label="Foto Detalhe Sobreposta (1:1)"
           value={
-            bp.sections.lookbook?.insetImageUrl ||
-            bp.products[1]?.imageUrl ||
-            bp.products[0]?.imageUrl ||
-            ""
+            bp.sections.lookbook?.insetImageUrl || bp.products[1]?.imageUrl || bp.products[0]?.imageUrl || ""
           }
           defaultAspectRatio="1:1"
           minRecommendedWidth={500}
@@ -362,48 +435,48 @@ export function StructureTab({ studio }: { studio: StudioState }) {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Field label="Fonte Títulos" labelClassName="mb-1 block text-zinc-500">
-            <select
-              value={bp.theme.headingFont}
-              onChange={(e) =>
-                updateBp((prev) => ({
-                  ...prev,
-                  theme: { ...prev.theme, headingFont: e.target.value },
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
-            >
-              {!FONT_OPTIONS.includes(bp.theme.headingFont) && (
-                <option value={bp.theme.headingFont}>{bp.theme.headingFont}</option>
-              )}
-              {FONT_OPTIONS.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
+              <select
+                value={bp.theme.headingFont}
+                onChange={(e) =>
+                  updateBp((prev) => ({
+                    ...prev,
+                    theme: { ...prev.theme, headingFont: e.target.value },
+                  }))
+                }
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
+              >
+                {!FONT_OPTIONS.includes(bp.theme.headingFont) && (
+                  <option value={bp.theme.headingFont}>{bp.theme.headingFont}</option>
+                )}
+                {FONT_OPTIONS.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
           <div>
             <Field label="Fonte Corpo" labelClassName="mb-1 block text-zinc-500">
-            <select
-              value={bp.theme.bodyFont}
-              onChange={(e) =>
-                updateBp((prev) => ({
-                  ...prev,
-                  theme: { ...prev.theme, bodyFont: e.target.value },
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
-            >
-              {!FONT_OPTIONS.includes(bp.theme.bodyFont) && (
-                <option value={bp.theme.bodyFont}>{bp.theme.bodyFont}</option>
-              )}
-              {FONT_OPTIONS.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
+              <select
+                value={bp.theme.bodyFont}
+                onChange={(e) =>
+                  updateBp((prev) => ({
+                    ...prev,
+                    theme: { ...prev.theme, bodyFont: e.target.value },
+                  }))
+                }
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
+              >
+                {!FONT_OPTIONS.includes(bp.theme.bodyFont) && (
+                  <option value={bp.theme.bodyFont}>{bp.theme.bodyFont}</option>
+                )}
+                {FONT_OPTIONS.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
         </div>
@@ -411,45 +484,45 @@ export function StructureTab({ studio }: { studio: StudioState }) {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Field label="Arredondamento" labelClassName="mb-1 block text-zinc-500">
-            <select
-              value={bp.theme.radius}
-              onChange={(e) =>
-                updateBp((prev) => ({
-                  ...prev,
-                  theme: {
-                    ...prev.theme,
-                    radius: e.target.value as StoreBlueprint["theme"]["radius"],
-                  },
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
-            >
-              <option value="none">Sem arredondamento</option>
-              <option value="small">Pequeno (6px)</option>
-              <option value="medium">Médio (12px)</option>
-              <option value="large">Grande (24px)</option>
-            </select>
+              <select
+                value={bp.theme.radius}
+                onChange={(e) =>
+                  updateBp((prev) => ({
+                    ...prev,
+                    theme: {
+                      ...prev.theme,
+                      radius: e.target.value as StoreBlueprint["theme"]["radius"],
+                    },
+                  }))
+                }
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
+              >
+                <option value="none">Sem arredondamento</option>
+                <option value="small">Pequeno (6px)</option>
+                <option value="medium">Médio (12px)</option>
+                <option value="large">Grande (24px)</option>
+              </select>
             </Field>
           </div>
           <div>
             <Field label="Cabeçalho Layout" labelClassName="mb-1 block text-zinc-500">
-            <select
-              value={bp.theme.headerLayout}
-              onChange={(e) =>
-                updateBp((prev) => ({
-                  ...prev,
-                  theme: {
-                    ...prev.theme,
-                    headerLayout: e.target.value as StoreBlueprint["theme"]["headerLayout"],
-                  },
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
-            >
-              <option value="layout-1">Layout 1 (Linha)</option>
-              <option value="layout-2">Layout 2 (Centralizado)</option>
-              <option value="layout-3">Layout 3 (Compacto)</option>
-            </select>
+              <select
+                value={bp.theme.headerLayout}
+                onChange={(e) =>
+                  updateBp((prev) => ({
+                    ...prev,
+                    theme: {
+                      ...prev.theme,
+                      headerLayout: e.target.value as StoreBlueprint["theme"]["headerLayout"],
+                    },
+                  }))
+                }
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
+              >
+                <option value="layout-1">Layout 1 (Linha)</option>
+                <option value="layout-2">Layout 2 (Centralizado)</option>
+                <option value="layout-3">Layout 3 (Compacto)</option>
+              </select>
             </Field>
           </div>
         </div>
@@ -457,50 +530,50 @@ export function StructureTab({ studio }: { studio: StudioState }) {
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Field label="Cabeçalho Posição" labelClassName="mb-1 block text-zinc-500">
-            <select
-              value={bp.visualOverrides.header.position}
-              onChange={(e) =>
-                updateBp((prev) => ({
-                  ...prev,
-                  visualOverrides: {
-                    ...prev.visualOverrides,
-                    header: {
-                      ...prev.visualOverrides.header,
-                      position: e.target.value as "default" | "sticky" | "overlay",
+              <select
+                value={bp.visualOverrides.header.position}
+                onChange={(e) =>
+                  updateBp((prev) => ({
+                    ...prev,
+                    visualOverrides: {
+                      ...prev.visualOverrides,
+                      header: {
+                        ...prev.visualOverrides.header,
+                        position: e.target.value as "default" | "sticky" | "overlay",
+                      },
                     },
-                  },
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
-            >
-              <option value="default">Padrão (Rola com a página)</option>
-              <option value="sticky">Fixo ao rolar</option>
-              <option value="overlay">Sobreposto ao Banner (Fixo)</option>
-            </select>
+                  }))
+                }
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
+              >
+                <option value="default">Padrão (Rola com a página)</option>
+                <option value="sticky">Fixo ao rolar</option>
+                <option value="overlay">Sobreposto ao Banner (Fixo)</option>
+              </select>
             </Field>
           </div>
           <div>
             <Field label="Alinhamento Vitrines" labelClassName="mb-1 block text-zinc-500">
-            <select
-              value={bp.visualOverrides.productCard.titleAlign}
-              onChange={(e) =>
-                updateBp((prev) => ({
-                  ...prev,
-                  visualOverrides: {
-                    ...prev.visualOverrides,
-                    productCard: {
-                      ...prev.visualOverrides.productCard,
-                      titleAlign: e.target.value as "left" | "center" | "right",
+              <select
+                value={bp.visualOverrides.productCard.titleAlign}
+                onChange={(e) =>
+                  updateBp((prev) => ({
+                    ...prev,
+                    visualOverrides: {
+                      ...prev.visualOverrides,
+                      productCard: {
+                        ...prev.visualOverrides.productCard,
+                        titleAlign: e.target.value as "left" | "center" | "right",
+                      },
                     },
-                  },
-                }))
-              }
-              className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
-            >
-              <option value="left">Esquerda</option>
-              <option value="center">Centro</option>
-              <option value="right">Direita</option>
-            </select>
+                  }))
+                }
+                className="w-full rounded-lg border border-zinc-200 px-2 py-1.5"
+              >
+                <option value="left">Esquerda</option>
+                <option value="center">Centro</option>
+                <option value="right">Direita</option>
+              </select>
             </Field>
           </div>
         </div>
@@ -554,9 +627,7 @@ export function StructureTab({ studio }: { studio: StudioState }) {
                   }))
                 }
               />
-              <span className="flex-1 truncate text-xs text-zinc-700">
-                {prod.title}
-              </span>
+              <span className="flex-1 truncate text-xs text-zinc-700">{prod.title}</span>
               <button
                 type="button"
                 onClick={() =>

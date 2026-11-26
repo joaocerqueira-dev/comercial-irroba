@@ -13,6 +13,11 @@ export function storefrontRuntimeCore(bp: StoreBlueprint, ctx: StorefrontContext
       const cart = [];
       let activeCategory = 'all';
       let searchQuery = '';
+      let rawSearchQuery = '';
+      let minPriceFilter = null;
+      let maxPriceFilter = null;
+      let promoOnlyFilter = false;
+      let catGridCols = 3;
       let activePdpProduct = null;
       let activeSize = ${safeJsonForScript(variationSizes[0] ?? "Padrão")};
       let pdpQty = 1;
@@ -37,6 +42,10 @@ export function storefrontRuntimeCore(bp: StoreBlueprint, ctx: StorefrontContext
       if (overlineTicker) {
         const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
         const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        const prefersReducedMotion =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const slideResetTimers = new Map();
         let overlineIdx = 0;
         let overlinePaused = false;
         overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
@@ -49,15 +58,36 @@ export function storefrontRuntimeCore(bp: StoreBlueprint, ctx: StorefrontContext
             overlineIdx = (overlineIdx + 1) % overlineSlides.length;
             const nextSlide = overlineSlides[overlineIdx];
 
+            if (nextSlide) {
+              const pending = slideResetTimers.get(nextSlide);
+              if (pending) {
+                clearTimeout(pending);
+                slideResetTimers.delete(nextSlide);
+              }
+              nextSlide.classList.add('is-resetting');
+              nextSlide.classList.remove('is-leaving', 'is-active');
+              void nextSlide.offsetWidth;
+              nextSlide.classList.remove('is-resetting');
+            }
+
             if (prevSlide && prevSlide !== nextSlide) {
               prevSlide.classList.remove('is-active');
-              prevSlide.classList.add('is-leaving');
-              setTimeout(() => {
+              if (prefersReducedMotion) {
                 prevSlide.classList.remove('is-leaving');
-              }, 520);
+              } else {
+                prevSlide.classList.add('is-leaving');
+                const timer = setTimeout(() => {
+                  prevSlide.classList.add('is-resetting');
+                  prevSlide.classList.remove('is-leaving');
+                  void prevSlide.offsetWidth;
+                  prevSlide.classList.remove('is-resetting');
+                  slideResetTimers.delete(prevSlide);
+                }, 540);
+                slideResetTimers.set(prevSlide, timer);
+              }
             }
+
             if (nextSlide) {
-              nextSlide.classList.remove('is-leaving');
               nextSlide.classList.add('is-active');
             }
           }, intervalMs);
@@ -175,9 +205,107 @@ export function storefrontRuntimeCore(bp: StoreBlueprint, ctx: StorefrontContext
         );
       }
 
-      function openCategoryPage(catLabel, query) {
+      function setCatDrawerOpen(open) {
+        const sidebar = document.getElementById('irb-cat-sidebar');
+        const backdrop = document.getElementById('irb-cat-filter-backdrop');
+        if (sidebar) sidebar.classList.toggle('open', Boolean(open));
+        if (backdrop) {
+          backdrop.classList.toggle('open', Boolean(open));
+          backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+      }
+
+      function updateSidebarCategoryCounts() {
+        document.querySelectorAll('[data-cat-count]').forEach((el) => {
+          const catAttr = el.getAttribute('data-cat-count') || 'all';
+          if (catAttr === 'all') {
+            el.textContent = String(PRODUCTS.length);
+            return;
+          }
+          const matchedCount = PRODUCTS.filter((p) => matchesCategory(p, catAttr)).length;
+          el.textContent = String(matchedCount);
+        });
+      }
+      updateSidebarCategoryCounts();
+
+      function syncPricePresetButtons() {
+        document.querySelectorAll('#irb-price-presets .filterPresetBtn').forEach((btn) => {
+          const pMinRaw = btn.getAttribute('data-price-min') || '';
+          const pMaxRaw = btn.getAttribute('data-price-max') || '';
+          const pMin = pMinRaw ? Number(pMinRaw) : null;
+          const pMax = pMaxRaw ? Number(pMaxRaw) : null;
+          btn.classList.toggle('active', minPriceFilter === pMin && maxPriceFilter === pMax);
+        });
+      }
+
+      function renderActiveFilterTags() {
+        const wrap = document.getElementById('irb-active-filters');
+        const badge = document.getElementById('irb-cat-filter-badge');
+        let activeCount = 0;
+        const tags = [];
+        if (activeCategory !== 'all') {
+          activeCount++;
+          tags.push({ key: 'cat', label: 'Categoria: ' + activeCategory });
+        }
+        if (minPriceFilter !== null || maxPriceFilter !== null) {
+          activeCount++;
+          const minTxt = minPriceFilter !== null ? 'R$ ' + minPriceFilter : 'R$ 0';
+          const maxTxt = maxPriceFilter !== null ? 'R$ ' + maxPriceFilter : '∞';
+          tags.push({ key: 'price', label: minTxt + ' – ' + maxTxt });
+        }
+        if (promoOnlyFilter) {
+          activeCount++;
+          tags.push({ key: 'promo', label: 'Em promoção' });
+        }
+        if (badge) {
+          badge.textContent = String(activeCount);
+          badge.style.display = activeCount > 0 ? 'inline-block' : 'none';
+        }
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        tags.forEach((tag) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'irb-active-filter-tag';
+          btn.textContent = tag.label + ' ×';
+          btn.addEventListener('click', () => {
+            if (tag.key === 'cat') activeCategory = 'all';
+            if (tag.key === 'price') {
+              minPriceFilter = null;
+              maxPriceFilter = null;
+              const minIn = document.getElementById('min-price-input');
+              const maxIn = document.getElementById('max-price-input');
+              if (minIn) minIn.value = '';
+              if (maxIn) maxIn.value = '';
+            }
+            if (tag.key === 'promo') {
+              promoOnlyFilter = false;
+              const promoCb = document.getElementById('irb-filter-promo-only');
+              if (promoCb) promoCb.checked = false;
+            }
+            openCategoryPage(activeCategory, rawSearchQuery, { keepFilters: true });
+          });
+          wrap.appendChild(btn);
+        });
+      }
+
+      function openCategoryPage(catLabel, query, options) {
+        const keepFilters = Boolean(options && options.keepFilters);
         activeCategory = catLabel || 'all';
-        searchQuery = (query || '').trim().toLowerCase();
+        rawSearchQuery = (query || '').trim();
+        searchQuery = rawSearchQuery.toLowerCase();
+
+        if (!keepFilters) {
+          minPriceFilter = null;
+          maxPriceFilter = null;
+          promoOnlyFilter = false;
+          const minIn = document.getElementById('min-price-input');
+          const maxIn = document.getElementById('max-price-input');
+          const promoCb = document.getElementById('irb-filter-promo-only');
+          if (minIn) minIn.value = '';
+          if (maxIn) maxIn.value = '';
+          if (promoCb) promoCb.checked = false;
+        }
 
         document.querySelectorAll('.categoryLink').forEach((c) => {
           const attr = (c.getAttribute('data-filter-cat') || '').toLowerCase();
@@ -187,8 +315,17 @@ export function storefrontRuntimeCore(bp: StoreBlueprint, ctx: StorefrontContext
           const attr = (chip.getAttribute('data-filter-cat') || '').toLowerCase();
           chip.classList.toggle('active', attr === activeCategory.toLowerCase());
         });
+        document.querySelectorAll('[data-sidebar-cat]').forEach((btn) => {
+          const attr = (btn.getAttribute('data-sidebar-cat') || '').toLowerCase();
+          btn.classList.toggle('active', attr === activeCategory.toLowerCase());
+        });
+        syncPricePresetButtons();
+        renderActiveFilterTags();
 
-        let filtered = PRODUCTS.filter((p) => {
+        const hasExtraFilters =
+          minPriceFilter !== null || maxPriceFilter !== null || promoOnlyFilter;
+
+        let baseList = PRODUCTS.filter((p) => {
           const okCat = matchesCategory(p, activeCategory);
           const okSearch =
             !searchQuery ||
@@ -197,32 +334,49 @@ export function storefrontRuntimeCore(bp: StoreBlueprint, ctx: StorefrontContext
           return okCat && okSearch;
         });
 
-        // If a scraped category has zero exact matches without search, show full catalog fallback clearly
         let titleText = activeCategory === 'all' ? 'Todos os Produtos' : activeCategory;
-        if (searchQuery) {
-          titleText = 'Resultados para "' + query + '"';
-        } else if (filtered.length === 0 && activeCategory !== 'all') {
-          filtered = PRODUCTS.slice(0, 12);
+        if (rawSearchQuery) {
+          titleText = 'Resultados para "' + rawSearchQuery + '"';
+        } else if (baseList.length === 0 && activeCategory !== 'all' && !hasExtraFilters) {
+          baseList = PRODUCTS.slice(0, 12);
         }
 
-        const sortVal = document.getElementById('irb-cat-sort').value;
+        const filtered = baseList.filter((p) => {
+          if (minPriceFilter !== null && p.price < minPriceFilter) return false;
+          if (maxPriceFilter !== null && p.price > maxPriceFilter) return false;
+          if (promoOnlyFilter && !(p.compareAtPrice && p.compareAtPrice > p.price)) return false;
+          return true;
+        });
+
+        const sortEl = document.getElementById('irb-cat-sort');
+        const sortVal = sortEl ? sortEl.value : 'relevance';
         if (sortVal === 'price-asc') filtered.sort((a, b) => a.price - b.price);
         else if (sortVal === 'price-desc') filtered.sort((a, b) => b.price - a.price);
         else if (sortVal === 'name-asc') filtered.sort((a, b) => a.title.localeCompare(b.title));
+        else if (sortVal === 'name-desc') filtered.sort((a, b) => b.title.localeCompare(a.title));
+        else if (sortVal === 'discount-desc') {
+          const pctOf = (item) =>
+            item.compareAtPrice && item.compareAtPrice > item.price
+              ? (item.compareAtPrice - item.price) / item.compareAtPrice
+              : 0;
+          filtered.sort((a, b) => pctOf(b) - pctOf(a));
+        }
 
         document.getElementById('irb-cat-breadcrumb').textContent = titleText;
         document.getElementById('irb-cat-title').textContent = titleText;
         document.getElementById('irb-cat-count').textContent = filtered.length + ' produto(s) disponível(is)';
 
         const grid = document.getElementById('irb-cat-grid');
+        grid.classList.toggle('grid-cols-4', catGridCols === 4);
         grid.innerHTML = '';
         if (filtered.length === 0) {
-          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px 0;color:${G.gray500};">Nenhum produto encontrado para essa busca. Tente outro termo ou volte para Início.</p>';
+          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px 0;color:${G.gray500};">Nenhum produto encontrado com os filtros aplicados. Tente limpar ou ajustar os filtros ao lado.</p>';
         } else {
           filtered.forEach((p) => grid.appendChild(createProductCardNode(p)));
         }
 
         document.getElementById('irb-mobile-drawer').classList.remove('open');
+        setCatDrawerOpen(false);
         switchView('category');
       }
 

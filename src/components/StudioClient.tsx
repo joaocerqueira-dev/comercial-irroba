@@ -67,6 +67,8 @@ export default function StudioClient({
     updateBp,
     moveSection,
     toggleSection,
+    duplicateCustomSection,
+    deleteCustomSection,
     suggestionsCount,
     handleDownloadBenefitsPng,
   } = studio;
@@ -209,6 +211,8 @@ export default function StudioClient({
                 onSelect={(next) => selectAndFocusElement(next, Boolean(next))}
                 onToggleSection={toggleSection}
                 onMoveSection={moveSection}
+                onDuplicateCustomSection={duplicateCustomSection}
+                onDeleteCustomSection={deleteCustomSection}
                 onDownloadBenefitsPng={handleDownloadBenefitsPng}
                 onShowSlide={(slideIdx) => postToPreview({ type: "irb-studio:show-slide", slideIdx })}
               />

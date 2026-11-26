@@ -21,7 +21,6 @@ export function renderOverlays(bp: StoreBlueprint): string {
         <button type="button" id="irb-mobile-close" style="border:none;background:${G.gray100};width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       </div>
       <div style="padding:10px 0;overflow-y:auto;">
-        <a href="#home" class="mobileNavLink" data-go-home="1">Início</a>
         ${mobileNavLinksHtml}
       </div>
     </div>

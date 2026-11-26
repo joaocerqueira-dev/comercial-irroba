@@ -1,7 +1,14 @@
 // Blocos "Conteúdo HTML" editoriais exportados para o Irroba (galeria e lookbook).
-import { escapeAttr, escapeHtml, sanitizeCssColor, sanitizeFontName, sanitizeUrl } from "../sanitize";
+import {
+  escapeAttr,
+  escapeHtml,
+  sanitizeCssColor,
+  sanitizeCustomHtmlBlock,
+  sanitizeFontName,
+  sanitizeUrl,
+} from "../sanitize";
 import { CONTAINER_WIDTH_PX, FONT_FALLBACKS, PALETTE } from "@/lib/layout-patterns";
-import type { HtmlBlockExport, StoreBlueprint } from "@/lib/types/blueprint";
+import type { CustomSection, HtmlBlockExport, StoreBlueprint } from "@/lib/types/blueprint";
 import { RADIUS_MAP, splitHeadlineForItalicAccent, fontFallback, cleanAltText } from "./helpers";
 
 export function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
@@ -88,6 +95,7 @@ export function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExp
   </div>
 </div>`;
 
+  const customHtml = bp.sections.editorialGalleryCustomHtml?.trim();
   return {
     id: "irb-html-editorial-gallery",
     name: "Galeria Editorial de Coleções (3:4 + Movimento Suave)",
@@ -95,8 +103,15 @@ export function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExp
     recommendedWidth: "Largura Total",
     placementNote:
       "Posicionar em Página Inicial > Topo do Conteúdo logo após a Tarja Informativa. Usa 100% CSS inline + animação SVG SMIL nativa sem JavaScript (compatível com SunEditor).",
-    html,
+    html: customHtml ? sanitizeCustomHtmlBlock(customHtml) : html,
   };
+}
+
+export function getDefaultEditorialGalleryHtml(bp: StoreBlueprint): string {
+  return buildEditorialGalleryHtmlBlock({
+    ...bp,
+    sections: { ...bp.sections, editorialGalleryCustomHtml: undefined },
+  }).html;
 }
 
 export function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
@@ -193,6 +208,7 @@ export function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockEx
   </div>
 </div>`;
 
+  const customHtml = bp.sections.editorialLookbookCustomHtml?.trim();
   return {
     id: "irb-html-editorial-lookbook",
     name: "Lookbook Split + Faixa Manifesto da Marca",
@@ -200,6 +216,89 @@ export function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockEx
     recommendedWidth: "Largura Total",
     placementNote:
       "Posicionar entre a 1ª e 2ª Lista de Produtos ou antes das Avaliações. Eleva o posicionamento da marca com composição editorial 10:7 + detalhe 1:1 e fechamento contrastado.",
-    html,
+    html: customHtml ? sanitizeCustomHtmlBlock(customHtml) : html,
   };
+}
+
+export function getDefaultEditorialLookbookHtml(bp: StoreBlueprint): string {
+  return buildEditorialLookbookHtmlBlock({
+    ...bp,
+    sections: { ...bp.sections, editorialLookbookCustomHtml: undefined },
+  }).html;
+}
+
+export function buildCustomGalleryBlockHtml(
+  sec: Extract<CustomSection, { kind: "gallery" }>,
+  bp: StoreBlueprint
+): string {
+  const radius = RADIUS_MAP[bp.theme.radius].css;
+  const bodyBg = sanitizeCssColor(bp.theme.bodyBackground, PALETTE.white);
+  const bodyColor = sanitizeCssColor(bp.theme.bodyForeground, PALETTE.ink);
+  const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, PALETTE.ink);
+  const headingFont = sanitizeFontName(bp.theme.headingFont, FONT_FALLBACKS.heading);
+  const cardHeightPx = sec.cardHeightPx
+    ? Math.min(900, Math.max(180, Math.round(sec.cardHeightPx)))
+    : 340;
+  const colBasis = sec.columns === 2 ? "44%" : sec.columns === 4 ? "22%" : "30%";
+  const items = sec.items.filter((i) => i.enabled);
+  if (items.length === 0) return "";
+
+  const cardsHtml = items
+    .map((item) => {
+      const imgUrl = sanitizeUrl(item.imageUrl, "");
+      const href = escapeAttr(sanitizeUrl(item.href, "#vitrines"));
+      const mediaMarkup = imgUrl
+        ? `<img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(cleanAltText(item.title))}" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" />`
+        : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${primaryBg},#18181b);"></div>`;
+      return `<a href="${href}" style="position:relative;flex:1 1 ${colBasis};min-width:220px;height:${cardHeightPx}px;border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#141416;color:#ffffff;box-sizing:border-box;">
+    ${mediaMarkup}
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.08) 0%,rgba(0,0,0,0.78) 100%);"></div>
+    <div style="position:absolute;left:20px;right:20px;bottom:20px;color:#ffffff;">
+      ${item.subtitle ? `<div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;opacity:0.86;margin-bottom:6px;">${escapeHtml(item.subtitle)}</div>` : ""}
+      <div style="font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(19px,1.9vw,24px);font-weight:600;line-height:1.15;">${escapeHtml(item.title)}</div>
+    </div>
+  </a>`;
+    })
+    .join("\n      ");
+
+  return `<div style="padding:clamp(34px,4.5vw,56px) 0;background:${bodyBg};color:${bodyColor};box-sizing:border-box;">
+  <div style="max-width:${CONTAINER_WIDTH_PX}px;margin:0 auto;">
+    <div style="margin-bottom:24px;text-align:center;">
+      <h2 style="margin:0 0 6px;font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(24px,3vw,34px);font-weight:600;color:${bodyColor};">${escapeHtml(sec.title)}</h2>
+      ${sec.subtitle ? `<p style="margin:0;font-size:14px;opacity:0.75;">${escapeHtml(sec.subtitle)}</p>` : ""}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:18px;">
+      ${cardsHtml}
+    </div>
+  </div>
+</div>`;
+}
+
+export function buildCustomEditorialSplitHtml(
+  sec: Extract<CustomSection, { kind: "editorialSplit" }>,
+  bp: StoreBlueprint
+): string {
+  const bg = sanitizeCssColor(sec.backgroundColor ?? bp.theme.neutralBackground, PALETTE.neutralSurface);
+  const fg = sanitizeCssColor(sec.textColor ?? bp.theme.neutralForeground, PALETTE.ink);
+  const headingFont = sanitizeFontName(bp.theme.headingFont, FONT_FALLBACKS.heading);
+  const radius = RADIUS_MAP[bp.theme.radius].css;
+  const imgUrl = sanitizeUrl(sec.imageUrl, "");
+  const flexDir = sec.imageSide === "right" ? "row-reverse" : "row";
+  const ctaHref = escapeAttr(sanitizeUrl(sec.ctaHref, "#vitrines"));
+
+  return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:clamp(42px,6vw,74px) clamp(20px,4vw,48px);box-sizing:border-box;">
+  <div style="max-width:${CONTAINER_WIDTH_PX}px;margin:0 auto;display:flex;flex-wrap:wrap;flex-direction:${flexDir};align-items:center;gap:clamp(28px,4vw,56px);">
+    <div style="flex:1.1 1 320px;">
+      <div style="position:relative;aspect-ratio:4/3;border-radius:${radius};overflow:hidden;background:#18181b;">
+        ${imgUrl ? `<img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(sec.headline)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block;" />` : ""}
+      </div>
+    </div>
+    <div style="flex:1 1 320px;">
+      ${sec.eyebrow ? `<div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;opacity:0.7;margin-bottom:10px;">${escapeHtml(sec.eyebrow)}</div>` : ""}
+      <h2 style="margin:0 0 14px;font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(26px,3.2vw,40px);font-weight:500;line-height:1.12;color:${fg};">${escapeHtml(sec.headline)}</h2>
+      ${sec.description ? `<p style="margin:0 0 24px;font-size:15px;line-height:1.7;opacity:0.86;">${escapeHtml(sec.description)}</p>` : ""}
+      ${sec.ctaText ? `<a href="${ctaHref}" style="display:inline-block;padding:12px 24px;border:1px solid ${fg};color:${fg};text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;border-radius:${radius};">${escapeHtml(sec.ctaText)}</a>` : ""}
+    </div>
+  </div>
+</div>`;
 }

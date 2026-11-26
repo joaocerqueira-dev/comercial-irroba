@@ -46,7 +46,6 @@ export function renderHeader(bp: StoreBlueprint, ctx: StorefrontContext): string
         ${
           bp.theme.headerLayout === "layout-1"
             ? `<nav class="headerContent_navInline" aria-label="Categorias">
-          <a href="#home" class="categoryLink active" data-go-home="1">Início</a>
           ${navLinksHtml}
         </nav>`
             : ""
@@ -81,7 +80,6 @@ export function renderHeader(bp: StoreBlueprint, ctx: StorefrontContext): string
       ${
         bp.theme.headerLayout !== "layout-1"
           ? `<nav class="headerContent_categories" aria-label="Categorias">
-        <a href="#home" class="categoryLink active" data-go-home="1">Início</a>
         ${navLinksHtml}
       </nav>`
           : ""

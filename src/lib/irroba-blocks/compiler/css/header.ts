@@ -41,30 +41,39 @@ export function cssHeader(ctx: StorefrontContext): string {
       overflow: hidden;
       text-overflow: ellipsis;
       opacity: 0;
-      transform: translateY(100%);
+      transform: translate3d(0, 100%, 0);
       transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
       pointer-events: none;
+      will-change: transform, opacity;
     }
     .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
-      transform: translateX(100%);
+      transform: translate3d(100%, 0, 0);
     }
     .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
-      transform: translateY(0);
+      transform: translate3d(0, 0, 0);
     }
-    .overlineModule__slide.is-active {
+    .overlineModule--ticker .overlineModule__slide.is-resetting {
+      transition: none !important;
+      opacity: 0;
+    }
+    .overlineModule--ticker .overlineModule__slide.is-active,
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-active,
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-active {
       opacity: 1;
-      transform: translate(0, 0);
+      transform: translate3d(0, 0, 0);
       pointer-events: auto;
     }
-    .overlineModule__slide.is-leaving {
+    .overlineModule--ticker .overlineModule__slide.is-leaving {
       opacity: 0;
-      transform: translateY(-100%);
+      transform: translate3d(0, -100%, 0);
     }
     .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
-      transform: translateX(-100%);
+      opacity: 0;
+      transform: translate3d(-100%, 0, 0);
     }
     .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
-      transform: translateY(0);
+      opacity: 0;
+      transform: translate3d(0, 0, 0);
     }
 
     /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */

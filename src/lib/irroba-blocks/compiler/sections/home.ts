@@ -1,5 +1,6 @@
 import {
   getNormalizedSectionLayout,
+  isBuiltinSectionKey,
   type CompiledExport,
   type SectionKey,
   type StoreBlueprint,
@@ -12,6 +13,7 @@ import { renderHeroSection } from "./hero";
 import { renderSecondaryBannerHtml } from "./secondary-banner";
 import { renderTestimonialsSection } from "./testimonials";
 import { renderNewsletterSection } from "./newsletter";
+import { renderCustomSectionHtml } from "./custom";
 
 /** Página inicial: seções na ordem e visibilidade definidas pelo Editor de Seções. */
 export function renderHomeSections(
@@ -50,8 +52,17 @@ export function renderHomeSections(
     newsletter: renderNewsletterSection(bp),
   };
 
-  return getNormalizedSectionLayout(bp.sections.layout)
+  const visibleProducts = bp.products.filter((p) => p.visible !== false);
+  const productMap = new Map(visibleProducts.map((p) => [p.id, p]));
+  const customMap = new Map((bp.sections.customSections ?? []).map((cs) => [cs.id, cs]));
+  return getNormalizedSectionLayout(bp.sections.layout, bp.sections.customSections)
     .filter((sec) => sec.enabled)
-    .map((sec) => homeSectionMap[sec.id] || "")
+    .map((sec) => {
+      if (isBuiltinSectionKey(sec.id)) {
+        return homeSectionMap[sec.id] || "";
+      }
+      const customSec = customMap.get(sec.id);
+      return customSec ? renderCustomSectionHtml(customSec, bp, productMap, visibleProducts) : "";
+    })
     .join("\n      ");
 }

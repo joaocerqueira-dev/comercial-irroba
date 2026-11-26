@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Eye, EyeOff } from "lucide-react";
-import { getNormalizedSectionLayout, type SectionKey, type StoreBlueprint } from "@/lib/types/blueprint";
+import { ArrowDown, ArrowLeft, ArrowUp, Copy, Eye, EyeOff, Trash2 } from "lucide-react";
+import { CUSTOM_SECTION_MODULE_LABELS, getNormalizedSectionLayout, type StoreBlueprint } from "@/lib/types/blueprint";
 import { INSPECTOR_META, type InspectorSelection, type InspectorTargetId } from "./inspectorTargets";
 import { useLatest } from "@/lib/client/useLatest";
-import { findSelectedProduct, type InspectorTargetProps } from "./inspector/types";
+import { findActiveCustomSection, findSelectedProduct, type InspectorTargetProps } from "./inspector/types";
+import { CustomSectionInspector } from "./inspector/CustomSectionInspector";
 import { AnnouncementInspector } from "./inspector/AnnouncementInspector";
 import { BuyButtonInspector } from "./inspector/BuyButtonInspector";
 import { EditorialGalleryInspector } from "./inspector/EditorialGalleryInspector";
@@ -31,8 +32,10 @@ interface ElementInspectorPanelProps {
   selection: InspectorSelection;
   onUpdateBp: (updater: (prev: StoreBlueprint) => StoreBlueprint) => void;
   onSelect: (next: InspectorSelection | null) => void;
-  onToggleSection: (sectionId: SectionKey) => void;
+  onToggleSection: (sectionId: string) => void;
   onMoveSection: (fromIdx: number, toIdx: number) => void;
+  onDuplicateCustomSection?: (customSectionId: string) => void;
+  onDeleteCustomSection?: (customSectionId: string) => void;
   onDownloadBenefitsPng: () => void;
   onShowSlide?: (slideIdx: number) => void;
 }
@@ -58,24 +61,29 @@ const INSPECTOR_EDITORS: Record<InspectorTargetId, ComponentType<InspectorTarget
   footer: FooterInspector,
   "footer-legal": FooterLegalInspector,
   pdp: PdpInspector,
+  "custom-section": CustomSectionInspector,
 };
 
 export function ElementInspectorPanel(props: ElementInspectorPanelProps) {
-  const { bp, selection, onSelect, onToggleSection, onMoveSection } = props;
+  const { bp, selection, onSelect, onToggleSection, onMoveSection, onDuplicateCustomSection, onDeleteCustomSection } =
+    props;
   const [newCategoryName, setNewCategoryName] = useState("");
   const meta = INSPECTOR_META[selection.targetId];
-  const sectionLayout = getNormalizedSectionLayout(bp.sections.layout);
-  const sectionIdx = meta.sectionKey
-    ? sectionLayout.findIndex((s) => s.id === meta.sectionKey)
-    : -1;
+  const sectionLayout = getNormalizedSectionLayout(bp.sections.layout, bp.sections.customSections);
+  const activeCustomSection = findActiveCustomSection(bp, selection);
+  const activeSectionId = activeCustomSection?.id ?? meta.sectionKey ?? null;
+  const sectionIdx = activeSectionId ? sectionLayout.findIndex((s) => s.id === activeSectionId) : -1;
   const sectionEntry = sectionIdx >= 0 ? sectionLayout[sectionIdx] : null;
 
   // Produto selecionado deixou de existir (ex.: removido): limpa a seleção fora do render
   const missingProduct = selection.targetId === "product-item" && !findSelectedProduct(bp, selection);
+  // Idem para seção personalizada excluída/inexistente
+  const missingCustomSection = selection.targetId === "custom-section" && !activeCustomSection;
+  const missingTarget = missingProduct || missingCustomSection;
   const onSelectRef = useLatest(onSelect);
   useEffect(() => {
-    if (missingProduct) onSelectRef.current(null);
-  }, [missingProduct, onSelectRef]);
+    if (missingTarget) onSelectRef.current(null);
+  }, [missingTarget, onSelectRef]);
 
   const TargetEditor = INSPECTOR_EDITORS[selection.targetId];
 
@@ -93,8 +101,30 @@ export function ElementInspectorPanel(props: ElementInspectorPanelProps) {
             Todos os elementos
           </button>
 
-          {sectionEntry && meta.sectionKey && (
+          {sectionEntry && activeSectionId && (
             <div className="flex items-center gap-1">
+              {activeCustomSection && onDuplicateCustomSection && (
+                <button
+                  type="button"
+                  onClick={() => onDuplicateCustomSection(activeCustomSection.id)}
+                  aria-label="Duplicar seção"
+                  title="Duplicar seção"
+                  className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-600 hover:bg-zinc-50"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {activeCustomSection && onDeleteCustomSection && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteCustomSection(activeCustomSection.id)}
+                  aria-label="Excluir seção"
+                  title="Excluir seção"
+                  className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-500 hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 disabled={sectionIdx <= 0}
@@ -117,7 +147,7 @@ export function ElementInspectorPanel(props: ElementInspectorPanelProps) {
               </button>
               <button
                 type="button"
-                onClick={() => onToggleSection(meta.sectionKey!)}
+                onClick={() => onToggleSection(activeSectionId)}
                 className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold ${
                   sectionEntry.enabled
                     ? "border-brand-300 bg-white text-brand-700 hover:bg-brand-50"
@@ -142,10 +172,10 @@ export function ElementInspectorPanel(props: ElementInspectorPanelProps) {
 
         <div className="mt-2.5">
           <div className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-600">
-            {meta.irrobaRef}
+            {activeCustomSection ? CUSTOM_SECTION_MODULE_LABELS[activeCustomSection.kind] : meta.irrobaRef}
           </div>
           <div className="font-heading text-sm font-bold text-irroba-ink">
-            {selection.label || meta.title}
+            {activeCustomSection?.title || selection.label || meta.title}
           </div>
         </div>
       </div>

@@ -1,10 +1,15 @@
 // Pacote de exportação para o painel Irroba (checklists, blocos HTML, CSS) e CSV de produtos.
 import { inferShowcaseSource } from "@/lib/catalog-source";
-import { escapeCssComment, escapeCsvCell, sanitizeCssColor, sanitizeUrl } from "../sanitize";
+import { escapeCssComment, escapeCsvCell, sanitizeCssColor, sanitizeCustomHtmlBlock, sanitizeUrl } from "../sanitize";
 import { CONTAINER_WIDTH_PX } from "@/lib/layout-patterns";
-import type { CompiledExport, StoreBlueprint } from "@/lib/types/blueprint";
+import { getNormalizedSectionLayout, type CompiledExport, type HtmlBlockExport, type StoreBlueprint } from "@/lib/types/blueprint";
 import { RADIUS_MAP } from "./helpers";
-import { buildEditorialGalleryHtmlBlock, buildEditorialLookbookHtmlBlock } from "./html-blocks";
+import {
+  buildCustomEditorialSplitHtml,
+  buildCustomGalleryBlockHtml,
+  buildEditorialGalleryHtmlBlock,
+  buildEditorialLookbookHtmlBlock,
+} from "./html-blocks";
 
 const HEADER_POSITION_LABELS: Record<StoreBlueprint["visualOverrides"]["header"]["position"], string> = {
   default: "Padrão",
@@ -14,9 +19,8 @@ const HEADER_POSITION_LABELS: Record<StoreBlueprint["visualOverrides"]["header"]
 
 export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
   const radiusInfo = RADIUS_MAP[bp.theme.radius];
-  // Conteúdo HTML reservado exclusivamente para seções editoriais sofisticadas
-  // (Banners -> Personalizar Loja > Banners | Benefícios -> Tarja Informativa | Vitrines -> Listas de Produtos)
-  const htmlBlocks = [buildEditorialGalleryHtmlBlock(bp), buildEditorialLookbookHtmlBlock(bp)];
+  // Conteúdo HTML reservado exclusivamente para seções editoriais sofisticadas e seções HTML customizadas
+  const htmlBlocks: HtmlBlockExport[] = [buildEditorialGalleryHtmlBlock(bp), buildEditorialLookbookHtmlBlock(bp)];
 
   const limeSettings: CompiledExport["limeSettings"] = [
     { section: "Tema Base", field: "Layout Base", value: "LIME (Código 940001)" },
@@ -138,6 +142,10 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
       section: "Rodapé (#footerInformationEditor & #footerLegalEditor)",
       controls: [
         {
+          label: "Estrutura padrão LIME",
+          value: "Layout 1 · 4 colunas (Redes, Institucional, Minha Conta, Atendimento) + 3 selos",
+        },
+        {
           label: "Largura informações",
           value:
             bp.visualOverrides.footer.width === "full"
@@ -245,6 +253,87 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
     titleAlign: bp.visualOverrides.productCard.titleAlign,
     limit: Math.max(8, sc.productIds.length),
   }));
+
+  // Exportar seções customizadas ativas para os módulos correspondentes na Irroba
+  const customSectionsList = bp.sections.customSections ?? [];
+  if (customSectionsList.length > 0) {
+    const customMap = new Map(customSectionsList.map((cs) => [cs.id, cs]));
+    const normalizedLayout = getNormalizedSectionLayout(bp.sections.layout, customSectionsList);
+    for (const cfg of normalizedLayout) {
+      if (!cfg.enabled || !cfg.isCustom) continue;
+      const sec = customMap.get(cfg.id);
+      if (!sec) continue;
+
+      if (sec.kind === "html") {
+        htmlBlocks.push({
+          id: sec.id,
+          name: sec.title,
+          moduleTitle: `Conteúdo HTML · ${sec.title}`,
+          recommendedWidth: sec.width === "full" ? "Largura Total" : "Padrão do site (1280px)",
+          placementNote:
+            "Seção personalizada de Conteúdo HTML pronta para colar em Mostrar códigos no SunEditor.",
+          html: sanitizeCustomHtmlBlock(sec.html),
+        });
+      } else if (sec.kind === "gallery") {
+        const galleryHtml = buildCustomGalleryBlockHtml(sec, bp);
+        if (galleryHtml) {
+          htmlBlocks.push({
+            id: sec.id,
+            name: sec.title,
+            moduleTitle: `Conteúdo HTML · ${sec.title}`,
+            recommendedWidth: "Padrão do site (1280px)",
+            placementNote: "Galeria de cards responsiva 100% CSS inline compatível com SunEditor.",
+            html: galleryHtml,
+          });
+        }
+      } else if (sec.kind === "editorialSplit") {
+        htmlBlocks.push({
+          id: sec.id,
+          name: sec.title,
+          moduleTitle: `Conteúdo HTML · ${sec.title}`,
+          recommendedWidth: "Largura Total",
+          placementNote: "Bloco editorial (Texto + Imagem) 100% CSS inline compatível com SunEditor.",
+          html: buildCustomEditorialSplitHtml(sec, bp),
+        });
+      } else if (sec.kind === "banner") {
+        bannerModulesChecklist.push({
+          slotName: sec.title,
+          bannerType: "Grade",
+          moduleType: "Personalizar Loja > Banners (Banner Versão 2)",
+          recommendedSize: "1920×650 (Desktop) / 900×900 (Mobile)",
+          imageUrl: sec.imageUrl || "(Definir imagem do banner)",
+          notes:
+            sec.mode === "artwork"
+              ? `Tipo: Grade (1 coluna). Posicionar conforme ordem definida na página inicial.`
+              : `Tipo: Grade. Banner editorial com título "${sec.headline}" e CTA "${sec.ctaText}".`,
+        });
+      } else if (sec.kind === "slimBanner") {
+        bannerModulesChecklist.push({
+          slotName: sec.title,
+          bannerType: "Grade",
+          moduleType: "Personalizar Loja > Banners (Banner Versão 2)",
+          recommendedSize: "1920×220 (Desktop) / 900×280 (Mobile)",
+          imageUrl: sec.imageUrl || "(Usar arte horizontal da campanha)",
+          notes:
+            sec.mode === "image" && sec.imageUrl
+              ? "Tipo: Grade (1 coluna). Faixa horizontal promocional."
+              : `Criar peça horizontal com texto "${sec.headline}" e subir em Personalizar Loja > Banners.`,
+        });
+      } else if (sec.kind === "showcase") {
+        productListsChecklist.push({
+          title: sec.title,
+          sourceType: sec.categoryFilter
+            ? `Categoria: ${sec.categoryFilter}`
+            : inferShowcaseSource(sec.title, sec.subtitle),
+          displayMode: "Carrossel",
+          desktopItems: 4,
+          mobileItems: 1.2,
+          titleAlign: bp.visualOverrides.productCard.titleAlign,
+          limit: sec.limit,
+        });
+      }
+    }
+  }
 
   const customCss = `/* CSS Personalizado — Tema LIME (${escapeCssComment(bp.brand.name)}) */
 /* Cole em: Editar tema > Código > CSS Personalizado */

@@ -7,6 +7,8 @@ import { useTabs } from "@/components/ui/useTabs";
 import { ElementInspectorPanel } from "@/components/studio/ElementInspectorPanel";
 import { AnnouncementBarControls } from "@/components/studio/AnnouncementBarControls";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
+import { CustomSectionKindSchema, type CustomSectionKind } from "@/lib/types/blueprint";
+import { createCustomSection } from "@/components/studio/customSections";
 import { makeSampleExtracted } from "@/lib/__tests__/fixtures";
 import { INSPECTOR_META, type InspectorTargetId } from "@/components/studio/inspectorTargets";
 
@@ -106,13 +108,15 @@ describe("useTabs", () => {
   });
 });
 
-function renderInspector(targetId: InspectorTargetId) {
+function renderInspector(targetId: InspectorTargetId, customKind?: CustomSectionKind) {
   const bp = buildHeuristicBlueprint(makeSampleExtracted());
+  const custom = customKind ? createCustomSection(customKind, bp) : undefined;
+  if (custom) bp.sections.customSections = [custom];
   return render(
     <ElementInspectorPanel
       previewId="p1"
       bp={bp}
-      selection={{ targetId, label: targetId, productId: bp.products[0]?.id }}
+      selection={{ targetId, label: targetId, productId: bp.products[0]?.id, customSectionId: custom?.id }}
       onUpdateBp={vi.fn()}
       onSelect={vi.fn()}
       onToggleSection={vi.fn()}
@@ -140,10 +144,18 @@ function expectAllControlsNamed() {
 }
 
 describe("acessibilidade do Inspector", () => {
-  it.each(Object.keys(INSPECTOR_META) as InspectorTargetId[])(
+  it.each((Object.keys(INSPECTOR_META) as InspectorTargetId[]).filter((t) => t !== "custom-section"))(
     "todo campo e botão de %s tem nome acessível",
     (target) => {
       renderInspector(target);
+      expectAllControlsNamed();
+    }
+  );
+
+  it.each(CustomSectionKindSchema.options)(
+    "todo campo e botão da seção personalizada %s tem nome acessível",
+    (kind) => {
+      renderInspector("custom-section", kind);
       expectAllControlsNamed();
     }
   );

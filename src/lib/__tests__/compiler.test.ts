@@ -431,4 +431,80 @@ describe("XSS no documento compilado", () => {
     expect(html).toContain("Frete grátis acima de R$ 199");
     expect(html).toContain("5% OFF no PIX imediato");
   });
+
+  it("compila seções dinâmicas adicionadas, overrides HTML editoriais, CSS slide-horizontal, nav sem Início, filtro na esquerda e rodapé LIME completo", () => {
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    bp.visualOverrides.announcement.transitionMode = "slide-horizontal";
+    bp.visualOverrides.announcement.messages = [
+      "Frete grátis acima de R$ 199",
+      "5% OFF no PIX imediato",
+    ];
+    bp.footer.facebook = "https://facebook.com/estiloveggie";
+    bp.footer.phone = "(16) 3333-1234";
+    bp.footer.openingHours = "Seg. à Sex. 09h às 18h";
+    bp.footer.cnpj = "12.345.678/0001-90";
+    bp.sections.editorialGalleryCustomHtml = '<div style="padding:20px;">Galeria IA</div>';
+    bp.sections.customSections = [
+      {
+        id: "custom-html-1",
+        kind: "html",
+        title: "Bloco Institucional IA",
+        width: "container",
+        html: '<div style="padding:24px;"><p>Bloco Customizado</p><script>evil()</script></div>',
+      },
+      {
+        id: "custom-gallery-1",
+        kind: "gallery",
+        title: "Galeria Extra",
+        columns: 3,
+        items: [
+          {
+            id: "g1",
+            title: "Card Extra",
+            subtitle: "Coleção",
+            imageUrl: "https://cdn.example.com/card.jpg",
+            href: "#vitrines",
+            enabled: true,
+          },
+        ],
+      },
+    ];
+    bp.sections.layout = [
+      { id: "hero", label: "Banner Principal", irrobaModule: "Banner Versão 2", enabled: true },
+      { id: "custom-html-1", label: "Bloco Institucional IA", irrobaModule: "Conteúdo HTML", enabled: true, isCustom: true, customKind: "html" },
+      { id: "custom-gallery-1", label: "Galeria Extra", irrobaModule: "Conteúdo HTML · Galeria", enabled: true, isCustom: true, customKind: "gallery" },
+    ];
+
+    const html = compileStorefrontDocument(bp, undefined, { studioInspector: true });
+    // Seções customizadas e override HTML editorial sanitizado
+    expect(html).toContain('data-irb-custom-section="custom-html-1"');
+    expect(html).toContain("Bloco Customizado");
+    expect(html).not.toContain("<script>evil()</script>");
+    expect(html).toContain('data-irb-custom-section="custom-gallery-1"');
+    expect(html).toContain("Galeria IA");
+
+    // Exportação inclui os blocos HTML extras somente quando presentes
+    const exported = compileIrrobaExport(bp);
+    expect(exported.htmlBlocks.length).toBeGreaterThan(2);
+    expect(exported.htmlBlocks.some((b) => b.name.includes("Bloco Institucional IA"))).toBe(true);
+
+    // Overline slide-horizontal com especificidade alta e classe is-resetting
+    expect(html).toContain('.overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-active');
+    expect(html).toContain(".overlineModule--ticker .overlineModule__slide.is-resetting");
+
+    // Navbar desktop e mobile drawer sem "Início"
+    const desktopNavMatch = html.match(/<nav class="headerContent_[^"]+"[\s\S]*?<\/nav>/);
+    expect(desktopNavMatch?.[0] ?? "").not.toMatch(/>\s*Início\s*</i);
+    const mobileNavMatch = html.match(/id="irb-mobile-drawer"[\s\S]*?<\/aside>/);
+    expect(mobileNavMatch?.[0] ?? "").not.toMatch(/>\s*Início\s*</i);
+
+    // Filtro lateral esquerdo na tela de categoria + rodapé LIME completo
+    expect(html).toContain('id="irb-cat-sidebar"');
+    expect(html).toContain("pageColumnLeft categorySidebar");
+    expect(html).toContain("footerContent--top footerContent--layout1");
+    expect(html).toContain("footerContent--bottom");
+    expect(html).toContain("footer-legal-info");
+    expect(html).toContain("12.345.678/0001-90");
+    expect(html).toContain("(16) 3333-1234");
+  });
 });

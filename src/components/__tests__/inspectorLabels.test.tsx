@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { ElementInspectorPanel } from "@/components/studio/ElementInspectorPanel";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
+import { CustomSectionKindSchema, type CustomSectionKind } from "@/lib/types/blueprint";
+import { createCustomSection } from "@/components/studio/customSections";
 import { makeSampleExtracted } from "@/lib/__tests__/fixtures";
 import { INSPECTOR_META, type InspectorTargetId } from "@/components/studio/inspectorTargets";
 
@@ -29,13 +31,25 @@ function collectLabels(root: HTMLElement): string[] {
   return out;
 }
 
-function renderLabels(targetId: InspectorTargetId, extra: { subIndex?: number; showcaseIdx?: number } = {}) {
+function renderLabels(
+  targetId: InspectorTargetId,
+  extra: { subIndex?: number; showcaseIdx?: number; customKind?: CustomSectionKind } = {}
+) {
   const bp = buildHeuristicBlueprint(makeSampleExtracted());
+  const custom = extra.customKind ? createCustomSection(extra.customKind, bp) : undefined;
+  if (custom) bp.sections.customSections = [custom];
   const { container } = render(
     <ElementInspectorPanel
       previewId="p1"
       bp={bp}
-      selection={{ targetId, label: targetId, productId: bp.products[0]?.id, ...extra }}
+      selection={{
+        targetId,
+        label: targetId,
+        productId: bp.products[0]?.id,
+        subIndex: extra.subIndex,
+        showcaseIdx: extra.showcaseIdx,
+        customSectionId: custom?.id,
+      }}
       onUpdateBp={vi.fn()}
       onSelect={vi.fn()}
       onToggleSection={vi.fn()}
@@ -56,6 +70,9 @@ function snapshotAll(): Record<string, string[]> {
   }
   result["extraShowcases#2"] = renderLabels("extraShowcases", { showcaseIdx: 2 });
   result["hero#1"] = renderLabels("hero", { subIndex: 1 });
+  for (const kind of CustomSectionKindSchema.options) {
+    result[`custom-section#${kind}`] = renderLabels("custom-section", { customKind: kind });
+  }
   return result;
 }
 

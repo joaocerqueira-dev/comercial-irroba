@@ -8,14 +8,19 @@ import { useTimeout } from "@/lib/client/useTimeout";
 import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
 import { compileIrrobaExport, compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
 import {
+  CUSTOM_SECTION_MODULE_LABELS,
   DEFAULT_SECTION_LAYOUT,
   getNormalizedSectionLayout,
+  isBuiltinSectionKey,
+  type CustomSection,
+  type CustomSectionKind,
   type DesignInsight,
-  type SectionKey,
+  type SectionConfig,
   type StoreBlueprint,
 } from "@/lib/types/blueprint";
 import { useTabs } from "@/components/ui/useTabs";
 import { useCopyToClipboard } from "@/components/ui/useCopyToClipboard";
+import { createCustomSection, newCustomSectionId } from "./customSections";
 import { INSPECTOR_META, type InspectorSelection, type InspectorTargetId } from "./inspectorTargets";
 
 export type EditorSubTab = "insights" | "colors" | "banners" | "structure";
@@ -64,6 +69,7 @@ export function useStudioState({
   const [savedNotice, setSavedNotice] = useState(false);
   const { copiedKey, copy } = useCopyToClipboard(2000);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragSectionIdxRef = useRef<number | null>(null);
@@ -115,8 +121,20 @@ export function useStudioState({
   const editorPanelId = editorTabs.panelId("insights");
 
   const hoverSidebarTarget = useCallback(
-    (targetId: InspectorTargetId | null) => {
-      postToPreview({ type: "irb-studio:hover-target", targetId });
+    (target: InspectorTargetId | InspectorSelection | null) => {
+      if (!target) {
+        postToPreview({ type: "irb-studio:hover-target", targetId: null });
+        return;
+      }
+      if (typeof target === "string") {
+        postToPreview({ type: "irb-studio:hover-target", targetId: target });
+        return;
+      }
+      postToPreview({
+        type: "irb-studio:hover-target",
+        targetId: target.targetId,
+        customSectionId: target.customSectionId ?? null,
+      });
     },
     [postToPreview]
   );
@@ -149,6 +167,7 @@ export function useStudioState({
         productId?: string;
         showcaseIdx?: number;
         subIndex?: number;
+        customSectionId?: string;
         scrollY?: unknown;
         slideIdx?: unknown;
       };
@@ -173,6 +192,7 @@ export function useStudioState({
           productId: msg.productId,
           showcaseIdx: msg.showcaseIdx,
           subIndex: msg.subIndex,
+          customSectionId: msg.customSectionId,
         });
         setMobilePane("edit");
         sidebarScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -207,7 +227,15 @@ export function useStudioState({
     () => (activeTab === "export" ? compileIrrobaExport(bp) : null),
     [activeTab, bp]
   );
-  const sectionLayout = useMemo(() => getNormalizedSectionLayout(bp.sections.layout), [bp.sections.layout]);
+  const sectionLayout = useMemo(
+    () => getNormalizedSectionLayout(bp.sections.layout, bp.sections.customSections),
+    [bp.sections.layout, bp.sections.customSections]
+  );
+
+  const toSectionSelection = (sec: SectionConfig): InspectorSelection =>
+    isBuiltinSectionKey(sec.id)
+      ? { targetId: sec.id, label: sec.label }
+      : { targetId: "custom-section", customSectionId: sec.id, label: sec.label };
 
   const updateBp = (updater: (prev: StoreBlueprint) => StoreBlueprint) => {
     setBp((prev) => updater(prev));
@@ -217,7 +245,7 @@ export function useStudioState({
   const moveSection = (fromIdx: number, toIdx: number) => {
     if (toIdx < 0 || toIdx >= sectionLayout.length || fromIdx === toIdx) return;
     updateBp((prev) => {
-      const next = getNormalizedSectionLayout(prev.sections.layout);
+      const next = getNormalizedSectionLayout(prev.sections.layout, prev.sections.customSections);
       const [moved] = next.splice(fromIdx, 1);
       if (!moved) return prev;
       next.splice(toIdx, 0, moved);
@@ -225,9 +253,9 @@ export function useStudioState({
     });
   };
 
-  const toggleSection = (sectionId: SectionKey) => {
+  const toggleSection = (sectionId: string) => {
     updateBp((prev) => {
-      const next = getNormalizedSectionLayout(prev.sections.layout).map((s) =>
+      const next = getNormalizedSectionLayout(prev.sections.layout, prev.sections.customSections).map((s) =>
         s.id === sectionId ? { ...s, enabled: !s.enabled } : s
       );
       return { ...prev, sections: { ...prev.sections, layout: next } };
@@ -239,9 +267,108 @@ export function useStudioState({
       ...prev,
       sections: {
         ...prev.sections,
-        layout: DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s })),
+        layout: getNormalizedSectionLayout(
+          DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s })),
+          prev.sections.customSections
+        ),
       },
     }));
+  };
+
+  const addCustomSection = (kind: CustomSectionKind) => {
+    const created = createCustomSection(kind, bp);
+    updateBp((prev) => {
+      const existingCustom = prev.sections.customSections ?? [];
+      const nextCustom = [...existingCustom, created];
+      const baseLayout = getNormalizedSectionLayout(prev.sections.layout, existingCustom);
+      const nextLayout: SectionConfig[] = [
+        ...baseLayout,
+        {
+          id: created.id,
+          label: created.title,
+          irrobaModule: CUSTOM_SECTION_MODULE_LABELS[created.kind],
+          enabled: true,
+          isCustom: true,
+          customKind: created.kind,
+        },
+      ];
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          customSections: nextCustom,
+          layout: nextLayout,
+        },
+      };
+    });
+    setAddSectionOpen(false);
+    selectAndFocusElement(
+      { targetId: "custom-section", customSectionId: created.id, label: created.title },
+      true
+    );
+  };
+
+  const duplicateCustomSection = (customSectionId: string) => {
+    const source = (bp.sections.customSections ?? []).find((c) => c.id === customSectionId);
+    if (!source) return;
+    const copyId = newCustomSectionId(source.kind);
+    const copyTitle = `${source.title} (Cópia)`;
+    const cloned: CustomSection = { ...source, id: copyId, title: copyTitle };
+
+    updateBp((prev) => {
+      const existingCustom = prev.sections.customSections ?? [];
+      const srcIdx = existingCustom.findIndex((c) => c.id === customSectionId);
+      const nextCustom = [...existingCustom];
+      if (srcIdx >= 0) nextCustom.splice(srcIdx + 1, 0, cloned);
+      else nextCustom.push(cloned);
+
+      const baseLayout = getNormalizedSectionLayout(prev.sections.layout, existingCustom);
+      const layoutIdx = baseLayout.findIndex((s) => s.id === customSectionId);
+      const copyEntry: SectionConfig = {
+        id: cloned.id,
+        label: cloned.title,
+        irrobaModule: CUSTOM_SECTION_MODULE_LABELS[cloned.kind],
+        enabled: true,
+        isCustom: true,
+        customKind: cloned.kind,
+      };
+      const nextLayout = [...baseLayout];
+      if (layoutIdx >= 0) nextLayout.splice(layoutIdx + 1, 0, copyEntry);
+      else nextLayout.push(copyEntry);
+
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          customSections: nextCustom,
+          layout: nextLayout,
+        },
+      };
+    });
+    selectAndFocusElement(
+      { targetId: "custom-section", customSectionId: cloned.id, label: cloned.title },
+      true
+    );
+  };
+
+  const deleteCustomSection = (customSectionId: string) => {
+    updateBp((prev) => {
+      const nextCustom = (prev.sections.customSections ?? []).filter((c) => c.id !== customSectionId);
+      const nextLayout = getNormalizedSectionLayout(prev.sections.layout, nextCustom).filter(
+        (s) => s.id !== customSectionId
+      );
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          customSections: nextCustom,
+          layout: nextLayout,
+        },
+      };
+    });
+    if (selectedElement?.customSectionId === customSectionId) {
+      selectAndFocusElement(null, false);
+    }
   };
 
   const copyText = async (key: string, text: string) => {
@@ -437,6 +564,8 @@ export function useStudioState({
     copiedKey,
     newCategoryName,
     setNewCategoryName,
+    addSectionOpen,
+    setAddSectionOpen,
     dragSectionIdx,
     setDragSectionIdx,
     dragOverIdx,
@@ -458,10 +587,14 @@ export function useStudioState({
     compareHtml,
     compiled,
     sectionLayout,
+    toSectionSelection,
     updateBp,
     moveSection,
     toggleSection,
     resetSectionLayout,
+    addCustomSection,
+    duplicateCustomSection,
+    deleteCustomSection,
     copyText,
     handleSave,
     handleReanalyzeWithGemini,

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { escapeCssComment, safeJsonForScript, sanitizeUrl } from "@/lib/irroba-blocks/sanitize";
+import {
+  escapeCssComment,
+  safeJsonForScript,
+  sanitizeCustomHtmlBlock,
+  sanitizeUrl,
+  validateSunEditorHtml,
+} from "@/lib/irroba-blocks/sanitize";
 import { assertPublicHttpUrl, isPrivateIp } from "@/lib/net/safe-url";
 import { checkBasicAuth, isPublicPath } from "@/middleware";
 
@@ -61,5 +67,37 @@ describe("basic auth", () => {
     expect(isPublicPath("/api/health")).toBe(true);
     expect(isPublicPath("/api/health/x")).toBe(false);
     expect(isPublicPath("/api/healthz")).toBe(false);
+  });
+});
+
+describe("sanitizeCustomHtmlBlock & validateSunEditorHtml", () => {
+  it("remove tags perigosas, event handlers e URLs/CSS inseguros preservando estilos inline legítimos", () => {
+    const dirty = `
+      <div style="background:#fff;padding:16px;color:red;background-image:url(javascript:alert(1));width:expression(alert(1))">
+        <h2 onclick="alert(1)" style="margin:0;color:#111;">Título</h2>
+        <script>alert(1)</script>
+        <style>.x{color:red}</style>
+        <iframe src="https://evil.com"></iframe>
+        <form action="/steal"><input type="text" /></form>
+        <a href="javascript:alert(2)" style="font-weight:bold;">Link Malicioso</a>
+        <a href="https://loja.com.br/colecao" style="background-image:url(data:text/html,evil);">Botão Seguro</a>
+        <img src="https://cdn.loja.com.br/banner.jpg" onerror="fetch('/x')" style="background:e\\xpression(1);border-radius:8px;" />
+      </div>
+    `;
+    const clean = sanitizeCustomHtmlBlock(dirty);
+    expect(clean).not.toMatch(/<script|<style|<iframe|<form|<input/i);
+    expect(clean).not.toMatch(/onclick=|onerror=|javascript:|expression\(|data:text/i);
+    expect(clean).toContain("Título");
+    expect(clean).toContain('href="https://loja.com.br/colecao"');
+    expect(clean).toContain('src="https://cdn.loja.com.br/banner.jpg"');
+    expect(clean).toContain("padding:16px");
+    expect(clean).toContain("border-radius:8px");
+  });
+
+  it("reporta avisos para HTML incompatível com SunEditor", () => {
+    const warnings = validateSunEditorHtml(
+      '<style>.a{}</style><script>x()</script><div onclick="y()" style="width:expression(1)"></div>'
+    );
+    expect(warnings.length).toBeGreaterThanOrEqual(4);
   });
 });

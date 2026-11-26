@@ -8,6 +8,7 @@ export function buildStudioInspectorSnippet(): string {
     body.irb-inspect-mode .headerContent_navInline,
     body.irb-inspect-mode .headerContent_categories,
     body.irb-inspect-mode [data-irb-section],
+    body.irb-inspect-mode [data-irb-custom-section],
     body.irb-inspect-mode .secondaryBannerSection,
     body.irb-inspect-mode .productList,
     body.irb-inspect-mode article.product,
@@ -107,6 +108,7 @@ export function buildStudioInspectorSnippet(): string {
       let activeSelection = null;
       let hoveredMatch = null;
       let sidebarHoverTargetId = null;
+      let sidebarHoverCustomSectionId = null;
 
       function syncBodyClass() {
         document.body.classList.toggle('irb-inspect-mode', Boolean(inspectMode));
@@ -132,6 +134,9 @@ export function buildStudioInspectorSnippet(): string {
       function findElementForSelection(sel) {
         if (!sel || !sel.targetId) return null;
         const t = sel.targetId;
+        if (t === 'custom-section' && sel.customSectionId) {
+          return document.querySelector('[data-irb-custom-section="' + CSS.escape(sel.customSectionId) + '"]');
+        }
         if (t === 'announcement') return document.querySelector('.overlineModule');
         if (t === 'header-logo') return document.querySelector('.headerContent_logo');
         if (t === 'header-nav') return document.querySelector('.headerContent_navInline, .headerContent_categories') || document.querySelector('header.irb-header');
@@ -158,7 +163,7 @@ export function buildStudioInspectorSnippet(): string {
         if (t === 'footer-legal') return document.querySelector('.footer-legal-info');
         if (t === 'footer') return document.querySelector('.footerContent--top') || document.querySelector('footer.footer');
         if (t === 'pdp') return document.querySelector('#irb-view-product .pdpGrid');
-        return null;
+        return document.querySelector('[data-irb-section="' + CSS.escape(t) + '"]');
       }
 
       function resolveEditableTarget(node) {
@@ -269,6 +274,13 @@ export function buildStudioInspectorSnippet(): string {
         const newsletter = node.closest('[data-irb-section="newsletter"]');
         if (newsletter) return { targetId: 'newsletter', label: 'Newsletter', el: newsletter };
 
+        const customSec = node.closest('[data-irb-custom-section]');
+        if (customSec) {
+          const csId = customSec.getAttribute('data-irb-custom-section') || '';
+          const csTitle = customSec.getAttribute('data-irb-custom-title') || 'Seção Personalizada';
+          return { targetId: 'custom-section', customSectionId: csId, label: csTitle, el: customSec };
+        }
+
         const legal = node.closest('.footer-legal-info');
         if (legal) return { targetId: 'footer-legal', label: 'Rodapé — Faixa Legal', el: legal };
 
@@ -331,7 +343,10 @@ export function buildStudioInspectorSnippet(): string {
         }
 
         if (sidebarHoverTargetId) {
-          const sideEl = findElementForSelection({ targetId: sidebarHoverTargetId });
+          const sideEl = findElementForSelection({
+            targetId: sidebarHoverTargetId,
+            customSectionId: sidebarHoverCustomSectionId || undefined,
+          });
           if (sideEl) {
             const resolved = resolveEditableTarget(sideEl) || { label: sidebarHoverTargetId, el: sideEl };
             placeOverlay(hoverBox, hoverBadge, sideEl, resolved.label, true);
@@ -425,6 +440,7 @@ export function buildStudioInspectorSnippet(): string {
               productId: match.productId,
               showcaseIdx: match.showcaseIdx,
               subIndex: updatedSlide,
+              customSectionId: match.customSectionId,
             };
             activeSelection = payload;
             refreshOverlays();
@@ -479,8 +495,12 @@ export function buildStudioInspectorSnippet(): string {
           refreshOverlays();
         } else if (msg.type === 'irb-studio:hover-target') {
           sidebarHoverTargetId = msg.targetId || null;
+          sidebarHoverCustomSectionId = msg.customSectionId || null;
           if (msg.scrollIntoView && sidebarHoverTargetId) {
-            const el = findElementForSelection({ targetId: sidebarHoverTargetId });
+            const el = findElementForSelection({
+              targetId: sidebarHoverTargetId,
+              customSectionId: sidebarHoverCustomSectionId || undefined,
+            });
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
           refreshOverlays();
