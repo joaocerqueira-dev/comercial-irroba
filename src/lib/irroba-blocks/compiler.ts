@@ -1,7 +1,14 @@
 import { isApparelText, isFootwearText } from "@/lib/catalog/niche";
 import { inferShowcaseSource } from "@/lib/catalog-source";
 import { generateBenefitsBannerDataUri } from "./banner-art-generator";
-import { getBenefitSvgIcon, IRROBA_ICONS } from "./icons";
+import {
+  getBenefitSvgIcon,
+  IRROBA_FOOTER_PAYMENT_SEALS_SVG,
+  IRROBA_FOOTER_PLATFORM_LOGO_SVG,
+  IRROBA_FOOTER_SECURITY_SEAL_SVG,
+  IRROBA_FOOTER_SHIPPING_SEAL_SVG,
+  IRROBA_ICONS,
+} from "./icons";
 import {
   escapeCssComment,
   safeJsonForScript,
@@ -10,6 +17,7 @@ import {
   escapeHtml,
   formatBrl,
   sanitizeCssColor,
+  sanitizeCustomHtmlBlock,
   sanitizeFontName,
   sanitizeUrl,
 } from "./sanitize";
@@ -24,7 +32,9 @@ import {
 } from "@/lib/layout-patterns";
 import {
   getNormalizedSectionLayout,
+  isBuiltinSectionKey,
   type CompiledExport,
+  type CustomSection,
   type HtmlBlockExport,
   type SectionKey,
   type StoreBlueprint,
@@ -275,6 +285,7 @@ function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
   </div>
 </div>`;
 
+  const customHtml = bp.sections.editorialGalleryCustomHtml?.trim();
   return {
     id: "irb-html-editorial-gallery",
     name: "Galeria Editorial de Coleções (3:4 + Movimento Suave)",
@@ -282,8 +293,15 @@ function buildEditorialGalleryHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
     recommendedWidth: "Largura Total",
     placementNote:
       "Posicionar em Página Inicial > Topo do Conteúdo logo após a Tarja Informativa. Usa 100% CSS inline + animação SVG SMIL nativa sem JavaScript (compatível com SunEditor).",
-    html,
+    html: customHtml ? sanitizeCustomHtmlBlock(customHtml) : html,
   };
+}
+
+export function getDefaultEditorialGalleryHtml(bp: StoreBlueprint): string {
+  return buildEditorialGalleryHtmlBlock({
+    ...bp,
+    sections: { ...bp.sections, editorialGalleryCustomHtml: undefined },
+  }).html;
 }
 
 function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
@@ -380,6 +398,7 @@ function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
   </div>
 </div>`;
 
+  const customHtml = bp.sections.editorialLookbookCustomHtml?.trim();
   return {
     id: "irb-html-editorial-lookbook",
     name: "Lookbook Split + Faixa Manifesto da Marca",
@@ -387,15 +406,97 @@ function buildEditorialLookbookHtmlBlock(bp: StoreBlueprint): HtmlBlockExport {
     recommendedWidth: "Largura Total",
     placementNote:
       "Posicionar entre a 1ª e 2ª Lista de Produtos ou antes das Avaliações. Eleva o posicionamento da marca com composição editorial 10:7 + detalhe 1:1 e fechamento contrastado.",
-    html,
+    html: customHtml ? sanitizeCustomHtmlBlock(customHtml) : html,
   };
+}
+
+export function getDefaultEditorialLookbookHtml(bp: StoreBlueprint): string {
+  return buildEditorialLookbookHtmlBlock({
+    ...bp,
+    sections: { ...bp.sections, editorialLookbookCustomHtml: undefined },
+  }).html;
+}
+
+function buildCustomGalleryBlockHtml(
+  sec: Extract<CustomSection, { kind: "gallery" }>,
+  bp: StoreBlueprint
+): string {
+  const radius = RADIUS_MAP[bp.theme.radius].css;
+  const bodyBg = sanitizeCssColor(bp.theme.bodyBackground, PALETTE.white);
+  const bodyColor = sanitizeCssColor(bp.theme.bodyForeground, PALETTE.ink);
+  const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, PALETTE.ink);
+  const headingFont = sanitizeFontName(bp.theme.headingFont, FONT_FALLBACKS.heading);
+  const cardHeightPx = sec.cardHeightPx
+    ? Math.min(900, Math.max(180, Math.round(sec.cardHeightPx)))
+    : 340;
+  const colBasis = sec.columns === 2 ? "44%" : sec.columns === 4 ? "22%" : "30%";
+  const items = sec.items.filter((i) => i.enabled);
+  if (items.length === 0) return "";
+
+  const cardsHtml = items
+    .map((item) => {
+      const imgUrl = sanitizeUrl(item.imageUrl, "");
+      const href = escapeAttr(sanitizeUrl(item.href, "#vitrines"));
+      const mediaMarkup = imgUrl
+        ? `<img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(cleanAltText(item.title))}" referrerpolicy="no-referrer" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" />`
+        : `<div style="position:absolute;inset:0;background:linear-gradient(135deg,${primaryBg},#18181b);"></div>`;
+      return `<a href="${href}" style="position:relative;flex:1 1 ${colBasis};min-width:220px;height:${cardHeightPx}px;border-radius:${radius};overflow:hidden;display:block;text-decoration:none;background:#141416;color:#ffffff;box-sizing:border-box;">
+    ${mediaMarkup}
+    <div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.08) 0%,rgba(0,0,0,0.78) 100%);"></div>
+    <div style="position:absolute;left:20px;right:20px;bottom:20px;color:#ffffff;">
+      ${item.subtitle ? `<div style="font-size:10px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;opacity:0.86;margin-bottom:6px;">${escapeHtml(item.subtitle)}</div>` : ""}
+      <div style="font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(19px,1.9vw,24px);font-weight:600;line-height:1.15;">${escapeHtml(item.title)}</div>
+    </div>
+  </a>`;
+    })
+    .join("\n      ");
+
+  return `<div style="padding:clamp(34px,4.5vw,56px) 0;background:${bodyBg};color:${bodyColor};box-sizing:border-box;">
+  <div style="max-width:${CONTAINER_WIDTH_PX}px;margin:0 auto;">
+    <div style="margin-bottom:24px;text-align:center;">
+      <h2 style="margin:0 0 6px;font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(24px,3vw,34px);font-weight:600;color:${bodyColor};">${escapeHtml(sec.title)}</h2>
+      ${sec.subtitle ? `<p style="margin:0;font-size:14px;opacity:0.75;">${escapeHtml(sec.subtitle)}</p>` : ""}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:18px;">
+      ${cardsHtml}
+    </div>
+  </div>
+</div>`;
+}
+
+function buildCustomEditorialSplitHtml(
+  sec: Extract<CustomSection, { kind: "editorialSplit" }>,
+  bp: StoreBlueprint
+): string {
+  const bg = sanitizeCssColor(sec.backgroundColor ?? bp.theme.neutralBackground, PALETTE.neutralSurface);
+  const fg = sanitizeCssColor(sec.textColor ?? bp.theme.neutralForeground, PALETTE.ink);
+  const headingFont = sanitizeFontName(bp.theme.headingFont, FONT_FALLBACKS.heading);
+  const radius = RADIUS_MAP[bp.theme.radius].css;
+  const imgUrl = sanitizeUrl(sec.imageUrl, "");
+  const flexDir = sec.imageSide === "right" ? "row-reverse" : "row";
+  const ctaHref = escapeAttr(sanitizeUrl(sec.ctaHref, "#vitrines"));
+
+  return `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:clamp(42px,6vw,74px) clamp(20px,4vw,48px);box-sizing:border-box;">
+  <div style="max-width:${CONTAINER_WIDTH_PX}px;margin:0 auto;display:flex;flex-wrap:wrap;flex-direction:${flexDir};align-items:center;gap:clamp(28px,4vw,56px);">
+    <div style="flex:1.1 1 320px;">
+      <div style="position:relative;aspect-ratio:4/3;border-radius:${radius};overflow:hidden;background:#18181b;">
+        ${imgUrl ? `<img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(sec.headline)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block;" />` : ""}
+      </div>
+    </div>
+    <div style="flex:1 1 320px;">
+      ${sec.eyebrow ? `<div style="font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;opacity:0.7;margin-bottom:10px;">${escapeHtml(sec.eyebrow)}</div>` : ""}
+      <h2 style="margin:0 0 14px;font-family:'${headingFont}',${fontFallback(headingFont)};font-size:clamp(26px,3.2vw,40px);font-weight:500;line-height:1.12;color:${fg};">${escapeHtml(sec.headline)}</h2>
+      ${sec.description ? `<p style="margin:0 0 24px;font-size:15px;line-height:1.7;opacity:0.86;">${escapeHtml(sec.description)}</p>` : ""}
+      ${sec.ctaText ? `<a href="${ctaHref}" style="display:inline-block;padding:12px 24px;border:1px solid ${fg};color:${fg};text-decoration:none;font-size:12px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;border-radius:${radius};">${escapeHtml(sec.ctaText)}</a>` : ""}
+    </div>
+  </div>
+</div>`;
 }
 
 export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
   const radiusInfo = RADIUS_MAP[bp.theme.radius];
-  // Conteúdo HTML reservado exclusivamente para seções editoriais sofisticadas
-  // (Banners -> Personalizar Loja > Banners | Benefícios -> Tarja Informativa | Vitrines -> Listas de Produtos)
-  const htmlBlocks = [
+  // Conteúdo HTML reservado exclusivamente para seções editoriais sofisticadas e seções HTML customizadas
+  const htmlBlocks: HtmlBlockExport[] = [
     buildEditorialGalleryHtmlBlock(bp),
     buildEditorialLookbookHtmlBlock(bp),
   ];
@@ -514,6 +615,10 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
       section: "Rodapé (#footerInformationEditor & #footerLegalEditor)",
       controls: [
         {
+          label: "Estrutura padrão LIME",
+          value: "Layout 1 · 4 colunas (Redes, Institucional, Minha Conta, Atendimento) + 3 selos",
+        },
+        {
           label: "Largura informações",
           value: bp.visualOverrides.footer.width === "full" ? "Largura Total" : `Padrão do site (${CONTAINER_WIDTH_PX}px)`,
         },
@@ -622,6 +727,87 @@ export function compileIrrobaExport(bp: StoreBlueprint): CompiledExport {
     })
   );
 
+  // Exportar seções customizadas ativas para os módulos correspondentes na Irroba
+  const customSectionsList = bp.sections.customSections ?? [];
+  if (customSectionsList.length > 0) {
+    const customMap = new Map(customSectionsList.map((cs) => [cs.id, cs]));
+    const normalizedLayout = getNormalizedSectionLayout(bp.sections.layout, customSectionsList);
+    for (const cfg of normalizedLayout) {
+      if (!cfg.enabled || !cfg.isCustom) continue;
+      const sec = customMap.get(cfg.id);
+      if (!sec) continue;
+
+      if (sec.kind === "html") {
+        htmlBlocks.push({
+          id: sec.id,
+          name: sec.title,
+          moduleTitle: `Conteúdo HTML · ${sec.title}`,
+          recommendedWidth: sec.width === "full" ? "Largura Total" : "Padrão do site (1280px)",
+          placementNote:
+            "Seção personalizada de Conteúdo HTML pronta para colar em Mostrar códigos no SunEditor.",
+          html: sanitizeCustomHtmlBlock(sec.html),
+        });
+      } else if (sec.kind === "gallery") {
+        const galleryHtml = buildCustomGalleryBlockHtml(sec, bp);
+        if (galleryHtml) {
+          htmlBlocks.push({
+            id: sec.id,
+            name: sec.title,
+            moduleTitle: `Conteúdo HTML · ${sec.title}`,
+            recommendedWidth: "Padrão do site (1280px)",
+            placementNote: "Galeria de cards responsiva 100% CSS inline compatível com SunEditor.",
+            html: galleryHtml,
+          });
+        }
+      } else if (sec.kind === "editorialSplit") {
+        htmlBlocks.push({
+          id: sec.id,
+          name: sec.title,
+          moduleTitle: `Conteúdo HTML · ${sec.title}`,
+          recommendedWidth: "Largura Total",
+          placementNote: "Bloco editorial (Texto + Imagem) 100% CSS inline compatível com SunEditor.",
+          html: buildCustomEditorialSplitHtml(sec, bp),
+        });
+      } else if (sec.kind === "banner") {
+        bannerModulesChecklist.push({
+          slotName: sec.title,
+          bannerType: "Grade",
+          moduleType: "Personalizar Loja > Banners (Banner Versão 2)",
+          recommendedSize: "1920×650 (Desktop) / 900×900 (Mobile)",
+          imageUrl: sec.imageUrl || "(Definir imagem do banner)",
+          notes:
+            sec.mode === "artwork"
+              ? `Tipo: Grade (1 coluna). Posicionar conforme ordem definida na página inicial.`
+              : `Tipo: Grade. Banner editorial com título "${sec.headline}" e CTA "${sec.ctaText}".`,
+        });
+      } else if (sec.kind === "slimBanner") {
+        bannerModulesChecklist.push({
+          slotName: sec.title,
+          bannerType: "Grade",
+          moduleType: "Personalizar Loja > Banners (Banner Versão 2)",
+          recommendedSize: "1920×220 (Desktop) / 900×280 (Mobile)",
+          imageUrl: sec.imageUrl || "(Usar arte horizontal da campanha)",
+          notes:
+            sec.mode === "image" && sec.imageUrl
+              ? "Tipo: Grade (1 coluna). Faixa horizontal promocional."
+              : `Criar peça horizontal com texto "${sec.headline}" e subir em Personalizar Loja > Banners.`,
+        });
+      } else if (sec.kind === "showcase") {
+        productListsChecklist.push({
+          title: sec.title,
+          sourceType: sec.categoryFilter
+            ? `Categoria: ${sec.categoryFilter}`
+            : inferShowcaseSource(sec.title, sec.subtitle),
+          displayMode: "Carrossel",
+          desktopItems: 4,
+          mobileItems: 1.2,
+          titleAlign: bp.visualOverrides.productCard.titleAlign,
+          limit: sec.limit,
+        });
+      }
+    }
+  }
+
   const customCss = `/* CSS Personalizado — Tema LIME (${escapeCssComment(bp.brand.name)}) */
 /* Cole em: Editar tema > Código > CSS Personalizado */
 .product.product-grid {
@@ -728,6 +914,7 @@ function buildStudioInspectorSnippet(): string {
     body.irb-inspect-mode .headerContent_navInline,
     body.irb-inspect-mode .headerContent_categories,
     body.irb-inspect-mode [data-irb-section],
+    body.irb-inspect-mode [data-irb-custom-section],
     body.irb-inspect-mode .secondaryBannerSection,
     body.irb-inspect-mode .productList,
     body.irb-inspect-mode article.product,
@@ -830,6 +1017,7 @@ function buildStudioInspectorSnippet(): string {
       let activeSelection = initial.activeSelection || null;
       let hoveredMatch = null;
       let sidebarHoverTargetId = null;
+      let sidebarHoverCustomSectionId = null;
 
       function syncBodyClass() {
         document.body.classList.toggle('irb-inspect-mode', Boolean(inspectMode));
@@ -857,6 +1045,9 @@ function buildStudioInspectorSnippet(): string {
       function findElementForSelection(sel) {
         if (!sel || !sel.targetId) return null;
         const t = sel.targetId;
+        if (t === 'custom-section' && sel.customSectionId) {
+          return document.querySelector('[data-irb-custom-section="' + CSS.escape(sel.customSectionId) + '"]');
+        }
         if (t === 'announcement') return document.querySelector('.overlineModule');
         if (t === 'header-logo') return document.querySelector('.headerContent_logo');
         if (t === 'header-nav') return document.querySelector('.headerContent_navInline, .headerContent_categories') || document.querySelector('header.irb-header');
@@ -883,7 +1074,7 @@ function buildStudioInspectorSnippet(): string {
         if (t === 'footer-legal') return document.querySelector('.footer-legal-info');
         if (t === 'footer') return document.querySelector('.footerContent--top') || document.querySelector('footer.footer');
         if (t === 'pdp') return document.querySelector('#irb-view-product .pdpGrid');
-        return null;
+        return document.querySelector('[data-irb-section="' + CSS.escape(t) + '"]');
       }
 
       function resolveEditableTarget(node) {
@@ -994,6 +1185,13 @@ function buildStudioInspectorSnippet(): string {
         const newsletter = node.closest('[data-irb-section="newsletter"]');
         if (newsletter) return { targetId: 'newsletter', label: 'Newsletter', el: newsletter };
 
+        const customSec = node.closest('[data-irb-custom-section]');
+        if (customSec) {
+          const csId = customSec.getAttribute('data-irb-custom-section') || '';
+          const csTitle = customSec.getAttribute('data-irb-custom-title') || 'Seção Personalizada';
+          return { targetId: 'custom-section', customSectionId: csId, label: csTitle, el: customSec };
+        }
+
         const legal = node.closest('.footer-legal-info');
         if (legal) return { targetId: 'footer-legal', label: 'Rodapé — Faixa Legal', el: legal };
 
@@ -1056,7 +1254,10 @@ function buildStudioInspectorSnippet(): string {
         }
 
         if (sidebarHoverTargetId) {
-          const sideEl = findElementForSelection({ targetId: sidebarHoverTargetId });
+          const sideEl = findElementForSelection({
+            targetId: sidebarHoverTargetId,
+            customSectionId: sidebarHoverCustomSectionId || undefined,
+          });
           if (sideEl) {
             const resolved = resolveEditableTarget(sideEl) || { label: sidebarHoverTargetId, el: sideEl };
             placeOverlay(hoverBox, hoverBadge, sideEl, resolved.label, true);
@@ -1153,6 +1354,7 @@ function buildStudioInspectorSnippet(): string {
               productId: match.productId,
               showcaseIdx: match.showcaseIdx,
               subIndex: updatedSlide,
+              customSectionId: match.customSectionId,
             };
             activeSelection = payload;
             writeSavedState({ activeSelection: payload });
@@ -1202,8 +1404,12 @@ function buildStudioInspectorSnippet(): string {
           refreshOverlays();
         } else if (msg.type === 'irb-studio:hover-target') {
           sidebarHoverTargetId = msg.targetId || null;
+          sidebarHoverCustomSectionId = msg.customSectionId || null;
           if (msg.scrollIntoView && sidebarHoverTargetId) {
-            const el = findElementForSelection({ targetId: sidebarHoverTargetId });
+            const el = findElementForSelection({
+              targetId: sidebarHoverTargetId,
+              customSectionId: sidebarHoverCustomSectionId || undefined,
+            });
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
           refreshOverlays();
@@ -1215,6 +1421,350 @@ function buildStudioInspectorSnippet(): string {
       refreshOverlays();
     })();
   </script>`;
+}
+
+function renderCustomSectionHtml(
+  sec: CustomSection,
+  bp: StoreBlueprint,
+  productMap: Map<string, StoreBlueprint["products"][number]>,
+  visibleProducts: StoreBlueprint["products"]
+): string {
+  const radiusCss = RADIUS_MAP[bp.theme.radius].css;
+  const secondaryBg = sanitizeCssColor(bp.theme.secondaryBackground, PALETTE.footerDark);
+  const secondaryFg = sanitizeCssColor(bp.theme.secondaryForeground, PALETTE.white);
+  const primaryBg = sanitizeCssColor(bp.theme.primaryBackground, PALETTE.ink);
+  const primaryFg = sanitizeCssColor(bp.theme.primaryForeground, PALETTE.white);
+  const bodyColor = sanitizeCssColor(bp.theme.bodyForeground, PALETTE.ink);
+  const dataAttrs = `data-irb-section="${escapeAttr(sec.id)}" data-irb-custom-section="${escapeAttr(sec.id)}" data-irb-custom-title="${escapeAttr(sec.title)}"`;
+
+  if (sec.kind === "html") {
+    const cleanHtml = sanitizeCustomHtmlBlock(sec.html);
+    return `<section class="htmlContent" id="${escapeAttr(sec.id)}" ${dataAttrs}>
+  <div class="${sec.width === "full" ? "container-full" : "container"}">${cleanHtml}</div>
+</section>`;
+  }
+
+  if (sec.kind === "banner") {
+    const heightPx = sec.heightPx ? Math.min(1000, Math.max(120, Math.round(sec.heightPx))) : null;
+    const widthPx = sec.widthPx ? Math.min(2560, Math.max(280, Math.round(sec.widthPx))) : null;
+    const fit = sec.objectFit ?? "cover";
+    const imgUrl = sanitizeUrl(sec.imageUrl, "");
+    const ctaHref = escapeAttr(sanitizeUrl(sec.ctaHref, "#vitrines"));
+    if (sec.mode === "artwork" && imgUrl) {
+      return `<section class="secondaryBannerSection" id="${escapeAttr(sec.id)}" ${dataAttrs}>
+  <div class="${!widthPx && bp.visualOverrides.banner.width === "container" ? "container" : ""}"${widthPx ? ` style="max-width:${widthPx}px;margin:0 auto;padding:0 20px;"` : ""}>
+    <a href="${ctaHref}" style="display:block;">
+      <img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(sec.headline || sec.title)}" referrerpolicy="no-referrer" style="width:100%;height:${heightPx ? `${heightPx}px` : "auto"};max-height:${heightPx ?? 460}px;object-fit:${fit};display:block;border-radius:${widthPx || bp.visualOverrides.banner.width === "container" ? radiusCss : "0px"};" />
+    </a>
+  </div>
+</section>`;
+    }
+    return `<section class="secondaryBannerSection" id="${escapeAttr(sec.id)}" style="padding:18px 0;" ${dataAttrs}>
+  <div class="container"${widthPx ? ` style="max-width:${widthPx}px;"` : ""}>
+    <div class="secondaryEditorial" style="background:${sanitizeCssColor(sec.backgroundColor, secondaryBg)};color:${sanitizeCssColor(sec.textColor, secondaryFg)};${heightPx ? `min-height:${heightPx}px;` : ""}">
+      <div class="secondaryEditorial__text">
+        <span style="font-size:11px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;opacity:0.75;">${escapeHtml(sec.title)}</span>
+        <h2 style="margin:8px 0 10px;font-size:clamp(24px,3vw,34px);line-height:1.15;">${escapeHtml(sec.headline || sec.title)}</h2>
+        ${sec.subheadline ? `<p style="margin:0 0 20px;font-size:15px;line-height:1.55;opacity:0.9;">${escapeHtml(sec.subheadline)}</p>` : ""}
+        <a href="${ctaHref}" class="btnSecondaryCustom">${escapeHtml(sec.ctaText || "Ver Coleção")}</a>
+      </div>
+      <div class="secondaryEditorial__media"${heightPx ? ` style="height:${heightPx}px;max-height:${heightPx}px;"` : ""}>
+        ${imgUrl ? `<img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(sec.headline || sec.title)}" referrerpolicy="no-referrer" style="object-fit:${fit};" />` : `<div style="width:100%;height:100%;min-height:260px;background:rgba(255,255,255,0.08);"></div>`}
+      </div>
+    </div>
+  </div>
+</section>`;
+  }
+
+  if (sec.kind === "slimBanner") {
+    const bg = sanitizeCssColor(sec.backgroundColor, secondaryBg);
+    const fg = sanitizeCssColor(sec.textColor, secondaryFg);
+    const btnBg = sanitizeCssColor(bp.theme.btnPrimaryBackground, PALETTE.white);
+    const btnFg = sanitizeCssColor(bp.theme.btnPrimaryColor, PALETTE.ink);
+    const heightPx = sec.heightPx ? Math.min(600, Math.max(40, Math.round(sec.heightPx))) : null;
+    const widthPx = sec.widthPx ? Math.min(2560, Math.max(280, Math.round(sec.widthPx))) : null;
+    const fit = sec.objectFit ?? "cover";
+    const imgUrl = sanitizeUrl(sec.imageUrl, "");
+    const innerHtml =
+      sec.mode === "image" && imgUrl
+        ? `<div style="${widthPx ? `padding:10px 0;max-width:${widthPx}px;margin:0 auto;` : "padding:10px 0;"}">
+  <a href="#vitrines" style="display:block;border-radius:${radiusCss};overflow:hidden;">
+    <img src="${escapeAttr(imgUrl)}" alt="${escapeAttr(sec.headline || sec.title)}" referrerpolicy="no-referrer" style="width:100%;${heightPx ? `height:${heightPx}px;` : "height:auto;"}display:block;object-fit:${fit};" />
+  </a>
+</div>`
+        : `<div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};color:${fg};padding:18px 20px;box-sizing:border-box;${heightPx ? `min-height:${heightPx}px;` : ""}display:flex;align-items:center;">
+  <div style="width:100%;max-width:${widthPx ?? CONTAINER_WIDTH_PX}px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
+      ${sec.badgeText ? `<span style="background:${btnBg};color:${btnFg};font-size:11px;font-weight:800;letter-spacing:0.08em;padding:5px 10px;border-radius:${radiusCss};">${escapeHtml(sec.badgeText)}</span>` : ""}
+      <span style="font-size:16px;font-weight:600;">${escapeHtml(sec.headline || sec.title)}</span>
+    </div>
+    <a href="#vitrines" style="display:inline-block;padding:10px 20px;border:1px solid ${fg};color:${fg};text-decoration:none;font-size:13px;font-weight:700;border-radius:${radiusCss};">${escapeHtml(sec.ctaText || "Aproveitar")}</a>
+  </div>
+</div>`;
+    return `<section class="bannerModule bannerModule--slim" id="${escapeAttr(sec.id)}" ${dataAttrs}><div class="container">${innerHtml}</div></section>`;
+  }
+
+  if (sec.kind === "showcase") {
+    let list = sec.productIds
+      .map((id) => productMap.get(id))
+      .filter((p): p is StoreBlueprint["products"][number] => Boolean(p));
+    if (list.length === 0 && sec.categoryFilter) {
+      const norm = sec.categoryFilter.toLowerCase();
+      list = visibleProducts.filter((p) =>
+        [p.category, ...(p.categories ?? [])].some((c) => c.toLowerCase().includes(norm))
+      );
+    }
+    if (list.length === 0) list = visibleProducts;
+    const sliced = list.slice(0, Math.max(1, sec.limit));
+    if (sliced.length === 0) return "";
+    const cards = sliced
+      .map((p) => buildProductCardMarkup(p, bp.visualOverrides.pageProduct.buyButtonText))
+      .join("\n");
+    return `<section class="productList" id="${escapeAttr(sec.id)}" ${dataAttrs}>
+  <div class="${bp.visualOverrides.productCard.listWidth === "full" ? "container-full" : "container"}">
+    <div class="productList__header" style="text-align:${bp.visualOverrides.productCard.titleAlign}">
+      <h2 class="productList__title">${escapeHtml(sec.title)}</h2>
+      ${sec.subtitle ? `<p class="productList__subtitle">${escapeHtml(sec.subtitle)}</p>` : ""}
+    </div>
+    <div class="productList__grid">${cards}</div>
+  </div>
+</section>`;
+  }
+
+  if (sec.kind === "gallery") {
+    const galleryHtml = buildCustomGalleryBlockHtml(sec, bp);
+    return `<section class="htmlContent" id="${escapeAttr(sec.id)}" ${dataAttrs}>
+  <div class="container">${galleryHtml}</div>
+</section>`;
+  }
+
+  if (sec.kind === "tarja") {
+    const bg = sanitizeCssColor(sec.backgroundColor, bp.theme.neutralBackground);
+    const itemsHtml = sec.items
+      .slice(0, 4)
+      .map(
+        (b) => `<div style="flex:1 1 220px;min-width:200px;display:flex;align-items:center;gap:14px;padding:14px 18px;background:#ffffff;border-radius:${radiusCss};border:1px solid rgba(0,0,0,0.06);box-sizing:border-box;">
+  <div style="width:42px;height:42px;flex-shrink:0;border-radius:${radiusCss};background:${primaryBg};color:${primaryFg};display:flex;align-items:center;justify-content:center;">${getBenefitSvgIcon(b.icon)}</div>
+  <div>
+    <div style="font-size:14px;font-weight:700;color:${bodyColor};margin-bottom:2px;">${escapeHtml(b.title)}</div>
+    <div style="font-size:12px;color:#4b5563;line-height:1.35;">${escapeHtml(b.subtitle)}</div>
+  </div>
+</div>`
+      )
+      .join("\n");
+    return `<section class="bannerTarjaModule" id="${escapeAttr(sec.id)}" ${dataAttrs}>
+  <div class="container">
+    <div style="position:relative;left:50%;width:100vw;max-width:100vw;margin-left:-50vw;background:${bg};padding:14px 20px;box-sizing:border-box;">
+      <div style="max-width:${CONTAINER_WIDTH_PX}px;margin:0 auto;display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;">${itemsHtml}</div>
+    </div>
+  </div>
+</section>`;
+  }
+
+  // editorialSplit
+  return `<section class="htmlContent" id="${escapeAttr(sec.id)}" ${dataAttrs}>
+  <div class="container">${buildCustomEditorialSplitHtml(sec, bp)}</div>
+</section>`;
+}
+
+function renderIrrobaFooterHtml(bp: StoreBlueprint): string {
+  const f = bp.footer;
+  const institutionalLinks =
+    f.institutionalLinks && f.institutionalLinks.length > 0
+      ? f.institutionalLinks
+      : [
+          { label: "Sobre a Loja", href: "#sobre" },
+          { label: "Termos de Uso", href: "#termos" },
+          { label: "Política de Privacidade", href: "#privacidade" },
+          { label: "Troca e Devolução", href: "#trocas" },
+          { label: "Depoimentos", href: "#avaliacoes" },
+        ];
+  const accountLinks =
+    f.accountLinks && f.accountLinks.length > 0
+      ? f.accountLinks
+      : [
+          { label: "Entre em Contato", href: "#contato" },
+          { label: "Meus Dados", href: "#conta" },
+          { label: "Meus Pedidos", href: "#pedidos" },
+          { label: "Rastrear Pedido", href: "#rastreio" },
+        ];
+
+  const waDigits = (f.whatsapp || "").replace(/\D/g, "");
+  const waHref = waDigits
+    ? `https://wa.me/${waDigits.startsWith("55") || waDigits.length >= 12 ? waDigits : `55${waDigits}`}`
+    : "";
+  const igHref = f.instagram ? sanitizeUrl(f.instagram, "") : "";
+  const fbHref = f.facebook ? sanitizeUrl(f.facebook, "") : "";
+
+  const socialItems = [
+    igHref
+      ? `<li class="footer-social-item"><a class="icon" href="${escapeAttr(igHref)}" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram">${IRROBA_ICONS.instagram}<span>Instagram</span></a></li>`
+      : "",
+    fbHref
+      ? `<li class="footer-social-item"><a class="icon" href="${escapeAttr(fbHref)}" target="_blank" rel="noopener noreferrer" title="Facebook" aria-label="Facebook">${IRROBA_ICONS.facebook}<span>Facebook</span></a></li>`
+      : "",
+    waHref
+      ? `<li class="footer-social-item"><a class="icon" href="${escapeAttr(waHref)}" target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label="WhatsApp">${IRROBA_ICONS.whatsapp}<span>WhatsApp</span></a></li>`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const phoneDisplay = f.phone?.trim() || f.whatsapp?.trim() || "";
+  const showPay = f.showPaymentSeals !== false;
+  const showShip = f.showShippingSeals !== false;
+  const showSec = f.showSecuritySeals !== false;
+  const visibleSealCount = [showPay, showShip, showSec].filter(Boolean).length;
+
+  const companyMetaParts = [
+    f.ownerName?.trim() ? `<span class="footer-owner">${escapeHtml(f.ownerName.trim())}</span>` : "",
+    f.cnpj?.trim() ? `<span class="footer-cnpj">CNPJ: ${escapeHtml(f.cnpj.trim())}</span>` : "",
+    f.cityState?.trim() ? `<span class="footer-location">${escapeHtml(f.cityState.trim())}</span>` : "",
+  ].filter(Boolean);
+
+  const legalCopy = f.legalText?.trim()
+    ? escapeHtml(f.legalText.trim())
+    : `© ${new Date().getFullYear()} ${escapeHtml(bp.brand.name)}. Todos os direitos reservados.`;
+
+  return `<footer class="footer">
+    <div class="footerContent footerContent--top footerContent--layout1">
+      <div class="${bp.visualOverrides.footer.width === "full" ? "container-full" : "container"}">
+        <div class="footerGrid">
+          <div class="footerContent__info footerContent__info--store">
+            <h4 class="footerTitle">${escapeHtml(bp.brand.name)}</h4>
+            <p class="footerText">${escapeHtml(f.aboutText)}</p>
+            ${
+              socialItems
+                ? `<div class="footerContent__info footerContent__info--social">
+              <div class="footerContent__info__title footerTitle footerSocialTitle">Siga nossas redes</div>
+              <ul class="footer-social-list list list-index">${socialItems}</ul>
+            </div>`
+                : ""
+            }
+          </div>
+
+          <details open class="footerContent__info footerContent__info--information">
+            <summary class="footerSummary">
+              <span class="footerContent__info__title footerTitle">Institucional</span>
+              <span class="footerSummary__chevron">${IRROBA_ICONS.chevronDown}</span>
+            </summary>
+            <ul class="footerList list list-index">
+              ${institutionalLinks
+                .map(
+                  (lnk) =>
+                    `<li><a href="${escapeAttr(sanitizeUrl(lnk.href, "#"))}">${escapeHtml(lnk.label)}</a></li>`
+                )
+                .join("")}
+            </ul>
+          </details>
+
+          <details open class="footerContent__info footerContent__info--account">
+            <summary class="footerSummary">
+              <span class="footerContent__info__title footerTitle">Minha Conta</span>
+              <span class="footerSummary__chevron">${IRROBA_ICONS.chevronDown}</span>
+            </summary>
+            <ul class="footerList list list-index">
+              ${accountLinks
+                .map((lnk) => {
+                  const isAccountAction = /dados|pedido|rastre/i.test(lnk.label);
+                  return isAccountAction
+                    ? `<li><a href="#conta" data-account-action="login">${escapeHtml(lnk.label)}</a></li>`
+                    : `<li><a href="${escapeAttr(sanitizeUrl(lnk.href, "#"))}">${escapeHtml(lnk.label)}</a></li>`;
+                })
+                .join("")}
+            </ul>
+          </details>
+
+          <details open class="footerContent__info footerContent__info--contact">
+            <summary class="footerSummary">
+              <span class="footerContent__info__title footerTitle">Atendimento</span>
+              <span class="footerSummary__chevron">${IRROBA_ICONS.chevronDown}</span>
+            </summary>
+            <ul class="storeOpeningHours footerList list list-index">
+              ${
+                phoneDisplay
+                  ? `<li id="contactTelephone" class="service__list__item">${IRROBA_ICONS.phone}<span>${escapeHtml(phoneDisplay)}</span></li>`
+                  : ""
+              }
+              ${
+                f.email
+                  ? `<li id="contactEmail" class="service__list__item">${IRROBA_ICONS.mail}<span>${escapeHtml(f.email)}</span></li>`
+                  : ""
+              }
+              ${
+                f.openingHours
+                  ? `<li class="service__list__item">${IRROBA_ICONS.clock}<span>${escapeHtml(f.openingHours)}</span></li>`
+                  : ""
+              }
+              ${
+                f.address
+                  ? `<li class="footer-address-content service__list__item">${IRROBA_ICONS.mapPin}<div class="footer-address-info"><address>${escapeHtml(f.address)}</address></div></li>`
+                  : ""
+              }
+              ${
+                !phoneDisplay && !f.email && !f.address
+                  ? `<li class="service__list__item">Compra 100% Segura • Checkout Transparente</li>`
+                  : ""
+              }
+            </ul>
+          </details>
+        </div>
+      </div>
+    </div>
+    ${
+      visibleSealCount > 0
+        ? `<div class="footerContent footerContent--bottom">
+      <div class="container footerSealsLayout footerSealsLayout--${visibleSealCount}">
+        ${
+          showPay
+            ? `<div class="sealsList__item sealsList__item--payment">
+          <div class="sealsList__title">Formas de pagamento</div>
+          <div class="sealsList sealsList--payment">${IRROBA_FOOTER_PAYMENT_SEALS_SVG}</div>
+        </div>`
+            : ""
+        }
+        ${
+          showShip
+            ? `<div class="sealsList__item sealsList__item--shipping">
+          <div class="sealsList__title">Formas de envio</div>
+          <div class="sealsList sealsList--shipping">${IRROBA_FOOTER_SHIPPING_SEAL_SVG}</div>
+        </div>`
+            : ""
+        }
+        ${
+          showSec
+            ? `<div class="sealsList__item sealsList__item--security">
+          <div class="sealsList__title">Site Seguro</div>
+          <div class="sealsList sealsList--security">${IRROBA_FOOTER_SECURITY_SEAL_SVG}</div>
+        </div>`
+            : ""
+        }
+      </div>
+    </div>`
+        : ""
+    }
+    <div class="footer-legal-info">
+      <div class="container footerLegalInner">
+        <span class="platform-info">
+          <span class="irroba-text">Design, desenvolvimento e plataforma</span>
+          <span class="irroba-logo">
+            <a href="https://www.irroba.com.br/" target="_blank" rel="noopener noreferrer" aria-label="Ver o site da Irroba Ecommerce">${IRROBA_FOOTER_PLATFORM_LOGO_SVG}</a>
+          </span>
+        </span>
+        <span class="store-info">
+          ${
+            companyMetaParts.length > 0
+              ? `<span class="footer-company-info"><span class="footer-company-info__text">${companyMetaParts.join(" · ")}</span></span>`
+              : ""
+          }
+          <span class="footer-copyright">
+            <span class="footer-copyright__text">${legalCopy}</span>
+            ${f.address ? `<span class="footer-address">${escapeHtml(f.address)}</span>` : ""}
+          </span>
+        </span>
+      </div>
+    </div>
+  </footer>`;
 }
 
 export function compileStorefrontDocument(
@@ -1594,30 +2144,39 @@ export function compileStorefrontDocument(
       overflow: hidden;
       text-overflow: ellipsis;
       opacity: 0;
-      transform: translateY(100%);
+      transform: translate3d(0, 100%, 0);
       transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.38s ease;
       pointer-events: none;
+      will-change: transform, opacity;
     }
     .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide {
-      transform: translateX(100%);
+      transform: translate3d(100%, 0, 0);
     }
     .overlineModule--ticker[data-transition="fade"] .overlineModule__slide {
-      transform: translateY(0);
+      transform: translate3d(0, 0, 0);
     }
-    .overlineModule__slide.is-active {
+    .overlineModule--ticker .overlineModule__slide.is-resetting {
+      transition: none !important;
+      opacity: 0;
+    }
+    .overlineModule--ticker .overlineModule__slide.is-active,
+    .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-active,
+    .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-active {
       opacity: 1;
-      transform: translate(0, 0);
+      transform: translate3d(0, 0, 0);
       pointer-events: auto;
     }
-    .overlineModule__slide.is-leaving {
+    .overlineModule--ticker .overlineModule__slide.is-leaving {
       opacity: 0;
-      transform: translateY(-100%);
+      transform: translate3d(0, -100%, 0);
     }
     .overlineModule--ticker[data-transition="slide-horizontal"] .overlineModule__slide.is-leaving {
-      transform: translateX(-100%);
+      opacity: 0;
+      transform: translate3d(-100%, 0, 0);
     }
     .overlineModule--ticker[data-transition="fade"] .overlineModule__slide.is-leaving {
-      transform: translateY(0);
+      opacity: 0;
+      transform: translate3d(0, 0, 0);
     }
 
     /* Cabeçalho Tema LIME (.headerContent) — Fundo independente da Logo + Posicionamento fiel */
@@ -1983,12 +2542,12 @@ export function compileStorefrontDocument(
       text-decoration: underline;
     }
 
-    /* Página de Categoria (.pageLayout--category) */
+    /* Página de Categoria (.pageLayout--category) + Filtro Lateral Esquerdo Irroba */
     .categoryHeroHeader {
       background: var(--neutral-background);
       color: var(--neutral-foreground);
       border-radius: var(--irb-radius);
-      padding: 28px 24px;
+      padding: 24px;
       margin: 8px 0 22px;
       display: flex;
       flex-wrap: wrap;
@@ -1996,15 +2555,261 @@ export function compileStorefrontDocument(
       justify-content: space-between;
       gap: 16px;
     }
-    .categoryToolbar {
+    .pageContent--category {
+      display: grid;
+      grid-template-columns: 264px minmax(0, 1fr);
+      gap: 28px;
+      align-items: start;
+      padding-bottom: 56px;
+    }
+    .pageColumnLeft.categorySidebar {
+      background: #ffffff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: var(--irb-radius);
+      padding: 16px;
+      position: sticky;
+      top: calc(var(--irb-header-height, 72px) + 16px);
+    }
+    .categorySidebar__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .categorySidebar__close {
+      display: none;
+      border: none;
+      background: #f3f4f6;
+      color: #111827;
+      width: 30px;
+      height: 30px;
+      border-radius: 999px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .irb-active-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .irb-active-filter-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--neutral-background);
+      color: var(--neutral-foreground);
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      cursor: pointer;
+    }
+    .filters {
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+      padding: 12px 0;
+    }
+    .filters:last-of-type { border-bottom: none; }
+    .filters summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .filters summary::-webkit-details-marker { display: none; }
+    .filter-title { font-size: 13px; font-weight: 700; color: #111827; }
+    .filterSidebarList {
+      list-style: none;
+      padding: 10px 0 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .filterSidebarBtn {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: calc(var(--irb-radius) * 0.75);
+      border: 1px solid transparent;
+      background: transparent;
+      color: #374151;
+      font-size: 13px;
+      text-align: left;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .filterSidebarBtn:hover { background: #f3f4f6; color: #111827; }
+    .filterSidebarBtn.active {
+      background: var(--primary-background);
+      color: var(--primary-foreground);
+      font-weight: 700;
+    }
+    .filterSidebarCount {
+      font-size: 11px;
+      opacity: 0.72;
+      font-variant-numeric: tabular-nums;
+    }
+    .filterPricePresets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .filterPresetBtn {
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .filterPresetBtn.active {
+      background: var(--primary-background);
+      color: var(--primary-foreground);
+      border-color: var(--primary-background);
+    }
+    .range_inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .range_inputs label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 3px; }
+    .price-input {
+      width: 100%;
+      padding: 7px 9px;
+      border-radius: var(--irb-radius);
+      border: 1px solid #d1d5db;
+      font-size: 12px;
+      color: #111827;
+      background: #ffffff;
+    }
+    .filterSizeGrid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .filterSizeChip {
+      padding: 5px 10px;
+      border-radius: var(--irb-radius);
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #374151;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .filterSizeChip.active {
+      background: var(--primary-background);
+      color: var(--primary-foreground);
+      border-color: var(--primary-background);
+    }
+    .filterCheckboxLabel {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 13px;
+      color: #374151;
+      cursor: pointer;
+    }
+    .filterActionContainer {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      margin-top: 6px;
+    }
+    .filter-button {
+      padding: 9px 12px;
+      border: 1px solid var(--btn-primary-border);
+      border-radius: var(--irb-radius);
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .clear-filters {
+      padding: 9px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: var(--irb-radius);
+      background: #ffffff;
+      color: #374151;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .pageControls--category {
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .toolbar-shop {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 22px;
-      padding-bottom: 14px;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .toolbar-shop-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .customFilterV2-toggle {
+      display: none;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border-radius: var(--irb-radius);
+      border: 1px solid var(--btn-primary-border);
+      background: var(--btn-primary-background);
+      color: var(--btn-primary-color);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .toolbar-shop-sorter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .js-changeGrid {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--irb-radius);
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      color: #6b7280;
+      cursor: pointer;
+    }
+    .js-changeGrid.active {
+      border-color: var(--primary-background);
+      color: var(--primary-background);
+      background: #f9fafb;
     }
     .catFilterChips { display: flex; flex-wrap: wrap; gap: 8px; }
     .catFilterChip {
@@ -2029,6 +2834,44 @@ export function compileStorefrontDocument(
       font-size: 13px;
       background: #ffffff;
       color: #111827;
+    }
+    .productList__grid.productList--category {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .productList__grid.productList--category.grid-cols-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .irb-cat-filter-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 105;
+      background: rgba(17, 24, 39, 0.55);
+    }
+    .irb-cat-filter-backdrop.open { display: block; }
+    @media (max-width: 960px) {
+      .pageContent--category { grid-template-columns: 1fr; }
+      .customFilterV2-toggle { display: inline-flex; }
+      .toolbar-shop-sorter { display: none; }
+      .pageColumnLeft.categorySidebar {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: min(340px, 88vw);
+        z-index: 112;
+        border-radius: 0;
+        overflow-y: auto;
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.25);
+      }
+      .pageColumnLeft.categorySidebar.open { display: block; }
+      .categorySidebar__close { display: inline-flex; }
+      .productList__grid.productList--category,
+      .productList__grid.productList--category.grid-cols-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
     }
 
     /* Página Completa de Produto (PDP .product-content) */
@@ -2360,29 +3203,152 @@ export function compileStorefrontDocument(
       cursor: pointer;
     }
 
-    /* Rodapé */
-    .footerContent--top { background: var(--footer-background); color: var(--footer-foreground); padding: 44px 0; }
-    .footerGrid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 28px; }
-    @media (max-width: 768px) { .footerGrid { grid-template-columns: 1fr; } }
-    .footerTitle { font-size: 16px; font-weight: 700; margin: 0 0 12px; }
-    .footerText { font-size: 14px; line-height: 1.6; opacity: 0.88; margin: 0; }
-    .footerList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
-    .footerList a { color: inherit; text-decoration: none; opacity: 0.88; cursor: pointer; }
-    .footerList a:hover { opacity: 1; text-decoration: underline; }
-    .footerContent--bottom {
-      background: var(--footer-background);
-      color: var(--footer-foreground);
-      border-top: 1px solid rgba(255, 255, 255, 0.12);
-      padding: 18px 0;
-      font-size: 12px;
-      opacity: 0.95;
+    /* Rodapé Padrão Tema LIME Irroba */
+    .footerContent--top { background: var(--footer-background); color: var(--footer-foreground); padding: 48px 0 42px; }
+    .footerGrid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.85fr 0.9fr 1.1fr;
+      gap: 36px;
+      align-items: start;
     }
+    .footerTitle {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 0 0 14px;
+    }
+    .footerText { font-size: 13.5px; line-height: 1.65; opacity: 0.84; margin: 0 0 18px; }
+    .footerSocialTitle { margin-top: 6px; margin-bottom: 10px; font-size: 12px; }
+    .footer-social-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .footer-social-item a.icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 13px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+      background: color-mix(in srgb, currentColor 8%, transparent);
+      color: inherit;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background .15s ease, transform .15s ease;
+    }
+    .footer-social-item a.icon:hover {
+      background: color-mix(in srgb, currentColor 18%, transparent);
+      transform: translateY(-1px);
+    }
+    .footerSummary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .footerSummary::-webkit-details-marker { display: none; }
+    .footerSummary .footerTitle { margin: 0; }
+    .footerSummary__chevron { display: none; opacity: 0.8; transition: transform .2s ease; }
+    @media (min-width: 769px) {
+      .footerSummary { pointer-events: none; cursor: default; }
+    }
+    @media (max-width: 960px) {
+      .footerGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; }
+    }
+    @media (max-width: 768px) {
+      .footerGrid { grid-template-columns: 1fr; gap: 0; }
+      .footerContent__info--store { padding-bottom: 20px; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
+      details.footerContent__info { border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); padding: 14px 0; }
+      .footerSummary { margin-bottom: 0; cursor: pointer; }
+      .footerSummary__chevron { display: inline-flex; }
+      details.footerContent__info[open] .footerSummary__chevron { transform: rotate(180deg); }
+      details.footerContent__info .footerList { padding-top: 12px; }
+    }
+    .footerList { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 9px; font-size: 13.5px; }
+    .footerList a { color: inherit; text-decoration: none; opacity: 0.84; cursor: pointer; }
+    .footerList a:hover { opacity: 1; text-decoration: underline; }
+    .service__list__item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+      opacity: 0.88;
+    }
+    .service__list__item svg { flex-shrink: 0; margin-top: 2px; opacity: 0.85; }
+    .footer-address-info address { font-style: normal; }
+    .footerContent--bottom {
+      background: #ffffff;
+      color: #111827;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      padding: 26px 0;
+    }
+    .footerSealsLayout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 24px;
+      align-items: start;
+    }
+    .footerSealsLayout--1 { grid-template-columns: 1fr; }
+    .footerSealsLayout--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @media (max-width: 820px) {
+      .footerSealsLayout { grid-template-columns: 1fr; gap: 18px; }
+    }
+    .sealsList__item { display: flex; flex-direction: column; gap: 10px; }
+    .sealsList__title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #374151;
+    }
+    .sealsList { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .sealsList svg { max-width: 100%; height: auto; display: block; }
     .footer-legal-info {
       background: var(--footerLegal-background);
       color: var(--footerLegal-foreground);
-      text-align: center;
-      padding: 14px 20px;
+      padding: 18px 0;
       font-size: 12px;
+    }
+    .footerLegalInner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px 24px;
+    }
+    .platform-info {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0.9;
+    }
+    .platform-info .irroba-logo a {
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      text-decoration: none;
+    }
+    .store-info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      text-align: right;
+      margin-left: auto;
+      opacity: 0.9;
+    }
+    .footer-company-info__text { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; font-weight: 600; }
+    .footer-copyright { display: inline-flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+    @media (max-width: 768px) {
+      .footerLegalInner { flex-direction: column; align-items: flex-start; }
+      .store-info { text-align: left; margin-left: 0; }
+      .footer-company-info__text, .footer-copyright { justify-content: flex-start; }
     }
 
     /* Drawers & Account Modal */
@@ -2462,7 +3428,6 @@ export function compileStorefrontDocument(
         ${
           bp.theme.headerLayout === "layout-1"
             ? `<nav class="headerContent_navInline" aria-label="Categorias">
-          <a href="#home" class="categoryLink active" data-go-home="1">Início</a>
           ${navLinksHtml}
         </nav>`
             : ""
@@ -2497,7 +3462,6 @@ export function compileStorefrontDocument(
       ${
         bp.theme.headerLayout !== "layout-1"
           ? `<nav class="headerContent_categories" aria-label="Categorias">
-        <a href="#home" class="categoryLink active" data-go-home="1">Início</a>
         ${navLinksHtml}
       </nav>`
           : ""
@@ -2595,14 +3559,25 @@ export function compileStorefrontDocument(
       </section>`,
         };
 
-        return getNormalizedSectionLayout(bp.sections.layout)
+        const customMap = new Map(
+          (bp.sections.customSections ?? []).map((cs) => [cs.id, cs])
+        );
+        return getNormalizedSectionLayout(bp.sections.layout, bp.sections.customSections)
           .filter((sec) => sec.enabled)
-          .map((sec) => homeSectionMap[sec.id] || "")
+          .map((sec) => {
+            if (isBuiltinSectionKey(sec.id)) {
+              return homeSectionMap[sec.id] || "";
+            }
+            const customSec = customMap.get(sec.id);
+            return customSec
+              ? renderCustomSectionHtml(customSec, bp, productMap, visibleProducts)
+              : "";
+          })
           .join("\n      ");
       })()}
     </div>
 
-    <!-- 2. VIEW: TELA DE CATEGORIA / BUSCA (.pageLayout--category) -->
+    <!-- 2. VIEW: TELA DE CATEGORIA / BUSCA (.pageLayout--category com Filtro Lateral Esquerdo Irroba) -->
     <div id="irb-view-category" class="storeView">
       <div class="container">
         <nav class="irb-breadcrumb" aria-label="Breadcrumb">
@@ -2620,20 +3595,111 @@ export function compileStorefrontDocument(
           <button type="button" data-go-home="1" class="product-btn" style="width:auto;padding:10px 18px;">Voltar à Página Inicial</button>
         </div>
 
-        <div class="categoryToolbar">
-          <div class="catFilterChips" id="irb-cat-chips">
-            <button type="button" class="catFilterChip" data-filter-cat="all">Todos os produtos</button>
-            ${categoryPillsHtml}
-          </div>
-          <select id="irb-cat-sort" class="categorySortSelect" aria-label="Ordenar produtos">
-            <option value="relevance">Ordenar: Mais relevantes</option>
-            <option value="price-asc">Menor preço</option>
-            <option value="price-desc">Maior preço</option>
-            <option value="name-asc">Nome (A–Z)</option>
-          </select>
-        </div>
+        <div class="irb-cat-filter-backdrop" id="irb-cat-filter-backdrop" aria-hidden="true"></div>
 
-        <div class="productList__grid" id="irb-cat-grid" style="padding-bottom:56px;"></div>
+        <div class="pageContent pageContent--category">
+          <aside class="pageColumnLeft categorySidebar" id="irb-cat-sidebar" aria-label="Filtros da categoria">
+            <div class="categorySidebar__head">
+              <strong style="font-size:15px;color:#111827;">Filtrar Produtos</strong>
+              <button type="button" class="categorySidebar__close" id="irb-cat-filter-close" aria-label="Fechar filtros">${IRROBA_ICONS.close}</button>
+            </div>
+
+            <div class="irb-active-filters" id="irb-active-filters"></div>
+
+            <details open class="filters filter-category-container">
+              <summary>
+                <span class="filter-title">Categorias</span>
+                ${IRROBA_ICONS.chevronDown}
+              </summary>
+              <ul class="filterSidebarList" id="irb-sidebar-cats">
+                <li>
+                  <button type="button" class="filterSidebarBtn active" data-sidebar-cat="all">
+                    <span>Todos os produtos</span>
+                    <span class="filterSidebarCount" data-cat-count="all">${visibleProducts.length}</span>
+                  </button>
+                </li>
+                ${bp.sections.categories
+                  .slice(0, 12)
+                  .map(
+                    (c) => `<li>
+                  <button type="button" class="filterSidebarBtn" data-sidebar-cat="${escapeAttr(c.label)}">
+                    <span>${escapeHtml(c.label)}</span>
+                    <span class="filterSidebarCount" data-cat-count="${escapeAttr(c.label.toLowerCase())}">0</span>
+                  </button>
+                </li>`
+                  )
+                  .join("")}
+              </ul>
+            </details>
+
+            <details open class="filters filter-price-container" data-price-name="Faixa de Preço">
+              <summary>
+                <span class="filter-title">Faixa de Preço</span>
+                ${IRROBA_ICONS.chevronDown}
+              </summary>
+              <div class="filterPricePresets" id="irb-price-presets">
+                <button type="button" class="filterPresetBtn" data-price-min="" data-price-max="150">Até R$ 150</button>
+                <button type="button" class="filterPresetBtn" data-price-min="150" data-price-max="350">R$ 150 – R$ 350</button>
+                <button type="button" class="filterPresetBtn" data-price-min="350" data-price-max="">Acima de R$ 350</button>
+              </div>
+              <div class="range_inputs">
+                <div>
+                  <label for="min-price-input">Mínimo (R$)</label>
+                  <input type="number" min="0" step="1" id="min-price-input" class="price-input" placeholder="0" />
+                </div>
+                <div>
+                  <label for="max-price-input">Máximo (R$)</label>
+                  <input type="number" min="0" step="1" id="max-price-input" class="price-input" placeholder="9999" />
+                </div>
+              </div>
+            </details>
+
+            <details open class="filters filter-promo-container">
+              <summary>
+                <span class="filter-title">Ofertas</span>
+                ${IRROBA_ICONS.chevronDown}
+              </summary>
+              <label class="filterCheckboxLabel">
+                <input type="checkbox" id="irb-filter-promo-only" />
+                <span>Apenas em promoção</span>
+              </label>
+            </details>
+
+            <div class="filterActionContainer">
+              <button type="button" id="irb-apply-filters-btn" class="filter-button">Aplicar</button>
+              <button type="button" id="irb-clear-filters-btn" class="clear-filters">Limpar</button>
+            </div>
+          </aside>
+
+          <div id="mainContent" class="pageContent__main">
+            <div class="pageControls pageControls--category">
+              <div class="toolbar-shop">
+                <div class="toolbar-shop-left">
+                  <button type="button" class="customFilterV2-toggle" id="irb-open-cat-filters" aria-label="Abrir filtros">
+                    ${IRROBA_ICONS.sliders}
+                    <span>Filtrar</span>
+                    <span id="irb-cat-filter-badge" style="display:none;padding:1px 6px;border-radius:999px;background:rgba(255,255,255,0.25);font-size:11px;">0</span>
+                  </button>
+                  <div class="toolbar-shop-sorter">
+                    <span>Visualização:</span>
+                    <button type="button" class="js-changeGrid active" data-grid-cols="3" title="3 colunas" aria-label="Exibir 3 produtos por linha">${IRROBA_ICONS.grid3}</button>
+                    <button type="button" class="js-changeGrid" data-grid-cols="4" title="4 colunas" aria-label="Exibir 4 produtos por linha">${IRROBA_ICONS.grid4}</button>
+                  </div>
+                </div>
+                <select id="irb-cat-sort" class="categorySortSelect" aria-label="Ordenar produtos">
+                  <option value="relevance">Ordenar: Padrão</option>
+                  <option value="name-asc">Nome (A - Z)</option>
+                  <option value="name-desc">Nome (Z - A)</option>
+                  <option value="price-asc">Menor Preço</option>
+                  <option value="price-desc">Maior Preço</option>
+                  <option value="discount-desc">Maiores Descontos</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="productList__grid productList--category" id="irb-cat-grid"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2724,45 +3790,7 @@ export function compileStorefrontDocument(
     </div>
   </main>
 
-  <footer class="footer">
-    <div class="footerContent--top">
-      <div class="${bp.visualOverrides.footer.width === "full" ? "container-full" : "container"}">
-        <div class="footerGrid">
-          <div>
-            <h4 class="footerTitle">${escapeHtml(bp.brand.name)}</h4>
-            <p class="footerText">${escapeHtml(bp.footer.aboutText)}</p>
-          </div>
-          <div>
-            <h4 class="footerTitle">Departamentos</h4>
-            <ul class="footerList">
-              ${bp.sections.categories
-                .slice(0, 6)
-                .map((c) => `<li><a href="#categoria" data-filter-cat="${escapeAttr(c.label)}">${escapeHtml(c.label)}</a></li>`)
-                .join("")}
-            </ul>
-          </div>
-          <div>
-            <h4 class="footerTitle">Atendimento</h4>
-            <ul class="footerList">
-              ${bp.footer.whatsapp ? `<li>WhatsApp: ${escapeHtml(bp.footer.whatsapp)}</li>` : ""}
-              ${bp.footer.email ? `<li>E-mail: ${escapeHtml(bp.footer.email)}</li>` : ""}
-              ${bp.footer.instagram ? `<li><a href="${escapeAttr(sanitizeUrl(bp.footer.instagram))}" target="_blank" rel="noopener">Instagram Oficial</a></li>` : ""}
-              <li>Compra 100% Segura • Checkout Transparente</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="footerContent--bottom">
-      <div class="container" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-        <span>Pagamentos: PIX • Cartão em até 6x • Boleto</span>
-        <span>Segurança: SSL 256-bits • Ambiente Irroba E-commerce</span>
-      </div>
-    </div>
-    <div class="footer-legal-info">
-      ${bp.footer.legalText?.trim() ? escapeHtml(bp.footer.legalText.trim()) : `© ${new Date().getFullYear()} ${escapeHtml(bp.brand.name)} — Versão Beta demonstrativa estruturada no Tema LIME da Irroba.`}
-    </div>
-  </footer>
+  ${renderIrrobaFooterHtml(bp)}
 
   <!-- Mobile Navigation Drawer -->
   <div id="irb-mobile-drawer" class="irb-drawer-backdrop left" role="dialog" aria-modal="true">
@@ -2772,7 +3800,6 @@ export function compileStorefrontDocument(
         <button type="button" id="irb-mobile-close" style="border:none;background:#f3f4f6;width:32px;height:32px;border-radius:999px;cursor:pointer;display:flex;align-items:center;justify-content:center;">${IRROBA_ICONS.close}</button>
       </div>
       <div style="padding:10px 0;overflow-y:auto;">
-        <a href="#home" class="mobileNavLink" data-go-home="1">Início</a>
         ${mobileNavLinksHtml}
       </div>
     </div>
@@ -2828,6 +3855,11 @@ export function compileStorefrontDocument(
       const cart = [];
       let activeCategory = 'all';
       let searchQuery = '';
+      let rawSearchQuery = '';
+      let minPriceFilter = null;
+      let maxPriceFilter = null;
+      let promoOnlyFilter = false;
+      let catGridCols = 3;
       let activePdpProduct = null;
       let activeSize = ${safeJsonForScript(variationSizes[0] ?? "Padrão")};
       let pdpQty = 1;
@@ -2852,6 +3884,10 @@ export function compileStorefrontDocument(
       if (overlineTicker) {
         const overlineSlides = Array.from(overlineTicker.querySelectorAll('.overlineModule__slide'));
         const intervalMs = Math.max(1000, Number(overlineTicker.getAttribute('data-interval-ms')) || 4000);
+        const prefersReducedMotion =
+          typeof window.matchMedia === 'function' &&
+          window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const slideResetTimers = new Map();
         let overlineIdx = 0;
         let overlinePaused = false;
         overlineTicker.addEventListener('mouseenter', () => { overlinePaused = true; });
@@ -2864,15 +3900,36 @@ export function compileStorefrontDocument(
             overlineIdx = (overlineIdx + 1) % overlineSlides.length;
             const nextSlide = overlineSlides[overlineIdx];
 
+            if (nextSlide) {
+              const pending = slideResetTimers.get(nextSlide);
+              if (pending) {
+                clearTimeout(pending);
+                slideResetTimers.delete(nextSlide);
+              }
+              nextSlide.classList.add('is-resetting');
+              nextSlide.classList.remove('is-leaving', 'is-active');
+              void nextSlide.offsetWidth;
+              nextSlide.classList.remove('is-resetting');
+            }
+
             if (prevSlide && prevSlide !== nextSlide) {
               prevSlide.classList.remove('is-active');
-              prevSlide.classList.add('is-leaving');
-              setTimeout(() => {
+              if (prefersReducedMotion) {
                 prevSlide.classList.remove('is-leaving');
-              }, 520);
+              } else {
+                prevSlide.classList.add('is-leaving');
+                const timer = setTimeout(() => {
+                  prevSlide.classList.add('is-resetting');
+                  prevSlide.classList.remove('is-leaving');
+                  void prevSlide.offsetWidth;
+                  prevSlide.classList.remove('is-resetting');
+                  slideResetTimers.delete(prevSlide);
+                }, 540);
+                slideResetTimers.set(prevSlide, timer);
+              }
             }
+
             if (nextSlide) {
-              nextSlide.classList.remove('is-leaving');
               nextSlide.classList.add('is-active');
             }
           }, intervalMs);
@@ -2990,9 +4047,107 @@ export function compileStorefrontDocument(
         );
       }
 
-      function openCategoryPage(catLabel, query) {
+      function setCatDrawerOpen(open) {
+        const sidebar = document.getElementById('irb-cat-sidebar');
+        const backdrop = document.getElementById('irb-cat-filter-backdrop');
+        if (sidebar) sidebar.classList.toggle('open', Boolean(open));
+        if (backdrop) {
+          backdrop.classList.toggle('open', Boolean(open));
+          backdrop.setAttribute('aria-hidden', open ? 'false' : 'true');
+        }
+      }
+
+      function updateSidebarCategoryCounts() {
+        document.querySelectorAll('[data-cat-count]').forEach((el) => {
+          const catAttr = el.getAttribute('data-cat-count') || 'all';
+          if (catAttr === 'all') {
+            el.textContent = String(PRODUCTS.length);
+            return;
+          }
+          const matchedCount = PRODUCTS.filter((p) => matchesCategory(p, catAttr)).length;
+          el.textContent = String(matchedCount);
+        });
+      }
+      updateSidebarCategoryCounts();
+
+      function syncPricePresetButtons() {
+        document.querySelectorAll('#irb-price-presets .filterPresetBtn').forEach((btn) => {
+          const pMinRaw = btn.getAttribute('data-price-min') || '';
+          const pMaxRaw = btn.getAttribute('data-price-max') || '';
+          const pMin = pMinRaw ? Number(pMinRaw) : null;
+          const pMax = pMaxRaw ? Number(pMaxRaw) : null;
+          btn.classList.toggle('active', minPriceFilter === pMin && maxPriceFilter === pMax);
+        });
+      }
+
+      function renderActiveFilterTags() {
+        const wrap = document.getElementById('irb-active-filters');
+        const badge = document.getElementById('irb-cat-filter-badge');
+        let activeCount = 0;
+        const tags = [];
+        if (activeCategory !== 'all') {
+          activeCount++;
+          tags.push({ key: 'cat', label: 'Categoria: ' + activeCategory });
+        }
+        if (minPriceFilter !== null || maxPriceFilter !== null) {
+          activeCount++;
+          const minTxt = minPriceFilter !== null ? 'R$ ' + minPriceFilter : 'R$ 0';
+          const maxTxt = maxPriceFilter !== null ? 'R$ ' + maxPriceFilter : '∞';
+          tags.push({ key: 'price', label: minTxt + ' – ' + maxTxt });
+        }
+        if (promoOnlyFilter) {
+          activeCount++;
+          tags.push({ key: 'promo', label: 'Em promoção' });
+        }
+        if (badge) {
+          badge.textContent = String(activeCount);
+          badge.style.display = activeCount > 0 ? 'inline-block' : 'none';
+        }
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        tags.forEach((tag) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'irb-active-filter-tag';
+          btn.textContent = tag.label + ' ×';
+          btn.addEventListener('click', () => {
+            if (tag.key === 'cat') activeCategory = 'all';
+            if (tag.key === 'price') {
+              minPriceFilter = null;
+              maxPriceFilter = null;
+              const minIn = document.getElementById('min-price-input');
+              const maxIn = document.getElementById('max-price-input');
+              if (minIn) minIn.value = '';
+              if (maxIn) maxIn.value = '';
+            }
+            if (tag.key === 'promo') {
+              promoOnlyFilter = false;
+              const promoCb = document.getElementById('irb-filter-promo-only');
+              if (promoCb) promoCb.checked = false;
+            }
+            openCategoryPage(activeCategory, rawSearchQuery, { keepFilters: true });
+          });
+          wrap.appendChild(btn);
+        });
+      }
+
+      function openCategoryPage(catLabel, query, options) {
+        const keepFilters = Boolean(options && options.keepFilters);
         activeCategory = catLabel || 'all';
-        searchQuery = (query || '').trim().toLowerCase();
+        rawSearchQuery = (query || '').trim();
+        searchQuery = rawSearchQuery.toLowerCase();
+
+        if (!keepFilters) {
+          minPriceFilter = null;
+          maxPriceFilter = null;
+          promoOnlyFilter = false;
+          const minIn = document.getElementById('min-price-input');
+          const maxIn = document.getElementById('max-price-input');
+          const promoCb = document.getElementById('irb-filter-promo-only');
+          if (minIn) minIn.value = '';
+          if (maxIn) maxIn.value = '';
+          if (promoCb) promoCb.checked = false;
+        }
 
         document.querySelectorAll('.categoryLink').forEach((c) => {
           const attr = (c.getAttribute('data-filter-cat') || '').toLowerCase();
@@ -3002,8 +4157,17 @@ export function compileStorefrontDocument(
           const attr = (chip.getAttribute('data-filter-cat') || '').toLowerCase();
           chip.classList.toggle('active', attr === activeCategory.toLowerCase());
         });
+        document.querySelectorAll('[data-sidebar-cat]').forEach((btn) => {
+          const attr = (btn.getAttribute('data-sidebar-cat') || '').toLowerCase();
+          btn.classList.toggle('active', attr === activeCategory.toLowerCase());
+        });
+        syncPricePresetButtons();
+        renderActiveFilterTags();
 
-        let filtered = PRODUCTS.filter((p) => {
+        const hasExtraFilters =
+          minPriceFilter !== null || maxPriceFilter !== null || promoOnlyFilter;
+
+        let baseList = PRODUCTS.filter((p) => {
           const okCat = matchesCategory(p, activeCategory);
           const okSearch =
             !searchQuery ||
@@ -3012,32 +4176,49 @@ export function compileStorefrontDocument(
           return okCat && okSearch;
         });
 
-        // If a scraped category has zero exact matches without search, show full catalog fallback clearly
         let titleText = activeCategory === 'all' ? 'Todos os Produtos' : activeCategory;
-        if (searchQuery) {
-          titleText = 'Resultados para "' + query + '"';
-        } else if (filtered.length === 0 && activeCategory !== 'all') {
-          filtered = PRODUCTS.slice(0, 12);
+        if (rawSearchQuery) {
+          titleText = 'Resultados para "' + rawSearchQuery + '"';
+        } else if (baseList.length === 0 && activeCategory !== 'all' && !hasExtraFilters) {
+          baseList = PRODUCTS.slice(0, 12);
         }
 
-        const sortVal = document.getElementById('irb-cat-sort').value;
+        const filtered = baseList.filter((p) => {
+          if (minPriceFilter !== null && p.price < minPriceFilter) return false;
+          if (maxPriceFilter !== null && p.price > maxPriceFilter) return false;
+          if (promoOnlyFilter && !(p.compareAtPrice && p.compareAtPrice > p.price)) return false;
+          return true;
+        });
+
+        const sortEl = document.getElementById('irb-cat-sort');
+        const sortVal = sortEl ? sortEl.value : 'relevance';
         if (sortVal === 'price-asc') filtered.sort((a, b) => a.price - b.price);
         else if (sortVal === 'price-desc') filtered.sort((a, b) => b.price - a.price);
         else if (sortVal === 'name-asc') filtered.sort((a, b) => a.title.localeCompare(b.title));
+        else if (sortVal === 'name-desc') filtered.sort((a, b) => b.title.localeCompare(a.title));
+        else if (sortVal === 'discount-desc') {
+          const pctOf = (item) =>
+            item.compareAtPrice && item.compareAtPrice > item.price
+              ? (item.compareAtPrice - item.price) / item.compareAtPrice
+              : 0;
+          filtered.sort((a, b) => pctOf(b) - pctOf(a));
+        }
 
         document.getElementById('irb-cat-breadcrumb').textContent = titleText;
         document.getElementById('irb-cat-title').textContent = titleText;
         document.getElementById('irb-cat-count').textContent = filtered.length + ' produto(s) disponível(is)';
 
         const grid = document.getElementById('irb-cat-grid');
+        grid.classList.toggle('grid-cols-4', catGridCols === 4);
         grid.innerHTML = '';
         if (filtered.length === 0) {
-          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px 0;color:#6b7280;">Nenhum produto encontrado para essa busca. Tente outro termo ou volte para Início.</p>';
+          grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:40px 0;color:#6b7280;">Nenhum produto encontrado com os filtros aplicados. Tente limpar ou ajustar os filtros ao lado.</p>';
         } else {
           filtered.forEach((p) => grid.appendChild(createProductCardNode(p)));
         }
 
         document.getElementById('irb-mobile-drawer').classList.remove('open');
+        setCatDrawerOpen(false);
         switchView('category');
       }
 
@@ -3101,35 +4282,121 @@ export function compileStorefrontDocument(
       }
 
       // Navigation bindings
+      function goHome() {
+        activeCategory = 'all';
+        searchQuery = '';
+        rawSearchQuery = '';
+        minPriceFilter = null;
+        maxPriceFilter = null;
+        promoOnlyFilter = false;
+        const sInput = document.getElementById('irb-search-input');
+        if (sInput) sInput.value = '';
+        document.querySelectorAll('.categoryLink').forEach((c) => c.classList.remove('active'));
+        const mobileDrawer = document.getElementById('irb-mobile-drawer');
+        if (mobileDrawer) mobileDrawer.classList.remove('open');
+        setCatDrawerOpen(false);
+        switchView('home');
+      }
+
       document.querySelectorAll('[data-go-home]').forEach((el) => {
         el.addEventListener('click', (e) => {
           e.preventDefault();
-          activeCategory = 'all';
-          searchQuery = '';
-          document.getElementById('irb-search-input').value = '';
-          document.querySelectorAll('.categoryLink').forEach((c) => c.classList.remove('active'));
-          const homeLink = document.querySelector('.categoryLink[data-go-home]');
-          if (homeLink) homeLink.classList.add('active');
-          document.getElementById('irb-mobile-drawer').classList.remove('open');
-          switchView('home');
+          goHome();
         });
       });
 
       document.getElementById('irb-go-home-logo').addEventListener('click', (e) => {
         e.preventDefault();
-        switchView('home');
+        goHome();
       });
 
       document.querySelectorAll('[data-filter-cat], [data-irb-cat]').forEach((el) => {
         el.addEventListener('click', (e) => {
           e.preventDefault();
           const cat = el.getAttribute('data-filter-cat') || el.getAttribute('data-irb-cat') || 'all';
-          openCategoryPage(cat, '');
+          openCategoryPage(cat, '', { keepFilters: false });
         });
       });
 
+      document.querySelectorAll('[data-sidebar-cat]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const cat = btn.getAttribute('data-sidebar-cat') || 'all';
+          openCategoryPage(cat, rawSearchQuery, { keepFilters: true });
+        });
+      });
+
+      document.querySelectorAll('#irb-price-presets .filterPresetBtn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const minRaw = btn.getAttribute('data-price-min') || '';
+          const maxRaw = btn.getAttribute('data-price-max') || '';
+          const nextMin = minRaw ? Number(minRaw) : null;
+          const nextMax = maxRaw ? Number(maxRaw) : null;
+          if (minPriceFilter === nextMin && maxPriceFilter === nextMax) {
+            minPriceFilter = null;
+            maxPriceFilter = null;
+          } else {
+            minPriceFilter = nextMin;
+            maxPriceFilter = nextMax;
+          }
+          const minIn = document.getElementById('min-price-input');
+          const maxIn = document.getElementById('max-price-input');
+          if (minIn) minIn.value = minPriceFilter !== null ? String(minPriceFilter) : '';
+          if (maxIn) maxIn.value = maxPriceFilter !== null ? String(maxPriceFilter) : '';
+          openCategoryPage(activeCategory, rawSearchQuery, { keepFilters: true });
+        });
+      });
+
+      const applyFiltersBtn = document.getElementById('irb-apply-filters-btn');
+      if (applyFiltersBtn) {
+        applyFiltersBtn.addEventListener('click', () => {
+          const minIn = document.getElementById('min-price-input');
+          const maxIn = document.getElementById('max-price-input');
+          const promoCb = document.getElementById('irb-filter-promo-only');
+          const minVal = minIn && minIn.value.trim() !== '' ? Number(minIn.value) : null;
+          const maxVal = maxIn && maxIn.value.trim() !== '' ? Number(maxIn.value) : null;
+          minPriceFilter = minVal !== null && Number.isFinite(minVal) && minVal >= 0 ? minVal : null;
+          maxPriceFilter = maxVal !== null && Number.isFinite(maxVal) && maxVal >= 0 ? maxVal : null;
+          promoOnlyFilter = Boolean(promoCb && promoCb.checked);
+          openCategoryPage(activeCategory, rawSearchQuery, { keepFilters: true });
+        });
+      }
+
+      const promoCheckbox = document.getElementById('irb-filter-promo-only');
+      if (promoCheckbox) {
+        promoCheckbox.addEventListener('change', () => {
+          promoOnlyFilter = Boolean(promoCheckbox.checked);
+          openCategoryPage(activeCategory, rawSearchQuery, { keepFilters: true });
+        });
+      }
+
+      const clearFiltersBtn = document.getElementById('irb-clear-filters-btn');
+      if (clearFiltersBtn) {
+        clearFiltersBtn.addEventListener('click', () => {
+          openCategoryPage('all', '', { keepFilters: false });
+        });
+      }
+
+      document.querySelectorAll('.js-changeGrid').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const cols = Number(btn.getAttribute('data-grid-cols') || 3);
+          catGridCols = cols === 4 ? 4 : 3;
+          document.querySelectorAll('.js-changeGrid').forEach((b) => {
+            b.classList.toggle('active', Number(b.getAttribute('data-grid-cols')) === catGridCols);
+          });
+          const grid = document.getElementById('irb-cat-grid');
+          if (grid) grid.classList.toggle('grid-cols-4', catGridCols === 4);
+        });
+      });
+
+      const openCatFiltersBtn = document.getElementById('irb-open-cat-filters');
+      const closeCatFiltersBtn = document.getElementById('irb-cat-filter-close');
+      const catFilterBackdrop = document.getElementById('irb-cat-filter-backdrop');
+      if (openCatFiltersBtn) openCatFiltersBtn.addEventListener('click', () => setCatDrawerOpen(true));
+      if (closeCatFiltersBtn) closeCatFiltersBtn.addEventListener('click', () => setCatDrawerOpen(false));
+      if (catFilterBackdrop) catFilterBackdrop.addEventListener('click', () => setCatDrawerOpen(false));
+
       document.getElementById('irb-cat-sort').addEventListener('change', () => {
-        openCategoryPage(activeCategory, searchQuery);
+        openCategoryPage(activeCategory, rawSearchQuery, { keepFilters: true });
       });
 
       const searchModal = document.getElementById('irb-search-modal');
@@ -3238,6 +4505,7 @@ export function compileStorefrontDocument(
           if (accountModal) accountModal.classList.remove('open');
           if (cartDrawer) cartDrawer.classList.remove('open');
           if (mobileDrawer) mobileDrawer.classList.remove('open');
+          setCatDrawerOpen(false);
         }
       });
 
@@ -3436,7 +4704,8 @@ export function compileStorefrontDocument(
         }
       });
       document.querySelectorAll('[data-account-action]').forEach((btn) => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
           openAccountModalInMode(btn.getAttribute('data-account-action') || 'login');
         });
       });

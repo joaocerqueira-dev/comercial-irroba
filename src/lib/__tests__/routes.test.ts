@@ -17,14 +17,16 @@ vi.mock("@/lib/files/captures", async (orig) => ({
   ...(await orig<typeof import("@/lib/files/captures")>()),
   deletePreviewCaptures: vi.fn(async () => 0),
 }));
-const ai = vi.hoisted(() => ({ buildStoreBlueprint: vi.fn() }));
+const ai = vi.hoisted(() => ({ buildStoreBlueprint: vi.fn(), callGeminiWithTimeout: vi.fn() }));
 vi.mock("@/lib/ai/architect", async (orig) => ({
   ...(await orig<typeof import("@/lib/ai/architect")>()),
   buildStoreBlueprint: ai.buildStoreBlueprint,
+  callGeminiWithTimeout: ai.callGeminiWithTimeout,
 }));
 
 import { DELETE, PATCH } from "@/app/api/previews/[id]/route";
 import { POST as REANALYZE } from "@/app/api/previews/[id]/reanalyze/route";
+import { POST as AI_HTML } from "@/app/api/previews/[id]/ai-html/route";
 
 const extracted = makeSampleExtracted();
 const ctx = (id = "abc") => ({ params: Promise.resolve({ id }) });
@@ -90,5 +92,56 @@ describe("GET /api/previews", () => {
     expect(res.status).toBe(200);
     expect(db.storePreview.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["old1"] } } });
     expect(files.deletePreviewCaptures).toHaveBeenCalledWith("loja-x-aaaaaa", "old1", expect.anything());
+  });
+});
+
+describe("POST /api/previews/[id]/ai-html", () => {
+  it("retorna 400 para corpo inválido e 404 quando preview não existe", async () => {
+    const res400 = await AI_HTML(req({ prompt: "ab" }), ctx());
+    expect(res400.status).toBe(400);
+
+    db.storePreview.findUnique.mockResolvedValueOnce(null);
+    const res404 = await AI_HTML(req({ prompt: "Crie 3 cards de benefícios" }), ctx());
+    expect(res404.status).toBe(404);
+  });
+
+  it("retorna 503 sem GEMINI_API_KEY e 200 com HTML sanitizado quando Gemini responde", async () => {
+    const bp = buildHeuristicBlueprint(extracted);
+    const validRow = {
+      id: "abc",
+      slug: "loja-abc",
+      sourceUrl: "https://loja.exemplo.com.br/",
+      extractedData: extracted,
+      blueprint: bp,
+    };
+
+    const origKey = process.env.GEMINI_API_KEY;
+    try {
+      delete process.env.GEMINI_API_KEY;
+      db.storePreview.findUnique.mockResolvedValueOnce(validRow);
+      const res503 = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
+      expect(res503.status).toBe(503);
+
+      process.env.GEMINI_API_KEY = "test-key";
+      db.storePreview.findUnique.mockResolvedValueOnce(validRow);
+      ai.callGeminiWithTimeout.mockResolvedValueOnce({
+        text: JSON.stringify({
+          html: '<div onclick="alert(1)" style="padding:16px;background:#fff;"><script>xss()</script><h3 style="margin:0;">Sobre Nós</h3></div>',
+          summary: "Bloco institucional criado",
+          suggestedTitle: "Sobre a Loja",
+        }),
+      });
+
+      const res200 = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
+      expect(res200.status).toBe(200);
+      const json = await res200.json();
+      expect(json.html).toContain("Sobre Nós");
+      expect(json.html).not.toMatch(/<script|onclick/i);
+      expect(json.summary).toBe("Bloco institucional criado");
+      expect(json.suggestedTitle).toBe("Sobre a Loja");
+    } finally {
+      if (origKey !== undefined) process.env.GEMINI_API_KEY = origKey;
+      else delete process.env.GEMINI_API_KEY;
+    }
   });
 });

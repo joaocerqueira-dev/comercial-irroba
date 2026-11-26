@@ -633,6 +633,10 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
       whatsapp: extracted.contacts.whatsapp,
       instagram: extracted.contacts.instagram,
       email: extracted.contacts.email,
+      ...(extracted.contacts.facebook ? { facebook: extracted.contacts.facebook } : {}),
+      ...(extracted.contacts.phone ? { phone: extracted.contacts.phone } : {}),
+      ...(extracted.contacts.address ? { address: extracted.contacts.address } : {}),
+      ...(extracted.contacts.cnpj ? { cnpj: extracted.contacts.cnpj } : {}),
     },
     designInsights,
   };
@@ -657,11 +661,11 @@ export function extractJsonObject(raw: string): Record<string, unknown> {
   return JSON.parse(cleaned) as Record<string, unknown>;
 }
 
-async function callGeminiWithTimeout(
+export async function callGeminiWithTimeout(
   ai: GoogleGenAI,
   model: string,
   parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
-  timeoutMs = GEMINI_ARCHITECT.timeoutMs,
+  timeoutMs: number = GEMINI_ARCHITECT.timeoutMs,
   outerSignal?: AbortSignal
 ) {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);

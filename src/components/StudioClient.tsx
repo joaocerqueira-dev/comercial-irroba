@@ -36,11 +36,18 @@ import {
 } from "lucide-react";
 import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
 import { compileIrrobaExport, compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
+import { escapeHtml } from "@/lib/irroba-blocks/sanitize";
 import {
+  CUSTOM_SECTION_MODULE_LABELS,
+  CUSTOM_SECTION_TYPE_LABELS,
+  CustomSectionKindSchema,
   DEFAULT_SECTION_LAYOUT,
   getNormalizedSectionLayout,
+  isBuiltinSectionKey,
+  type CustomSection,
+  type CustomSectionKind,
   type DesignInsight,
-  type SectionKey,
+  type SectionConfig,
   type StoreBlueprint,
 } from "@/lib/types/blueprint";
 import StoreCompareView from "./StoreCompareView";
@@ -117,6 +124,7 @@ export default function StudioClient({
   const [savedNotice, setSavedNotice] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [addSectionOpen, setAddSectionOpen] = useState(false);
   const [dragSectionIdx, setDragSectionIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const dragSectionIdxRef = useRef<number | null>(null);
@@ -144,8 +152,20 @@ export default function StudioClient({
   );
 
   const hoverSidebarTarget = useCallback(
-    (targetId: InspectorTargetId | null) => {
-      postToPreview({ type: "irb-studio:hover-target", targetId });
+    (target: InspectorTargetId | InspectorSelection | null) => {
+      if (!target) {
+        postToPreview({ type: "irb-studio:hover-target", targetId: null });
+        return;
+      }
+      if (typeof target === "string") {
+        postToPreview({ type: "irb-studio:hover-target", targetId: target });
+        return;
+      }
+      postToPreview({
+        type: "irb-studio:hover-target",
+        targetId: target.targetId,
+        customSectionId: target.customSectionId ?? null,
+      });
     },
     [postToPreview]
   );
@@ -174,6 +194,7 @@ export default function StudioClient({
         productId?: string;
         showcaseIdx?: number;
         subIndex?: number;
+        customSectionId?: string;
       };
       if (msg.type === "irb-studio:hover") {
         setHoveredPreviewLabel(msg.label ?? null);
@@ -184,6 +205,7 @@ export default function StudioClient({
           productId: msg.productId,
           showcaseIdx: msg.showcaseIdx,
           subIndex: msg.subIndex,
+          customSectionId: msg.customSectionId,
         });
         setMobilePane("edit");
         sidebarScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -218,7 +240,15 @@ export default function StudioClient({
     () => (activeTab === "export" ? compileIrrobaExport(bp) : null),
     [activeTab, bp]
   );
-  const sectionLayout = useMemo(() => getNormalizedSectionLayout(bp.sections.layout), [bp.sections.layout]);
+  const sectionLayout = useMemo(
+    () => getNormalizedSectionLayout(bp.sections.layout, bp.sections.customSections),
+    [bp.sections.layout, bp.sections.customSections]
+  );
+
+  const toSectionSelection = (sec: SectionConfig): InspectorSelection =>
+    isBuiltinSectionKey(sec.id)
+      ? { targetId: sec.id, label: sec.label }
+      : { targetId: "custom-section", customSectionId: sec.id, label: sec.label };
 
   const updateBp = (updater: (prev: StoreBlueprint) => StoreBlueprint) => {
     setBp((prev) => updater(prev));
@@ -228,7 +258,7 @@ export default function StudioClient({
   const moveSection = (fromIdx: number, toIdx: number) => {
     if (toIdx < 0 || toIdx >= sectionLayout.length || fromIdx === toIdx) return;
     updateBp((prev) => {
-      const next = getNormalizedSectionLayout(prev.sections.layout);
+      const next = getNormalizedSectionLayout(prev.sections.layout, prev.sections.customSections);
       const [moved] = next.splice(fromIdx, 1);
       if (!moved) return prev;
       next.splice(toIdx, 0, moved);
@@ -236,9 +266,9 @@ export default function StudioClient({
     });
   };
 
-  const toggleSection = (sectionId: SectionKey) => {
+  const toggleSection = (sectionId: string) => {
     updateBp((prev) => {
-      const next = getNormalizedSectionLayout(prev.sections.layout).map((s) =>
+      const next = getNormalizedSectionLayout(prev.sections.layout, prev.sections.customSections).map((s) =>
         s.id === sectionId ? { ...s, enabled: !s.enabled } : s
       );
       return { ...prev, sections: { ...prev.sections, layout: next } };
@@ -250,9 +280,215 @@ export default function StudioClient({
       ...prev,
       sections: {
         ...prev.sections,
-        layout: DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s })),
+        layout: getNormalizedSectionLayout(
+          DEFAULT_SECTION_LAYOUT.map((s) => ({ ...s })),
+          prev.sections.customSections
+        ),
       },
     }));
+  };
+
+  const createCustomSection = (kind: CustomSectionKind, refBp: StoreBlueprint): CustomSection => {
+    const id = `custom-${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+    const fallbackImg =
+      refBp.sections.heroSlides[0]?.imageUrl ||
+      refBp.sections.hero.imageUrl ||
+      refBp.sections.secondaryBanner?.imageUrl ||
+      refBp.products[0]?.imageUrl ||
+      "";
+
+    switch (kind) {
+      case "html":
+        return {
+          id,
+          kind: "html",
+          title: "Bloco HTML Personalizado",
+          width: "container",
+          html: `<div style="padding:36px 20px;border-radius:12px;background:${refBp.theme.neutralBackground};color:${refBp.theme.neutralForeground};text-align:center;">
+  <h2 style="margin:0 0 10px;font-size:24px;">Destaque ${escapeHtml(refBp.brand.name)}</h2>
+  <p style="margin:0 auto 18px;max-width:620px;font-size:15px;opacity:.88;">Edite este conteúdo manualmente ou gere um novo layout com auxílio da IA usando a identidade da marca.</p>
+  <a href="#vitrines" style="display:inline-block;padding:11px 22px;border-radius:6px;background:${refBp.theme.btnPrimaryBackground};color:${refBp.theme.btnPrimaryColor};text-decoration:none;font-weight:700;font-size:13px;">Explorar Produtos</a>
+</div>`,
+        };
+      case "banner":
+        return {
+          id,
+          kind: "banner",
+          title: "Banner de Campanha",
+          mode: "editorial",
+          imageUrl: fallbackImg,
+          headline: "Nova Campanha em Destaque",
+          subheadline: "Curadoria selecionada com envio rápido para todo o Brasil.",
+          ctaText: "Conferir Coleção",
+          ctaHref: "#vitrines",
+        };
+      case "slimBanner":
+        return {
+          id,
+          kind: "slimBanner",
+          title: "Banner Slim Promocional",
+          mode: "designed",
+          imageUrl: "",
+          badgeText: "DESTAQUE",
+          headline: "Condições especiais com desconto no PIX e parcelamento sem juros",
+          ctaText: "Aproveitar",
+          backgroundColor: refBp.theme.primaryBackground,
+          textColor: refBp.theme.primaryForeground,
+        };
+      case "showcase":
+        return {
+          id,
+          kind: "showcase",
+          title: "Vitrine Personalizada",
+          subtitle: "Seleção especial da coleção",
+          categoryFilter: refBp.sections.categories[0]?.label || "",
+          productIds: refBp.products.slice(0, 8).map((p) => p.id),
+          limit: 8,
+        };
+      case "gallery": {
+        const seededItems =
+          refBp.sections.moodBanners.length > 0
+            ? refBp.sections.moodBanners.slice(0, 3)
+            : refBp.products.slice(0, 3).map((p, idx) => ({
+                id: `gal-${idx + 1}`,
+                title: p.category || p.title,
+                subtitle: "Ver coleção",
+                imageUrl: p.imageUrl,
+                href: "#vitrines",
+                enabled: true,
+              }));
+        return {
+          id,
+          kind: "gallery",
+          title: "Galeria de Destaques",
+          subtitle: "Navegue pelos estilos da coleção",
+          columns: 3,
+          items: seededItems,
+        };
+      }
+      case "tarja":
+        return {
+          id,
+          kind: "tarja",
+          title: "Tarja de Benefícios Adicional",
+          items: [
+            { icon: "truck", title: "Envio Rápido", subtitle: "Despacho em até 24h úteis" },
+            { icon: "credit-card", title: "Parcelamento Facilitado", subtitle: "Em até 6x sem juros" },
+            { icon: "shield-check", title: "Compra Garantida", subtitle: "Ambiente 100% protegido" },
+          ],
+        };
+      case "editorialSplit":
+        return {
+          id,
+          kind: "editorialSplit",
+          title: "Editorial Marca",
+          eyebrow: "SOBRE A MARCA",
+          headline: `Essência ${refBp.brand.name}`,
+          description:
+            refBp.footer.aboutText ||
+            "Qualidade, acabamento impecável e curadoria pensada nos mínimos detalhes.",
+          ctaText: "Ver Coleção",
+          ctaHref: "#vitrines",
+          imageUrl: refBp.sections.lookbook?.mainImageUrl || fallbackImg,
+          imageSide: "left",
+        };
+    }
+  };
+
+  const addCustomSection = (kind: CustomSectionKind) => {
+    const created = createCustomSection(kind, bp);
+    updateBp((prev) => {
+      const existingCustom = prev.sections.customSections ?? [];
+      const nextCustom = [...existingCustom, created];
+      const baseLayout = getNormalizedSectionLayout(prev.sections.layout, existingCustom);
+      const nextLayout: SectionConfig[] = [
+        ...baseLayout,
+        {
+          id: created.id,
+          label: created.title,
+          irrobaModule: CUSTOM_SECTION_MODULE_LABELS[created.kind],
+          enabled: true,
+          isCustom: true,
+          customKind: created.kind,
+        },
+      ];
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          customSections: nextCustom,
+          layout: nextLayout,
+        },
+      };
+    });
+    setAddSectionOpen(false);
+    selectAndFocusElement(
+      { targetId: "custom-section", customSectionId: created.id, label: created.title },
+      true
+    );
+  };
+
+  const duplicateCustomSection = (customSectionId: string) => {
+    const source = (bp.sections.customSections ?? []).find((c) => c.id === customSectionId);
+    if (!source) return;
+    const copyId = `custom-${source.kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`;
+    const copyTitle = `${source.title} (Cópia)`;
+    const cloned: CustomSection = { ...source, id: copyId, title: copyTitle };
+
+    updateBp((prev) => {
+      const existingCustom = prev.sections.customSections ?? [];
+      const srcIdx = existingCustom.findIndex((c) => c.id === customSectionId);
+      const nextCustom = [...existingCustom];
+      if (srcIdx >= 0) nextCustom.splice(srcIdx + 1, 0, cloned);
+      else nextCustom.push(cloned);
+
+      const baseLayout = getNormalizedSectionLayout(prev.sections.layout, existingCustom);
+      const layoutIdx = baseLayout.findIndex((s) => s.id === customSectionId);
+      const copyEntry: SectionConfig = {
+        id: cloned.id,
+        label: cloned.title,
+        irrobaModule: CUSTOM_SECTION_MODULE_LABELS[cloned.kind],
+        enabled: true,
+        isCustom: true,
+        customKind: cloned.kind,
+      };
+      const nextLayout = [...baseLayout];
+      if (layoutIdx >= 0) nextLayout.splice(layoutIdx + 1, 0, copyEntry);
+      else nextLayout.push(copyEntry);
+
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          customSections: nextCustom,
+          layout: nextLayout,
+        },
+      };
+    });
+    selectAndFocusElement(
+      { targetId: "custom-section", customSectionId: cloned.id, label: cloned.title },
+      true
+    );
+  };
+
+  const deleteCustomSection = (customSectionId: string) => {
+    updateBp((prev) => {
+      const nextCustom = (prev.sections.customSections ?? []).filter((c) => c.id !== customSectionId);
+      const nextLayout = getNormalizedSectionLayout(prev.sections.layout, nextCustom).filter(
+        (s) => s.id !== customSectionId
+      );
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          customSections: nextCustom,
+          layout: nextLayout,
+        },
+      };
+    });
+    if (selectedElement?.customSectionId === customSectionId) {
+      selectAndFocusElement(null, false);
+    }
   };
 
   const copyText = async (key: string, text: string) => {
@@ -695,6 +931,8 @@ export default function StudioClient({
                 onSelect={(next) => selectAndFocusElement(next, Boolean(next))}
                 onToggleSection={toggleSection}
                 onMoveSection={moveSection}
+                onDuplicateCustomSection={duplicateCustomSection}
+                onDeleteCustomSection={deleteCustomSection}
                 onDownloadBenefitsPng={handleDownloadBenefitsPng}
                 onShowSlide={(slideIdx) => postToPreview({ type: "irb-studio:show-slide", slideIdx })}
               />
@@ -2318,154 +2556,224 @@ export default function StudioClient({
 
                 {/* 1. Manipulador de Seções da Página Inicial */}
                 <div className="space-y-2.5 rounded-xl border border-brand-200 bg-brand-50/40 p-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="font-bold text-slate-900">Seções da Página Inicial</div>
                       <div className="text-xs text-slate-500">
-                        Clique em qualquer seção para editar, arraste para reordenar ou oculte
+                        Clique em qualquer seção para editar, arraste para reordenar ou adicione novas
                       </div>
                     </div>
-                    <button aria-label="Restaurar ordem padrão"
-                      type="button"
-                      onClick={resetSectionLayout}
-                      title="Restaurar ordem padrão"
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      Padrão
-                    </button>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setAddSectionOpen((v) => !v)}
+                        className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-1 text-xs font-semibold text-white hover:bg-brand-700"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Adicionar
+                      </button>
+                      <button
+                        aria-label="Restaurar ordem padrão"
+                        type="button"
+                        onClick={resetSectionLayout}
+                        title="Restaurar ordem padrão"
+                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Padrão
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    {sectionLayout.map((sec, idx) => (
-                      <div
-                        key={sec.id}
-                        draggable
-                        onMouseEnter={() => hoverSidebarTarget(sec.id)}
-                        onMouseLeave={() => hoverSidebarTarget(null)}
-                        onDragStart={(e) => {
-                          e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/plain", String(idx));
-                          dragSectionIdxRef.current = idx;
-                          setDragSectionIdx(idx);
-                        }}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          setDragOverIdx((prev) => (prev === idx ? prev : idx));
-                        }}
-                        onDragLeave={(e) => {
-                          if (
-                            e.relatedTarget instanceof Node &&
-                            e.currentTarget.contains(e.relatedTarget)
-                          ) {
-                            return;
-                          }
-                          setDragOverIdx((prev) => (prev === idx ? null : prev));
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const raw = e.dataTransfer.getData("text/plain");
-                          const from =
-                            raw !== "" && !Number.isNaN(Number(raw))
-                              ? Number(raw)
-                              : dragSectionIdxRef.current;
-                          if (
-                            from !== null &&
-                            from >= 0 &&
-                            from < sectionLayout.length &&
-                            from !== idx
-                          ) {
-                            moveSection(from, idx);
-                          }
-                          dragSectionIdxRef.current = null;
-                          setDragSectionIdx(null);
-                          setDragOverIdx(null);
-                        }}
-                        onDragEnd={() => {
-                          dragSectionIdxRef.current = null;
-                          setDragSectionIdx(null);
-                          setDragOverIdx(null);
-                        }}
-                        className={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 transition ${
-                          sec.enabled ? "text-irroba-ink" : "text-zinc-400"
-                        } ${
-                          dragOverIdx === idx && dragSectionIdx !== idx
-                            ? "border-brand-500 bg-brand-50"
-                            : sec.enabled
-                              ? "border-zinc-200 bg-white hover:border-brand-300"
-                              : "border-dashed border-zinc-200 bg-zinc-100/80"
-                        } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-brand-400" : ""}`}
-                      >
-                        <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-zinc-400" />
+                  {addSectionOpen && (
+                    <div className="rounded-xl border border-brand-200 bg-white p-2.5 space-y-1.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wide text-slate-600">
+                          Escolha o tipo de seção
+                        </span>
                         <button
                           type="button"
-                          draggable={false}
-                          onClick={() =>
-                            selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
-                          }
-                          className="min-w-0 flex-1 text-left"
-                          title={`Editar ${sec.label}`}
+                          onClick={() => setAddSectionOpen(false)}
+                          className="rounded p-0.5 text-slate-400 hover:text-slate-600"
                         >
-                          <div className="truncate font-semibold leading-tight hover:text-brand-600">
-                            {sec.label}
-                          </div>
-                          <div className="truncate text-xs font-medium uppercase tracking-wide text-zinc-400">
-                            {sec.irrobaModule}
-                          </div>
+                          <X className="h-3.5 w-3.5" />
                         </button>
-                        <div className="flex shrink-0 items-center gap-0.5">
-                          <button
-                            type="button"
-                            draggable={false}
-                            onClick={() =>
-                              selectAndFocusElement({ targetId: sec.id, label: sec.label }, true)
-                            }
-                            title={`Editar ${sec.label}`}
-                            className="rounded-lg p-1 text-zinc-500 hover:bg-brand-50 hover:text-brand-600"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            draggable={false}
-                            disabled={idx === 0}
-                            onClick={() => moveSection(idx, idx - 1)}
-                            title="Mover para cima"
-                            className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
-                          >
-                            <ArrowUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            draggable={false}
-                            disabled={idx === sectionLayout.length - 1}
-                            onClick={() => moveSection(idx, idx + 1)}
-                            title="Mover para baixo"
-                            className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
-                          >
-                            <ArrowDown className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            draggable={false}
-                            onClick={() => toggleSection(sec.id)}
-                            title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
-                            className={`rounded-lg p-1 ${
-                              sec.enabled
-                                ? "text-brand-500 hover:bg-brand-50"
-                                : "text-zinc-400 hover:bg-zinc-200"
-                            }`}
-                          >
-                            {sec.enabled ? (
-                              <Eye className="h-3.5 w-3.5" />
-                            ) : (
-                              <EyeOff className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
                       </div>
-                    ))}
+                      <div className="grid grid-cols-1 gap-1">
+                        {CustomSectionKindSchema.options.map((kind) => (
+                          <button
+                            key={kind}
+                            type="button"
+                            onClick={() => addCustomSection(kind)}
+                            className="flex items-center justify-between rounded-lg border border-slate-200 px-2.5 py-2 text-left text-xs hover:border-brand-400 hover:bg-brand-50/60"
+                          >
+                            <div>
+                              <div className="font-semibold text-slate-800">
+                                {CUSTOM_SECTION_TYPE_LABELS[kind]}
+                              </div>
+                              <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                                {CUSTOM_SECTION_MODULE_LABELS[kind]}
+                              </div>
+                            </div>
+                            <Plus className="h-3.5 w-3.5 text-brand-600 shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    {sectionLayout.map((sec, idx) => {
+                      const isCustom = !isBuiltinSectionKey(sec.id);
+                      const selPayload = toSectionSelection(sec);
+                      return (
+                        <div
+                          key={sec.id}
+                          draggable
+                          onMouseEnter={() => hoverSidebarTarget(selPayload)}
+                          onMouseLeave={() => hoverSidebarTarget(null)}
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = "move";
+                            e.dataTransfer.setData("text/plain", String(idx));
+                            dragSectionIdxRef.current = idx;
+                            setDragSectionIdx(idx);
+                          }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = "move";
+                            setDragOverIdx((prev) => (prev === idx ? prev : idx));
+                          }}
+                          onDragLeave={(e) => {
+                            if (
+                              e.relatedTarget instanceof Node &&
+                              e.currentTarget.contains(e.relatedTarget)
+                            ) {
+                              return;
+                            }
+                            setDragOverIdx((prev) => (prev === idx ? null : prev));
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const raw = e.dataTransfer.getData("text/plain");
+                            const from =
+                              raw !== "" && !Number.isNaN(Number(raw))
+                                ? Number(raw)
+                                : dragSectionIdxRef.current;
+                            if (
+                              from !== null &&
+                              from >= 0 &&
+                              from < sectionLayout.length &&
+                              from !== idx
+                            ) {
+                              moveSection(from, idx);
+                            }
+                            dragSectionIdxRef.current = null;
+                            setDragSectionIdx(null);
+                            setDragOverIdx(null);
+                          }}
+                          onDragEnd={() => {
+                            dragSectionIdxRef.current = null;
+                            setDragSectionIdx(null);
+                            setDragOverIdx(null);
+                          }}
+                          className={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 transition ${
+                            sec.enabled ? "text-irroba-ink" : "text-zinc-400"
+                          } ${
+                            dragOverIdx === idx && dragSectionIdx !== idx
+                              ? "border-brand-500 bg-brand-50"
+                              : sec.enabled
+                                ? "border-zinc-200 bg-white hover:border-brand-300"
+                                : "border-dashed border-zinc-200 bg-zinc-100/80"
+                          } ${dragSectionIdx === idx ? "opacity-50 ring-2 ring-brand-400" : ""}`}
+                        >
+                          <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab text-zinc-400" />
+                          <button
+                            type="button"
+                            draggable={false}
+                            onClick={() => selectAndFocusElement(selPayload, true)}
+                            className="min-w-0 flex-1 text-left"
+                            title={`Editar ${sec.label}`}
+                          >
+                            <div className="truncate font-semibold leading-tight hover:text-brand-600">
+                              {sec.label}
+                            </div>
+                            <div className="truncate text-xs font-medium uppercase tracking-wide text-zinc-400">
+                              {sec.irrobaModule}
+                            </div>
+                          </button>
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            <button
+                              type="button"
+                              draggable={false}
+                              onClick={() => selectAndFocusElement(selPayload, true)}
+                              title={`Editar ${sec.label}`}
+                              className="rounded-lg p-1 text-zinc-500 hover:bg-brand-50 hover:text-brand-600"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            {isCustom && (
+                              <>
+                                <button
+                                  type="button"
+                                  draggable={false}
+                                  onClick={() => duplicateCustomSection(sec.id)}
+                                  title="Duplicar seção"
+                                  className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  draggable={false}
+                                  onClick={() => deleteCustomSection(sec.id)}
+                                  title="Excluir seção"
+                                  className="rounded-lg p-1 text-zinc-400 hover:bg-rose-50 hover:text-rose-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                            <button
+                              type="button"
+                              draggable={false}
+                              disabled={idx === 0}
+                              onClick={() => moveSection(idx, idx - 1)}
+                              title="Mover para cima"
+                              className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
+                            >
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              draggable={false}
+                              disabled={idx === sectionLayout.length - 1}
+                              onClick={() => moveSection(idx, idx + 1)}
+                              title="Mover para baixo"
+                              className="rounded-lg p-1 text-zinc-500 hover:bg-zinc-100 hover:text-irroba-ink disabled:opacity-30"
+                            >
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              draggable={false}
+                              onClick={() => toggleSection(sec.id)}
+                              title={sec.enabled ? "Ocultar seção" : "Exibir seção"}
+                              className={`rounded-lg p-1 ${
+                                sec.enabled
+                                  ? "text-brand-500 hover:bg-brand-50"
+                                  : "text-zinc-400 hover:bg-zinc-200"
+                              }`}
+                            >
+                              {sec.enabled ? (
+                                <Eye className="h-3.5 w-3.5" />
+                              ) : (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

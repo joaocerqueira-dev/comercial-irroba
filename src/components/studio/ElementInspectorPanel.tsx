@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  Copy,
   Download,
   Eye,
   EyeOff,
@@ -13,12 +14,22 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { getNormalizedSectionLayout, type SectionKey, type StoreBlueprint } from "@/lib/types/blueprint";
+import {
+  getDefaultEditorialGalleryHtml,
+  getDefaultEditorialLookbookHtml,
+} from "@/lib/irroba-blocks/compiler";
+import {
+  CUSTOM_SECTION_MODULE_LABELS,
+  getNormalizedSectionLayout,
+  type CustomSection,
+  type StoreBlueprint,
+} from "@/lib/types/blueprint";
 import { AiImageSlot } from "./AiImageSlot";
 import { AnnouncementBarControls } from "./AnnouncementBarControls";
 import { BannerDimensionsControl } from "./BannerDimensionsControl";
 import { ColorField } from "./ColorField";
 import { HeaderLinksHoverControls } from "./HeaderLinksHoverControls";
+import { HtmlAiEditor } from "./HtmlAiEditor";
 import { INSPECTOR_META, type InspectorSelection } from "./inspectorTargets";
 
 interface ElementInspectorPanelProps {
@@ -27,8 +38,10 @@ interface ElementInspectorPanelProps {
   selection: InspectorSelection;
   onUpdateBp: (updater: (prev: StoreBlueprint) => StoreBlueprint) => void;
   onSelect: (next: InspectorSelection | null) => void;
-  onToggleSection: (sectionId: SectionKey) => void;
+  onToggleSection: (sectionId: string) => void;
   onMoveSection: (fromIdx: number, toIdx: number) => void;
+  onDuplicateCustomSection?: (customSectionId: string) => void;
+  onDeleteCustomSection?: (customSectionId: string) => void;
   onDownloadBenefitsPng: () => void;
   onShowSlide?: (slideIdx: number) => void;
 }
@@ -41,16 +54,52 @@ export function ElementInspectorPanel({
   onSelect,
   onToggleSection,
   onMoveSection,
+  onDuplicateCustomSection,
+  onDeleteCustomSection,
   onDownloadBenefitsPng,
   onShowSlide,
 }: ElementInspectorPanelProps) {
   const [newCategoryName, setNewCategoryName] = useState("");
   const meta = INSPECTOR_META[selection.targetId];
-  const sectionLayout = getNormalizedSectionLayout(bp.sections.layout);
-  const sectionIdx = meta.sectionKey
-    ? sectionLayout.findIndex((s) => s.id === meta.sectionKey)
+  const sectionLayout = getNormalizedSectionLayout(bp.sections.layout, bp.sections.customSections);
+  const activeCustomSection =
+    selection.targetId === "custom-section" && selection.customSectionId
+      ? (bp.sections.customSections ?? []).find((c) => c.id === selection.customSectionId) ?? null
+      : null;
+  const activeSectionId = activeCustomSection?.id ?? meta.sectionKey ?? null;
+  const sectionIdx = activeSectionId
+    ? sectionLayout.findIndex((s) => s.id === activeSectionId)
     : -1;
   const sectionEntry = sectionIdx >= 0 ? sectionLayout[sectionIdx] : null;
+
+  const updateCustomSection = (updater: (cs: CustomSection) => CustomSection) => {
+    if (!activeCustomSection) return;
+    onUpdateBp((prev) => {
+      const nextCustom = (prev.sections.customSections ?? []).map((item) =>
+        item.id === activeCustomSection.id ? updater(item) : item
+      );
+      const updated = nextCustom.find((item) => item.id === activeCustomSection.id);
+      const nextLayout = updated
+        ? getNormalizedSectionLayout(prev.sections.layout, nextCustom).map((s) =>
+            s.id === updated.id
+              ? {
+                  ...s,
+                  label: updated.title,
+                  irrobaModule: CUSTOM_SECTION_MODULE_LABELS[updated.kind],
+                }
+              : s
+          )
+        : prev.sections.layout;
+      return {
+        ...prev,
+        sections: {
+          ...prev.sections,
+          customSections: nextCustom,
+          layout: nextLayout,
+        },
+      };
+    });
+  };
 
   const activeShowcaseIdx =
     selection.targetId === "showcase1"
@@ -263,8 +312,28 @@ export function ElementInspectorPanel({
             Todos os elementos
           </button>
 
-          {sectionEntry && meta.sectionKey && (
+          {sectionEntry && activeSectionId && (
             <div className="flex items-center gap-1">
+              {activeCustomSection && onDuplicateCustomSection && (
+                <button
+                  type="button"
+                  onClick={() => onDuplicateCustomSection(activeCustomSection.id)}
+                  title="Duplicar seção"
+                  className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-600 hover:bg-zinc-50"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {activeCustomSection && onDeleteCustomSection && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteCustomSection(activeCustomSection.id)}
+                  title="Excluir seção"
+                  className="rounded-lg border border-zinc-200 bg-white p-1 text-zinc-500 hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 disabled={sectionIdx <= 0}
@@ -285,7 +354,7 @@ export function ElementInspectorPanel({
               </button>
               <button
                 type="button"
-                onClick={() => onToggleSection(meta.sectionKey!)}
+                onClick={() => onToggleSection(activeSectionId)}
                 className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold ${
                   sectionEntry.enabled
                     ? "border-brand-300 bg-white text-brand-700 hover:bg-brand-50"
@@ -310,10 +379,10 @@ export function ElementInspectorPanel({
 
         <div className="mt-2.5">
           <div className="font-heading text-[11px] font-bold uppercase tracking-wider text-brand-600">
-            {meta.irrobaRef}
+            {activeCustomSection ? CUSTOM_SECTION_MODULE_LABELS[activeCustomSection.kind] : meta.irrobaRef}
           </div>
           <div className="font-heading text-sm font-bold text-irroba-ink">
-            {selection.label || meta.title}
+            {activeCustomSection?.title || selection.label || meta.title}
           </div>
         </div>
       </div>
@@ -1474,6 +1543,40 @@ export function ElementInspectorPanel({
               />
             </div>
           ))}
+
+          {(() => {
+            const defaultGalleryHtml = getDefaultEditorialGalleryHtml(bp);
+            return (
+              <details className="rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-2.5">
+                <summary className="cursor-pointer select-none text-xs font-semibold text-emerald-900">
+                  Editar HTML com IA (Avançado)
+                  {bp.sections.editorialGalleryCustomHtml ? " · Customizado" : ""}
+                </summary>
+                <div className="mt-3">
+                  <HtmlAiEditor
+                    previewId={previewId}
+                    html={bp.sections.editorialGalleryCustomHtml ?? defaultGalleryHtml}
+                    defaultResetHtml={defaultGalleryHtml}
+                    sectionTitle={bp.sections.moodSectionTitle}
+                    widthMode="container"
+                    bp={bp}
+                    onChange={(nextHtml) =>
+                      onUpdateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          editorialGalleryCustomHtml:
+                            nextHtml === defaultGalleryHtml || !nextHtml.trim()
+                              ? undefined
+                              : nextHtml,
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              </details>
+            );
+          })()}
         </div>
       )}
 
@@ -2380,6 +2483,40 @@ export function ElementInspectorPanel({
               }))
             }
           />
+
+          {(() => {
+            const defaultLookbookHtml = getDefaultEditorialLookbookHtml(bp);
+            return (
+              <details className="rounded-xl border border-emerald-200/80 bg-emerald-50/30 p-2.5">
+                <summary className="cursor-pointer select-none text-xs font-semibold text-emerald-900">
+                  Editar HTML com IA (Avançado)
+                  {bp.sections.editorialLookbookCustomHtml ? " · Customizado" : ""}
+                </summary>
+                <div className="mt-3">
+                  <HtmlAiEditor
+                    previewId={previewId}
+                    html={bp.sections.editorialLookbookCustomHtml ?? defaultLookbookHtml}
+                    defaultResetHtml={defaultLookbookHtml}
+                    sectionTitle={bp.sections.lookbook?.headline || "Lookbook & Manifesto"}
+                    widthMode="container"
+                    bp={bp}
+                    onChange={(nextHtml) =>
+                      onUpdateBp((prev) => ({
+                        ...prev,
+                        sections: {
+                          ...prev.sections,
+                          editorialLookbookCustomHtml:
+                            nextHtml === defaultLookbookHtml || !nextHtml.trim()
+                              ? undefined
+                              : nextHtml,
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              </details>
+            );
+          })()}
         </div>
       )}
 
@@ -2742,6 +2879,116 @@ export function ElementInspectorPanel({
                 className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
               />
             </div>
+            <div>
+              <label className="mb-1 block text-slate-500">URL do Facebook</label>
+              <input
+                type="text"
+                value={bp.footer.facebook ?? ""}
+                placeholder="https://facebook.com/sualoja"
+                onChange={(e) =>
+                  onUpdateBp((prev) => ({
+                    ...prev,
+                    footer: { ...prev.footer, facebook: e.target.value },
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-slate-500">Telefone</label>
+                <input
+                  type="text"
+                  value={bp.footer.phone ?? ""}
+                  placeholder="(16) 3333-0000"
+                  onChange={(e) =>
+                    onUpdateBp((prev) => ({
+                      ...prev,
+                      footer: { ...prev.footer, phone: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-slate-500">Horário</label>
+                <input
+                  type="text"
+                  value={bp.footer.openingHours ?? ""}
+                  placeholder="Seg. à Sex. das 08h às 18h"
+                  onChange={(e) =>
+                    onUpdateBp((prev) => ({
+                      ...prev,
+                      footer: { ...prev.footer, openingHours: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-slate-500">Endereço / Cidade</label>
+              <input
+                type="text"
+                value={bp.footer.address ?? ""}
+                placeholder="Rua Exemplo, 100 - Centro"
+                onChange={(e) =>
+                  onUpdateBp((prev) => ({
+                    ...prev,
+                    footer: { ...prev.footer, address: e.target.value },
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5 space-y-1.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+              Selos do Rodapé (LIME)
+            </div>
+            <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bp.footer.showPaymentSeals !== false}
+                onChange={(e) =>
+                  onUpdateBp((prev) => ({
+                    ...prev,
+                    footer: { ...prev.footer, showPaymentSeals: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-300"
+              />
+              Formas de Pagamento
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bp.footer.showShippingSeals !== false}
+                onChange={(e) =>
+                  onUpdateBp((prev) => ({
+                    ...prev,
+                    footer: { ...prev.footer, showShippingSeals: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-300"
+              />
+              Formas de Envio
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={bp.footer.showSecuritySeals !== false}
+                onChange={(e) =>
+                  onUpdateBp((prev) => ({
+                    ...prev,
+                    footer: { ...prev.footer, showSecuritySeals: e.target.checked },
+                  }))
+                }
+                className="rounded border-slate-300"
+              />
+              Selos de Segurança
+            </label>
           </div>
 
           <button
@@ -2757,6 +3004,56 @@ export function ElementInspectorPanel({
       {/* 17. RODAPÉ — FAIXA LEGAL */}
       {selection.targetId === "footer-legal" && (
         <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="grid grid-cols-1 gap-2">
+            <div>
+              <label className="mb-1 block text-slate-500">Razão Social / Responsável</label>
+              <input
+                type="text"
+                value={bp.footer.ownerName ?? ""}
+                placeholder={bp.brand.name}
+                onChange={(e) =>
+                  onUpdateBp((prev) => ({
+                    ...prev,
+                    footer: { ...prev.footer, ownerName: e.target.value },
+                  }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="mb-1 block text-slate-500">CNPJ</label>
+                <input
+                  type="text"
+                  value={bp.footer.cnpj ?? ""}
+                  placeholder="00.000.000/0001-00"
+                  onChange={(e) =>
+                    onUpdateBp((prev) => ({
+                      ...prev,
+                      footer: { ...prev.footer, cnpj: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-slate-500">Cidade / UF</label>
+                <input
+                  type="text"
+                  value={bp.footer.cityState ?? ""}
+                  placeholder="Franca/SP"
+                  onChange={(e) =>
+                    onUpdateBp((prev) => ({
+                      ...prev,
+                      footer: { ...prev.footer, cityState: e.target.value },
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+              </div>
+            </div>
+          </div>
+
           <div>
             <label className="mb-1 block font-semibold text-slate-700">
               Texto de Direitos Autorais / CNPJ
@@ -2838,6 +3135,845 @@ export function ElementInspectorPanel({
           </div>
 
           {renderCardAndBuyButtonControls()}
+        </div>
+      )}
+
+      {/* 19. SEÇÕES PERSONALIZADAS ADICIONADAS */}
+      {selection.targetId === "custom-section" && activeCustomSection && (
+        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+          <div>
+            <label className="mb-1 block font-semibold text-slate-700">Título da Seção</label>
+            <input
+              type="text"
+              value={activeCustomSection.title}
+              onChange={(e) =>
+                updateCustomSection((cs) => ({ ...cs, title: e.target.value }))
+              }
+              className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-slate-800"
+            />
+          </div>
+
+          {activeCustomSection.kind === "html" && (
+            <>
+              <div>
+                <label className="mb-1 block text-slate-500">Largura na Página</label>
+                <select
+                  value={activeCustomSection.width}
+                  onChange={(e) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "html"
+                        ? { ...cs, width: e.target.value as "container" | "full" }
+                        : cs
+                    )
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+                >
+                  <option value="container">Padrão do site (1280px)</option>
+                  <option value="full">Largura Total</option>
+                </select>
+              </div>
+              <HtmlAiEditor
+                previewId={previewId}
+                html={activeCustomSection.html}
+                sectionTitle={activeCustomSection.title}
+                widthMode={activeCustomSection.width}
+                bp={bp}
+                onChange={(nextHtml) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "html" ? { ...cs, html: nextHtml } : cs
+                  )
+                }
+                onSuggestedTitle={(nextTitle) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "html" ? { ...cs, title: nextTitle } : cs
+                  )
+                }
+              />
+            </>
+          )}
+
+          {activeCustomSection.kind === "banner" && (
+            <div className="space-y-3">
+              <BannerDimensionsControl
+                title="Dimensões do Banner (PX)"
+                heightPx={activeCustomSection.heightPx}
+                defaultHeightPx={420}
+                minHeightPx={120}
+                maxHeightPx={1000}
+                widthPx={activeCustomSection.widthPx}
+                defaultWidthPx={1920}
+                minWidthPx={280}
+                maxWidthPx={2560}
+                objectFit={activeCustomSection.objectFit}
+                onHeightChange={(v) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "banner" ? { ...cs, heightPx: v } : cs
+                  )
+                }
+                onWidthChange={(v) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "banner" ? { ...cs, widthPx: v } : cs
+                  )
+                }
+                onObjectFitChange={(v) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "banner" ? { ...cs, objectFit: v } : cs
+                  )
+                }
+              />
+              <div>
+                <label className="mb-1 block text-slate-500">Modo de Exibição</label>
+                <select
+                  value={activeCustomSection.mode}
+                  onChange={(e) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "banner"
+                        ? { ...cs, mode: e.target.value as "artwork" | "editorial" }
+                        : cs
+                    )
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-800"
+                >
+                  <option value="editorial">Editorial (Foto + Texto sobreposto)</option>
+                  <option value="artwork">Arte Pronta (Apenas imagem)</option>
+                </select>
+              </div>
+              {activeCustomSection.mode === "editorial" && (
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={activeCustomSection.headline}
+                    placeholder="Título principal"
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "banner" ? { ...cs, headline: e.target.value } : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                  <input
+                    type="text"
+                    value={activeCustomSection.subheadline}
+                    placeholder="Subtítulo"
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "banner" ? { ...cs, subheadline: e.target.value } : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={activeCustomSection.ctaText}
+                      placeholder="Texto CTA"
+                      onChange={(e) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "banner" ? { ...cs, ctaText: e.target.value } : cs
+                        )
+                      }
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    />
+                    <input
+                      type="text"
+                      value={activeCustomSection.ctaHref}
+                      placeholder="#vitrines"
+                      onChange={(e) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "banner" ? { ...cs, ctaHref: e.target.value } : cs
+                        )
+                      }
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <ColorField
+                  label="Fundo"
+                  value={activeCustomSection.backgroundColor ?? bp.theme.primaryBackground}
+                  onChange={(v) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "banner" ? { ...cs, backgroundColor: v } : cs
+                    )
+                  }
+                />
+                <ColorField
+                  label="Texto"
+                  value={activeCustomSection.textColor ?? bp.theme.primaryForeground}
+                  contrastWith={activeCustomSection.backgroundColor ?? bp.theme.primaryBackground}
+                  onChange={(v) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "banner" ? { ...cs, textColor: v } : cs
+                    )
+                  }
+                />
+              </div>
+              <AiImageSlot
+                previewId={previewId}
+                label="Imagem do Banner (16:9)"
+                value={activeCustomSection.imageUrl}
+                defaultAspectRatio="16:9"
+                minRecommendedWidth={1200}
+                onChange={(nextUrl) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "banner" ? { ...cs, imageUrl: nextUrl } : cs
+                  )
+                }
+              />
+            </div>
+          )}
+
+          {activeCustomSection.kind === "slimBanner" && (
+            <div className="space-y-3">
+              <BannerDimensionsControl
+                title="Tamanho do Banner Slim (PX)"
+                heightPx={activeCustomSection.heightPx}
+                defaultHeightPx={120}
+                minHeightPx={40}
+                maxHeightPx={600}
+                widthPx={activeCustomSection.widthPx}
+                defaultWidthPx={1280}
+                minWidthPx={280}
+                maxWidthPx={2560}
+                objectFit={activeCustomSection.objectFit}
+                onHeightChange={(v) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "slimBanner" ? { ...cs, heightPx: v } : cs
+                  )
+                }
+                onWidthChange={(v) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "slimBanner" ? { ...cs, widthPx: v } : cs
+                  )
+                }
+                onObjectFitChange={(v) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "slimBanner" ? { ...cs, objectFit: v } : cs
+                  )
+                }
+              />
+              <div>
+                <label className="mb-1 block text-slate-500">Formato</label>
+                <select
+                  value={activeCustomSection.mode}
+                  onChange={(e) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "slimBanner"
+                        ? { ...cs, mode: e.target.value as "designed" | "image" }
+                        : cs
+                    )
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                >
+                  <option value="designed">Faixa Tipográfica</option>
+                  <option value="image">Imagem Upload / IA</option>
+                </select>
+              </div>
+              {activeCustomSection.mode === "designed" ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={activeCustomSection.badgeText}
+                      placeholder="Selo (ex: DESTAQUE)"
+                      onChange={(e) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "slimBanner" ? { ...cs, badgeText: e.target.value } : cs
+                        )
+                      }
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    />
+                    <input
+                      type="text"
+                      value={activeCustomSection.ctaText}
+                      placeholder="Botão"
+                      onChange={(e) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "slimBanner" ? { ...cs, ctaText: e.target.value } : cs
+                        )
+                      }
+                      className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={activeCustomSection.headline}
+                    placeholder="Frase promocional"
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "slimBanner" ? { ...cs, headline: e.target.value } : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <ColorField
+                      label="Fundo"
+                      value={activeCustomSection.backgroundColor ?? bp.theme.primaryBackground}
+                      onChange={(v) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "slimBanner" ? { ...cs, backgroundColor: v } : cs
+                        )
+                      }
+                    />
+                    <ColorField
+                      label="Texto"
+                      value={activeCustomSection.textColor ?? bp.theme.primaryForeground}
+                      contrastWith={activeCustomSection.backgroundColor ?? bp.theme.primaryBackground}
+                      onChange={(v) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "slimBanner" ? { ...cs, textColor: v } : cs
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              ) : (
+                <AiImageSlot
+                  previewId={previewId}
+                  label="Arte do Banner Slim (21:9)"
+                  value={activeCustomSection.imageUrl}
+                  defaultAspectRatio="21:9"
+                  minRecommendedWidth={1200}
+                  onChange={(nextUrl) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "slimBanner" ? { ...cs, imageUrl: nextUrl } : cs
+                    )
+                  }
+                />
+              )}
+            </div>
+          )}
+
+          {activeCustomSection.kind === "showcase" && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-slate-500">Subtítulo</label>
+                <input
+                  type="text"
+                  value={activeCustomSection.subtitle ?? ""}
+                  onChange={(e) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "showcase" ? { ...cs, subtitle: e.target.value } : cs
+                    )
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-slate-500">Categoria Base</label>
+                  <select
+                    value={activeCustomSection.categoryFilter ?? ""}
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "showcase"
+                          ? { ...cs, categoryFilter: e.target.value || undefined }
+                          : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                  >
+                    <option value="">Usar seleção manual</option>
+                    {bp.sections.categories.map((cat) => (
+                      <option key={cat.label} value={cat.label}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-slate-500">Limite de Produtos</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={24}
+                    value={activeCustomSection.limit}
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "showcase"
+                          ? {
+                              ...cs,
+                              limit: Math.max(1, Math.min(24, Number(e.target.value) || 8)),
+                            }
+                          : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold text-slate-600">
+                  Produtos Fixados ({activeCustomSection.productIds.length})
+                </div>
+                <div className="max-h-44 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                  {bp.products.slice(0, 24).map((prod) => {
+                    const checked = activeCustomSection.productIds.includes(prod.id);
+                    return (
+                      <label
+                        key={prod.id}
+                        className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) =>
+                            updateCustomSection((cs) => {
+                              if (cs.kind !== "showcase") return cs;
+                              const nextIds = e.target.checked
+                                ? [...cs.productIds, prod.id]
+                                : cs.productIds.filter((pid) => pid !== prod.id);
+                              return { ...cs, productIds: nextIds };
+                            })
+                          }
+                          className="rounded border-slate-300"
+                        />
+                        <span className="truncate">{prod.title}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeCustomSection.kind === "gallery" && (
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-slate-500">Subtítulo</label>
+                <input
+                  type="text"
+                  value={activeCustomSection.subtitle ?? ""}
+                  onChange={(e) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "gallery" ? { ...cs, subtitle: e.target.value } : cs
+                    )
+                  }
+                  className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-slate-500">Colunas (Desktop)</label>
+                  <select
+                    value={activeCustomSection.columns}
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "gallery"
+                          ? { ...cs, columns: Number(e.target.value) as 2 | 3 | 4 }
+                          : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                  >
+                    <option value={2}>2 colunas</option>
+                    <option value={3}>3 colunas</option>
+                    <option value={4}>4 colunas</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-slate-500">Altura do Card (PX)</label>
+                  <input
+                    type="number"
+                    min={180}
+                    max={900}
+                    value={activeCustomSection.cardHeightPx ?? 340}
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "gallery"
+                          ? {
+                              ...cs,
+                              cardHeightPx: Math.max(180, Math.min(900, Number(e.target.value) || 340)),
+                            }
+                          : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">Cards da Galeria</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "gallery"
+                          ? {
+                              ...cs,
+                              items: [
+                                ...cs.items,
+                                {
+                                  id: `card-${Date.now().toString(36)}`,
+                                  title: `Card ${cs.items.length + 1}`,
+                                  subtitle: "Ver seleção",
+                                  imageUrl: bp.products[0]?.imageUrl ?? "",
+                                  href: "#vitrines",
+                                  enabled: true,
+                                },
+                              ],
+                            }
+                          : cs
+                      )
+                    }
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    <Plus className="h-3 w-3" /> Card
+                  </button>
+                </div>
+
+                {activeCustomSection.items.map((item, idx) => (
+                  <div key={item.id || idx} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-700">Card {idx + 1}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateCustomSection((cs) =>
+                            cs.kind === "gallery"
+                              ? { ...cs, items: cs.items.filter((_, i) => i !== idx) }
+                              : cs
+                          )
+                        }
+                        className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        title="Remover card"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        type="text"
+                        value={item.title}
+                        placeholder="Título"
+                        onChange={(e) =>
+                          updateCustomSection((cs) =>
+                            cs.kind === "gallery"
+                              ? {
+                                  ...cs,
+                                  items: cs.items.map((it, i) =>
+                                    i === idx ? { ...it, title: e.target.value } : it
+                                  ),
+                                }
+                              : cs
+                          )
+                        }
+                        className="rounded border border-slate-200 bg-white px-2 py-1"
+                      />
+                      <input
+                        type="text"
+                        value={item.subtitle}
+                        placeholder="Subtítulo"
+                        onChange={(e) =>
+                          updateCustomSection((cs) =>
+                            cs.kind === "gallery"
+                              ? {
+                                  ...cs,
+                                  items: cs.items.map((it, i) =>
+                                    i === idx ? { ...it, subtitle: e.target.value } : it
+                                  ),
+                                }
+                              : cs
+                          )
+                        }
+                        className="rounded border border-slate-200 bg-white px-2 py-1"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={item.href}
+                      placeholder="#vitrines"
+                      onChange={(e) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "gallery"
+                            ? {
+                                ...cs,
+                                items: cs.items.map((it, i) =>
+                                  i === idx ? { ...it, href: e.target.value } : it
+                                ),
+                              }
+                            : cs
+                        )
+                      }
+                      className="w-full rounded border border-slate-200 bg-white px-2 py-1"
+                    />
+                    <AiImageSlot
+                      previewId={previewId}
+                      label={`Imagem Card ${idx + 1} (3:4)`}
+                      value={item.imageUrl}
+                      defaultAspectRatio="3:4"
+                      minRecommendedWidth={500}
+                      onChange={(nextUrl) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "gallery"
+                            ? {
+                                ...cs,
+                                items: cs.items.map((it, i) =>
+                                  i === idx ? { ...it, imageUrl: nextUrl } : it
+                                ),
+                              }
+                            : cs
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeCustomSection.kind === "tarja" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <ColorField
+                  label="Fundo da Tarja"
+                  value={activeCustomSection.backgroundColor ?? bp.theme.neutralBackground}
+                  onChange={(v) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "tarja" ? { ...cs, backgroundColor: v } : cs
+                    )
+                  }
+                />
+                <ColorField
+                  label="Cor do Texto"
+                  value={activeCustomSection.textColor ?? bp.theme.neutralForeground}
+                  contrastWith={activeCustomSection.backgroundColor ?? bp.theme.neutralBackground}
+                  onChange={(v) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "tarja" ? { ...cs, textColor: v } : cs
+                    )
+                  }
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-700">Itens da Tarja</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "tarja"
+                          ? {
+                              ...cs,
+                              items: [
+                                ...cs.items,
+                                {
+                                  icon: "shield-check",
+                                  title: "Novo Benefício",
+                                  subtitle: "Descrição curta",
+                                },
+                              ],
+                            }
+                          : cs
+                      )
+                    }
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    <Plus className="h-3 w-3" /> Item
+                  </button>
+                </div>
+
+                {activeCustomSection.items.map((item, idx) => (
+                  <div key={idx} className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <select
+                        value={item.icon}
+                        onChange={(e) =>
+                          updateCustomSection((cs) =>
+                            cs.kind === "tarja"
+                              ? {
+                                  ...cs,
+                                  items: cs.items.map((it, i) =>
+                                    i === idx ? { ...it, icon: e.target.value } : it
+                                  ),
+                                }
+                              : cs
+                          )
+                        }
+                        className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                      >
+                        <option value="truck">Entrega (Caminhão)</option>
+                        <option value="credit-card">Pagamento (Cartão)</option>
+                        <option value="shield-check">Segurança (Escudo)</option>
+                        <option value="refresh-cw">Troca Fácil</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateCustomSection((cs) =>
+                            cs.kind === "tarja"
+                              ? { ...cs, items: cs.items.filter((_, i) => i !== idx) }
+                              : cs
+                          )
+                        }
+                        className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                        title="Remover item"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={item.title}
+                      placeholder="Título"
+                      onChange={(e) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "tarja"
+                            ? {
+                                ...cs,
+                                items: cs.items.map((it, i) =>
+                                  i === idx ? { ...it, title: e.target.value } : it
+                                ),
+                              }
+                            : cs
+                        )
+                      }
+                      className="w-full rounded border border-slate-200 bg-white px-2 py-1"
+                    />
+                    <input
+                      type="text"
+                      value={item.subtitle}
+                      placeholder="Subtítulo"
+                      onChange={(e) =>
+                        updateCustomSection((cs) =>
+                          cs.kind === "tarja"
+                            ? {
+                                ...cs,
+                                items: cs.items.map((it, i) =>
+                                  i === idx ? { ...it, subtitle: e.target.value } : it
+                                ),
+                              }
+                            : cs
+                        )
+                      }
+                      className="w-full rounded border border-slate-200 bg-white px-2 py-1"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeCustomSection.kind === "editorialSplit" && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-slate-500">Sobretítulo (Eyebrow)</label>
+                  <input
+                    type="text"
+                    value={activeCustomSection.eyebrow}
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "editorialSplit" ? { ...cs, eyebrow: e.target.value } : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-slate-500">Lado da Imagem</label>
+                  <select
+                    value={activeCustomSection.imageSide}
+                    onChange={(e) =>
+                      updateCustomSection((cs) =>
+                        cs.kind === "editorialSplit"
+                          ? { ...cs, imageSide: e.target.value as "left" | "right" }
+                          : cs
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5"
+                  >
+                    <option value="left">Esquerda</option>
+                    <option value="right">Direita</option>
+                  </select>
+                </div>
+              </div>
+              <input
+                type="text"
+                value={activeCustomSection.headline}
+                placeholder="Título principal"
+                onChange={(e) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "editorialSplit" ? { ...cs, headline: e.target.value } : cs
+                  )
+                }
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              />
+              <textarea
+                rows={3}
+                value={activeCustomSection.description}
+                placeholder="Descrição"
+                onChange={(e) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "editorialSplit" ? { ...cs, description: e.target.value } : cs
+                  )
+                }
+                className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={activeCustomSection.ctaText}
+                  placeholder="Botão CTA"
+                  onChange={(e) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "editorialSplit" ? { ...cs, ctaText: e.target.value } : cs
+                    )
+                  }
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+                <input
+                  type="text"
+                  value={activeCustomSection.ctaHref}
+                  placeholder="#vitrines"
+                  onChange={(e) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "editorialSplit" ? { ...cs, ctaHref: e.target.value } : cs
+                    )
+                  }
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <ColorField
+                  label="Fundo"
+                  value={activeCustomSection.backgroundColor ?? bp.theme.neutralBackground}
+                  onChange={(v) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "editorialSplit" ? { ...cs, backgroundColor: v } : cs
+                    )
+                  }
+                />
+                <ColorField
+                  label="Texto"
+                  value={activeCustomSection.textColor ?? bp.theme.neutralForeground}
+                  contrastWith={activeCustomSection.backgroundColor ?? bp.theme.neutralBackground}
+                  onChange={(v) =>
+                    updateCustomSection((cs) =>
+                      cs.kind === "editorialSplit" ? { ...cs, textColor: v } : cs
+                    )
+                  }
+                />
+              </div>
+              <AiImageSlot
+                previewId={previewId}
+                label="Imagem Editorial (3:4)"
+                value={activeCustomSection.imageUrl}
+                defaultAspectRatio="3:4"
+                minRecommendedWidth={600}
+                onChange={(nextUrl) =>
+                  updateCustomSection((cs) =>
+                    cs.kind === "editorialSplit" ? { ...cs, imageUrl: nextUrl } : cs
+                  )
+                }
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

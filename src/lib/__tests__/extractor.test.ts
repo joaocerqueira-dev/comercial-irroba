@@ -147,4 +147,74 @@ describe("Platform Detection & Store HTML Extraction", () => {
       "benefits",
     ]);
   });
+
+  it("preserva whatsapp-image / modelo / amarelo, descarta $image e extrai Loja Integrada e contatos estendidos", () => {
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta property="og:site_name" content="Ateliê Amarílis" />
+          <script src="https://cdn.awsli.com.br/app.js"></script>
+        </head>
+        <body>
+          <header>
+            <a class="header-logo"><img data-src="https://cdn.awsli.com.br/logo-loja.png" src="/assets/blank.gif" /></a>
+            <ul class="menu superior">
+              <li class="nivel-um"><a href="/vestidos">Vestidos</a></li>
+              <li class="nivel-um"><a href="/saias">Saias</a></li>
+              <li class="nivel-um"><a href="/conjuntos">Conjuntos</a></li>
+              <li class="nivel-um"><a href="/blusas">Blusas</a></li>
+            </ul>
+          </header>
+          <template><img src="https://cdn.awsli.com.br/template-ignorado.jpg" /></template>
+          <section class="secao-banners">
+            <div class="flexslider">
+              <ul class="slides">
+                <li>
+                  <picture>
+                    <source class="src-desktop" srcset="https://cdn.awsli.com.br/banner-whatsapp-image-2026-03-01.jpg 1x" />
+                    <img src="https://cdn.awsli.com.br/banner-mobile.jpg" alt="Coleção Nova" />
+                  </picture>
+                </li>
+                <li>
+                  <img data-lazy="https://cdn.awsli.com.br/$image" src="/placeholder.png" />
+                </li>
+              </ul>
+            </div>
+          </section>
+          <div class="listagem-item">
+            <a href="/vestido-modelo-amarelo">
+              <img data-original="https://cdn.awsli.com.br/vestido-modelo-amarelo.jpg" src="/loading.gif" />
+            </a>
+            <span class="nome-produto">Vestido Midi Amarelo</span>
+            <span class="preco-promocional">R$ 259,90</span>
+          </div>
+          <footer>
+            <a href="https://facebook.com/atelieamarilis">Facebook</a>
+            <a href="tel:+551633339999">(16) 3333-9999</a>
+            <address>Rua das Acácias, 450 - Franca/SP</address>
+            <p>CNPJ: 12.345.678/0001-90</p>
+          </footer>
+        </body>
+      </html>
+    `;
+
+    const extracted = extractStoreFromHtml(html, "https://atelieamarilis.com.br/");
+    expect(extracted.detectedPlatform).toBe("Loja Integrada");
+    expect(extracted.logoUrl).toBe("https://cdn.awsli.com.br/logo-loja.png");
+    expect(extracted.categories.map((c) => c.label)).toEqual([
+      "Vestidos",
+      "Saias",
+      "Conjuntos",
+      "Blusas",
+    ]);
+    expect(extracted.banners.some((b) => b.imageUrl.includes("whatsapp-image"))).toBe(true);
+    expect(extracted.banners.some((b) => b.imageUrl.includes("$image"))).toBe(false);
+    expect(extracted.banners.some((b) => b.imageUrl.includes("template-ignorado"))).toBe(false);
+    expect(extracted.products[0]?.imageUrl).toBe("https://cdn.awsli.com.br/vestido-modelo-amarelo.jpg");
+    expect(extracted.contacts.facebook).toBe("https://facebook.com/atelieamarilis");
+    expect(extracted.contacts.phone).toBe("+551633339999");
+    expect(extracted.contacts.cnpj).toBe("12.345.678/0001-90");
+    expect(extracted.contacts.address).toContain("Franca/SP");
+  });
 });

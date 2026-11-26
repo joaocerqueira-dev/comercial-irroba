@@ -1,3 +1,4 @@
+import * as cheerio from "cheerio";
 import { FONT_FALLBACKS, PALETTE } from "@/lib/layout-patterns";
 /**
  * Utilities to sanitize scraped store content before compiling HTML/CSS blocks.
@@ -83,4 +84,133 @@ export function escapeCsvCell(value: string | number | undefined | null): string
     return `"${str.replaceAll('"', '""')}"`;
   }
   return str;
+}
+
+const FORBIDDEN_CUSTOM_HTML_TAGS = [
+  "script",
+  "style",
+  "iframe",
+  "object",
+  "embed",
+  "applet",
+  "base",
+  "meta",
+  "link",
+  "head",
+  "html",
+  "body",
+  "form",
+  "input",
+  "textarea",
+  "select",
+  "template",
+  "noscript",
+].join(", ");
+
+const FORBIDDEN_STYLE_PATTERN =
+  /expression\s*\(|javascript\s*:|vbscript\s*:|@import|-moz-binding|behavior\s*:|url\s*\(\s*['"]?\s*(?:javascript|vbscript|data\s*:)/i;
+
+function sanitizeInlineStyle(rawStyle: string): string {
+  const withoutComments = rawStyle.replace(/\/\*[\s\S]*?\*\//g, "");
+  const cleanDecls = withoutComments
+    .split(";")
+    .map((decl) => decl.trim())
+    .filter((decl) => {
+      if (!decl) return false;
+      const collapsed = decl.replace(/\\+|[\s\u0000-\u001F]+/g, "");
+      if (FORBIDDEN_STYLE_PATTERN.test(decl) || FORBIDDEN_STYLE_PATTERN.test(collapsed)) {
+        return false;
+      }
+      return true;
+    });
+  return cleanDecls.join("; ");
+}
+
+/**
+ * Sanitizes custom HTML blocks (user-authored or AI-generated) for safe rendering
+ * and SunEditor compatibility (inline CSS only, zero scripts/event handlers).
+ */
+export function sanitizeCustomHtmlBlock(rawHtml: string | undefined | null): string {
+  if (!rawHtml || !rawHtml.trim()) return "";
+  const $ = cheerio.load(`<div id="__irb_sanitize_root__">${rawHtml}</div>`);
+  const root = $("#__irb_sanitize_root__");
+
+  root.find(FORBIDDEN_CUSTOM_HTML_TAGS).remove();
+
+  root.find("*").each((_, el) => {
+    const node = $(el);
+    const attribs = (el as unknown as { attribs?: Record<string, string> }).attribs;
+    if (!attribs) return;
+
+    for (const attrName of Object.keys(attribs)) {
+      const lower = attrName.toLowerCase();
+      const rawVal = attribs[attrName] ?? "";
+
+      if (lower.startsWith("on") || lower === "srcdoc" || lower === "formaction" || lower === "xlink:href") {
+        node.removeAttr(attrName);
+        continue;
+      }
+
+      if (lower === "src") {
+        const cleanSrc = sanitizeUrl(rawVal, "");
+        if (!cleanSrc) node.removeAttr(attrName);
+        else node.attr(attrName, cleanSrc);
+        continue;
+      }
+
+      if (lower === "href" || lower === "poster" || lower === "cite") {
+        node.attr(attrName, sanitizeUrl(rawVal, "#"));
+        continue;
+      }
+
+      if (lower === "srcset") {
+        const cleanCandidates = rawVal
+          .split(/,\s+/)
+          .map((part) => {
+            const [u, ...rest] = part.trim().split(/\s+/);
+            const clean = sanitizeUrl(u, "");
+            return clean ? [clean, ...rest].join(" ") : "";
+          })
+          .filter(Boolean);
+        if (cleanCandidates.length === 0) node.removeAttr(attrName);
+        else node.attr(attrName, cleanCandidates.join(", "));
+        continue;
+      }
+
+      if (lower === "style") {
+        const cleanStyle = sanitizeInlineStyle(rawVal);
+        if (!cleanStyle) node.removeAttr(attrName);
+        else node.attr(attrName, cleanStyle);
+      }
+    }
+  });
+
+  return root.html()?.trim() ?? "";
+}
+
+/**
+ * Validates HTML against SunEditor compatibility rules and returns user-facing warnings.
+ */
+export function validateSunEditorHtml(rawHtml: string): string[] {
+  if (!rawHtml || !rawHtml.trim()) return [];
+  const warnings: string[] = [];
+  if (/<script[\s>]/i.test(rawHtml)) {
+    warnings.push("Tags <script> não são permitidas no SunEditor e serão removidas automaticamente.");
+  }
+  if (/<style[\s>]/i.test(rawHtml)) {
+    warnings.push("Tags <style> não são aceitas pelo SunEditor — use apenas estilos inline (style=\"...\").");
+  }
+  if (/<iframe[\s>]/i.test(rawHtml)) {
+    warnings.push("Tags <iframe> serão removidas por segurança na publicação.");
+  }
+  if (/<form[\s>]/i.test(rawHtml)) {
+    warnings.push("Tags <form> não são suportadas dentro de blocos Conteúdo HTML e serão removidas.");
+  }
+  if (/\son[a-z]+\s*=/i.test(rawHtml)) {
+    warnings.push("Atributos de evento inline (onclick, onerror, etc.) não são permitidos e serão removidos.");
+  }
+  if (/javascript\s*:|vbscript\s*:|expression\s*\(/i.test(rawHtml)) {
+    warnings.push("Expressões ou URLs javascript:/vbscript: detectadas e bloqueadas por segurança.");
+  }
+  return warnings;
 }
