@@ -127,6 +127,8 @@ A imagem parte de `mcr.microsoft.com/playwright` (Node 22 + Chromium). O entrypo
 
 Runbook completo (reverse proxy, backup/restore, atualização, `captures:gc` no cron, troubleshooting do sandbox, rotação de senha): [`docs/deploy.md`](docs/deploy.md).
 
+Homologação num notebook com Linux Mint, usando a imagem publicada pela CI e o Cloudflare Tunnel: [`docs/homologacao.md`](docs/homologacao.md) e a pasta `deploy/homolog/`.
+
 ## Testes
 
 ```bash
@@ -138,7 +140,7 @@ npm test
 - `PLAYWRIGHT_NO_SANDBOX=1`: use em ambientes com user namespaces restritos (WSL, alguns runners de CI). A CI define essa variável para os testes de navegador não serem pulados em silêncio.
 - **Golden snapshots**: `src/lib/__tests__/layout-patterns-golden.test.ts` congela a saída do compilador (HTML, export e CSV). Numa mudança intencional de layout, atualize com `npx vitest run -u` e revise o diff do `.snap`.
 
-A CI (`.github/workflows/ci.yml`) roda `npm ci`, a instalação do Chromium, `prisma generate`, `tsc --noEmit`, lint e testes, e faz o build da imagem Docker sem push.
+A CI (`.github/workflows/ci.yml`) roda `npm ci`, a instalação do Chromium, `prisma generate`, `tsc --noEmit`, lint e testes, e faz o build da imagem Docker. Em push na `main`, com testes e build verdes, o job `publish` envia a imagem para `ghcr.io/joaocerqueira-dev/comercial-irroba` com as tags `:main` e `:sha-xxxxxxx`.
 
 ## Estrutura de pastas
 

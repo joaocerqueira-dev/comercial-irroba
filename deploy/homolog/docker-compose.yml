@@ -1,0 +1,66 @@
+# Homologação no notebook: roda a imagem publicada pela CI no GHCR, sem build local.
+# Uso e passo a passo: docs/homologacao.md. Rode os comandos a partir desta pasta.
+name: irroba-homolog
+
+services:
+  app:
+    # APP_TAG no .env: "main" (mais recente) ou "sha-xxxxxxx" (versão fixa, usada no rollback).
+    image: ${APP_IMAGE:-ghcr.io/joaocerqueira-dev/comercial-irroba}:${APP_TAG:-main}
+    env_file: .env
+    environment:
+      DATABASE_URL: file:/app/data/prod.db
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      # O cloudflared fica na frente e repassa o IP do visitante em X-Forwarded-For.
+      TRUST_PROXY: "1"
+    # Só o próprio notebook acessa direto (http://localhost:3000); a internet entra pelo túnel.
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - app-data:/app/data
+      - app-captures:/app/public/captures
+    init: true
+    shm_size: 1gb
+    # Mesmo perfil seccomp do compose de produção (sandbox do Chromium como pwuser).
+    security_opt:
+      - seccomp=../../docker/seccomp-chromium.json
+    # Tempo para terminar o que estiver em andamento antes de o Docker forçar a parada.
+    stop_grace_period: 60s
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Túnel com domínio (endereço fixo). Token em TUNNEL_TOKEN no .env.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles: ["tunnel"]
+
+  # Túnel rápido, sem domínio: endereço aleatório *.trycloudflare.com que muda a cada reinício.
+  # Só para os primeiros testes. O endereço aparece em: docker compose logs cloudflared-quick
+  cloudflared-quick:
+    image: cloudflare/cloudflared:2026.10.7
+    command: tunnel --no-autoupdate --url http://app:3000
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles: ["quick"]
+
+volumes:
+  app-data:
+  app-captures:

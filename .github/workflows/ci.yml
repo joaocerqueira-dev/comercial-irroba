@@ -37,5 +37,51 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Build sem push em todo commit/PR. O cache (GitHub Actions) é reaproveitado
+      # pelo job publish e pelos builds seguintes, evitando refazer a imagem do zero.
       - name: Build da imagem (sem push)
-        run: docker build -t irroba-preview-ai:ci .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: irroba-preview-ai:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Publica a imagem no GitHub Container Registry, só em push na main e só com test e docker verdes.
+  # O notebook de homologação (deploy/homolog) baixa daqui: :main é a mais recente, :sha-xxxxxxx fixa cada commit.
+  publish:
+    needs: [test, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: publish-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=main
+            type=sha,prefix=sha-,format=short
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
