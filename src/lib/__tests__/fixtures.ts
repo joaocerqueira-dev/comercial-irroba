@@ -71,8 +71,8 @@ export const TEST_USERS: { admin: AuthUser; comercial: AuthUser; outro: AuthUser
 };
 
 /** Adiciona o cookie de sessão de teste, preservando os headers existentes. */
-export function withSession(init: RequestInit = {}): RequestInit {
+export function withSession(init: RequestInit = {}): RequestInit & { signal?: AbortSignal } {
   const headers = new Headers(init.headers);
   headers.set("cookie", "session=test");
-  return { ...init, headers };
+  return { ...init, headers, signal: init.signal ?? undefined };
 }

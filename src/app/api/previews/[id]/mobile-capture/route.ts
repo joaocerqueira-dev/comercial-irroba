@@ -2,23 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { BrowserBusyError, limitAuthenticated, withBrowserSlot } from "@/lib/net/rate-limit";
 import { captureMobileStoreScreenshots } from "@/lib/scraper/mobile-screenshot";
+import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const SLOT_WAIT_MS = 20_000;
 
-/** (Re)captura o screenshot mobile do site original. Autenticada pelo middleware (Basic auth). */
+/** (Re)captura o screenshot mobile do site original. Só o dono (ou admin). */
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const limited = limitAuthenticated(req, "mobile-capture");
   if (limited) return limited;
 
   const { id } = await context.params;
   const preview = await prisma.storePreview.findUnique({
     where: { id },
-    select: { id: true, slug: true, sourceUrl: true, extractedData: true },
+    select: { id: true, slug: true, sourceUrl: true, extractedData: true, ownerId: true },
   });
-  if (!preview) {
+  if (!preview || !canAccessPreview(user, preview.ownerId)) {
     return NextResponse.json({ error: "Preview não encontrado." }, { status: 404 });
   }
 

@@ -13,6 +13,12 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
+// Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
+vi.mock("@/lib/auth/session", async (orig) => {
+  const { TEST_USERS } = await import("./fixtures");
+  return { ...(await orig<object>()), getUserFromToken: vi.fn(async () => TEST_USERS.admin) };
+});
+
 import { POST as REANALYZE } from "@/app/api/previews/[id]/reanalyze/route";
 
 const reqWith = (headers: Record<string, string>) =>

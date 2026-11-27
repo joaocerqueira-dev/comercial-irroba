@@ -7,6 +7,7 @@ import {
 } from "@/lib/previews/repository";
 import { normalizeBaseUrl } from "@/lib/public-url";
 import StudioClient from "@/components/StudioClient";
+import { canAccessPreview, requirePageUser } from "@/lib/auth/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +16,10 @@ export default async function StudioPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const user = await requirePageUser();
   const { id } = await params;
   const result = await getPreviewWithBlueprint({ id });
-  if (result.status !== "ok") {
+  if (result.status !== "ok" || !canAccessPreview(user, result.preview.ownerId)) {
     notFound();
   }
   const { preview, blueprint } = result;

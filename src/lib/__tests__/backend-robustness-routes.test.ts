@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
-import { makeSampleExtracted } from "./fixtures";
+import { makeSampleExtracted, withSession } from "./fixtures";
 
 process.env.RATE_LIMIT_PER_MIN = "1000";
 
@@ -33,6 +33,12 @@ const studio = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/ai/image-studio", () => studio);
 
+// Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
+vi.mock("@/lib/auth/session", async (orig) => {
+  const { TEST_USERS } = await import("./fixtures");
+  return { ...(await orig<object>()), getUserFromToken: vi.fn(async () => TEST_USERS.admin) };
+});
+
 import { POST as GENERATE } from "@/app/api/previews/generate/route";
 import { POST as AI_IMAGE } from "@/app/api/previews/[id]/ai-image/route";
 import { POST as UPLOAD } from "@/app/api/previews/[id]/upload-image/route";
@@ -41,7 +47,7 @@ import { slugifyHostname, SLUG_HOST_MAX_LENGTH } from "@/lib/previews/slug";
 const extracted = makeSampleExtracted();
 const ctx = (id = "abc") => ({ params: Promise.resolve({ id }) });
 const jsonReq = (url: string, body: unknown) =>
-  new NextRequest(url, { method: "POST", body: JSON.stringify(body) });
+  new NextRequest(url, withSession({ method: "POST", body: JSON.stringify(body) }));
 
 beforeEach(() => {
   vi.clearAllMocks();

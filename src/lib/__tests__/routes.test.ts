@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { buildHeuristicBlueprint } from "@/lib/ai/architect";
-import { makeSampleExtracted } from "./fixtures";
+import { makeSampleExtracted, withSession } from "./fixtures";
 
 const db = vi.hoisted(() => ({
   storePreview: {
@@ -24,6 +24,12 @@ vi.mock("@/lib/ai/architect", async (orig) => ({
   callGeminiWithTimeout: ai.callGeminiWithTimeout,
 }));
 
+// Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
+vi.mock("@/lib/auth/session", async (orig) => {
+  const { TEST_USERS } = await import("./fixtures");
+  return { ...(await orig<object>()), getUserFromToken: vi.fn(async () => TEST_USERS.admin) };
+});
+
 import { DELETE, PATCH } from "@/app/api/previews/[id]/route";
 import { POST as REANALYZE } from "@/app/api/previews/[id]/reanalyze/route";
 import { POST as AI_HTML } from "@/app/api/previews/[id]/ai-html/route";
@@ -32,10 +38,10 @@ import { resetRateLimits } from "@/lib/net/rate-limit";
 const extracted = makeSampleExtracted();
 const ctx = (id = "abc") => ({ params: Promise.resolve({ id }) });
 const req = (body?: unknown) =>
-  new NextRequest("http://localhost/api/previews/abc", {
-    method: "POST",
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  new NextRequest(
+    "http://localhost/api/previews/abc",
+    withSession({ method: "POST", body: body === undefined ? undefined : JSON.stringify(body) })
+  );
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -55,6 +61,7 @@ describe("PATCH /api/previews/[id]", () => {
 
 describe("DELETE /api/previews/[id]", () => {
   it("404 quando não existe e 500 com erro real", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ ownerId: null });
     db.storePreview.delete.mockRejectedValueOnce(Object.assign(new Error("x"), { code: "P2025" }));
     expect((await DELETE(req(), ctx())).status).toBe(404);
     db.storePreview.delete.mockRejectedValueOnce(new Error("disco cheio"));
@@ -87,7 +94,7 @@ describe("GET /api/previews", () => {
     const files = await import("@/lib/files/captures");
     db.storePreview.findMany.mockResolvedValueOnce([{ id: "p1", slug: "loja-a", status: "ready" }]);
     const { GET } = await import("@/app/api/previews/route");
-    const res = await GET();
+    const res = await GET(new NextRequest("http://localhost/api/previews", withSession()));
     expect(res.status).toBe(200);
     expect((await res.json()).previews).toHaveLength(1);
     expect(db.storePreview.findMany).toHaveBeenCalledTimes(1);

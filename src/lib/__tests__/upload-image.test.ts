@@ -28,6 +28,12 @@ vi.mock("@/lib/files/captures", async (orig) => {
   };
 });
 
+// Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
+vi.mock("@/lib/auth/session", async (orig) => {
+  const { TEST_USERS } = await import("./fixtures");
+  return { ...(await orig<object>()), getUserFromToken: vi.fn(async () => TEST_USERS.admin) };
+});
+
 import { POST } from "@/app/api/previews/[id]/upload-image/route";
 
 beforeEach(async () => {
