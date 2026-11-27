@@ -33,6 +33,7 @@ git pull
 # backup do SQLite antes (seção "Volumes e backup")
 # versão com login por usuário: defina ADMIN_EMAIL no .env (mantenha ADMIN_PASS) antes do up -d;
 # sem isso ninguém consegue entrar (o bootstrap só registra um erro no log)
+# link do cliente: defina SESSION_SECRET no .env (mín. 32 caracteres; openssl rand -base64 48), obrigatório em produção
 docker compose build
 docker compose up -d             # recria o container com a imagem nova
 docker compose ps                # aguarde "healthy"
@@ -57,6 +58,8 @@ Para build offline, troque para `next/font/local` com os arquivos `.woff2` versi
 | `app-captures` | `/app/public/captures` | screenshots, uploads e imagens geradas |
 
 `DATABASE_URL` é fixado em `file:/app/data/prod.db` pelo compose. Qualquer valor no `.env` é ignorado.
+
+`SESSION_SECRET` assina o cookie de acesso ao link do cliente. Em produção é obrigatório, com pelo menos 32 caracteres (`openssl rand -base64 48`). Sem ele o link do cliente não abre.
 
 Backup do SQLite, consistente mesmo com o app rodando:
 

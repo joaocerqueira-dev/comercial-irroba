@@ -13,6 +13,8 @@ import {
 import StoreCompareView from "./StoreCompareView";
 import { IrrobaLogo } from "./ui/IrrobaLogo";
 import { Modal } from "./ui/Modal";
+import ClientResponsePanel, { type LatestResponse } from "./share/ClientResponsePanel";
+import type { ShareAccess } from "@/lib/share/access";
 import { PREVIEW_IFRAME_SANDBOX } from "@/lib/security/preview-isolation";
 
 interface PreviewViewerClientProps {
@@ -25,6 +27,10 @@ interface PreviewViewerClientProps {
   mobileScreenshotPath?: string | null;
   mobileFullScreenshotPath?: string | null;
   sellerWhatsapp: string | null;
+  access?: ShareAccess;
+  shareStatus?: string;
+  latestResponse?: LatestResponse | null;
+  contentVersion?: number;
 }
 
 export default function PreviewViewerClient({
@@ -37,6 +43,10 @@ export default function PreviewViewerClient({
   mobileScreenshotPath = null,
   mobileFullScreenshotPath = null,
   sellerWhatsapp,
+  access,
+  shareStatus = "pendente",
+  latestResponse = null,
+  contentVersion = 1,
 }: PreviewViewerClientProps) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [showCompare, setShowCompare] = useState(false);
@@ -160,6 +170,17 @@ export default function PreviewViewerClient({
             }`}
           />
         </main>
+      )}
+
+      {access === "granted" && (
+        <ClientResponsePanel
+          slug={slug}
+          storeName={storeName}
+          sellerWhatsapp={sellerWhatsapp}
+          shareStatus={shareStatus}
+          response={latestResponse}
+          contentVersion={contentVersion}
+        />
       )}
 
       {/* Fallback quando não há WhatsApp do consultor */}

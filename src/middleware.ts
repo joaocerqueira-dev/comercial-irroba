@@ -4,13 +4,15 @@ import { NextResponse, type NextRequest } from "next/server";
  * Exige o cookie de sessão na área interna (home, estúdio, admin, conta e API).
  * Aqui só confere a presença: o middleware roda no Edge e não acessa o banco.
  * A validação real fica em requireUser/requirePageUser.
- * Públicos: /preview/[slug], /render/[slug], /api/captures/*, /api/health e /api/auth/login.
+ * Públicos: /preview/[slug], /render/[slug], /api/captures/*, /api/share/*, /api/health e /api/auth/login
+ * (preview, render, captura mobile e share checam o acesso do cliente na própria rota).
  */
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname.startsWith("/preview/") ||
     pathname.startsWith("/render/") ||
     pathname.startsWith("/api/captures/") ||
+    pathname.startsWith("/api/share/") ||
     pathname === "/api/health" ||
     pathname === "/api/auth/login"
   );

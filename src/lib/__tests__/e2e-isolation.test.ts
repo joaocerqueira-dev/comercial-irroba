@@ -77,7 +77,7 @@ describe("GET /render/[slug]", () => {
   it("envia CSP restritiva com sandbox e frame-ancestors 'self'", async () => {
     const okResult = {
       status: "ok",
-      preview: { updatedAt: new Date("2026-11-26T12:00:00Z") },
+      preview: { legacyPublic: true, updatedAt: new Date("2026-11-26T12:00:00Z") },
       blueprint: buildHeuristicBlueprint(makeSampleExtracted()),
     };
     repo.getPreviewWithBlueprint.mockResolvedValueOnce(okResult);

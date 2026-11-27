@@ -35,7 +35,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
-describe("GET /api/captures/mobile/[slug] (público)", () => {
+describe("GET /api/captures/mobile/[slug] (legacyPublic)", () => {
   const get = (slug: string) =>
     publicMobileRoute.GET(new NextRequest(`http://localhost/api/captures/mobile/${slug}`), {
       params: Promise.resolve({ slug }),
@@ -43,6 +43,7 @@ describe("GET /api/captures/mobile/[slug] (público)", () => {
 
   it("serve o cache sem disparar o navegador", async () => {
     shots.getCachedMobileScreenshots.mockResolvedValue(cached);
+    db.storePreview.findUnique.mockResolvedValue({ slug: "loja-abc", legacyPublic: true });
     const res = await get("loja-abc");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(cached);

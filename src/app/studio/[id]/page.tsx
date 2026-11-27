@@ -6,6 +6,7 @@ import {
   resolveMobileScreenshotPaths,
 } from "@/lib/previews/repository";
 import { normalizeBaseUrl } from "@/lib/public-url";
+import { prisma } from "@/lib/db";
 import StudioClient from "@/components/StudioClient";
 import { canAccessPreview, requirePageUser } from "@/lib/auth/guard";
 
@@ -22,6 +23,10 @@ export default async function StudioPage({
   if (result.status !== "ok" || !canAccessPreview(user, result.preview.ownerId)) {
     notFound();
   }
+  // Abrir o Studio conta como ver as respostas; falha aqui não pode travar a página
+  await prisma.clientResponse
+    .updateMany({ where: { previewId: id, seenAt: null }, data: { seenAt: new Date() } })
+    .catch((e: unknown) => console.error("[studio] marcar respostas como vistas falhou", e));
   const { preview, blueprint } = result;
   const fullScreenshotPath = resolveFullScreenshotPath(preview);
   const { mobileScreenshotPath, mobileFullScreenshotPath } = resolveMobileScreenshotPaths(preview);
