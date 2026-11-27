@@ -10,6 +10,7 @@ import {
 import PreviewViewerClient from "@/components/PreviewViewerClient";
 import ShareNotice from "@/components/share/ShareNotice";
 import SharePasswordForm from "@/components/share/SharePasswordForm";
+import type { ResponseType } from "@/lib/share/responses";
 import { getOptionalPageUser } from "@/lib/auth/guard";
 import {
   getShareSecret,
@@ -90,6 +91,15 @@ export default async function PublicPreviewPage({
   const fullScreenshotPath = resolveFullScreenshotPath(preview);
   const { mobileScreenshotPath, mobileFullScreenshotPath } = resolveMobileScreenshotPaths(preview);
 
+  const latest =
+    access === "granted"
+      ? await prisma.clientResponse.findFirst({
+          where: { previewId: preview.id, contentVersion: preview.contentVersion },
+          orderBy: { createdAt: "desc" },
+          select: { type: true, clientName: true, message: true, createdAt: true },
+        })
+      : null;
+
   return (
     <PreviewViewerClient
       slug={preview.slug}
@@ -101,6 +111,11 @@ export default async function PublicPreviewPage({
       mobileScreenshotPath={mobileScreenshotPath}
       mobileFullScreenshotPath={mobileFullScreenshotPath}
       sellerWhatsapp={preview.sellerWhatsapp}
+      access={access}
+      shareStatus={preview.shareStatus}
+      latestResponse={
+        latest && { ...latest, type: latest.type as ResponseType, createdAt: latest.createdAt.toISOString() }
+      }
     />
   );
 }
