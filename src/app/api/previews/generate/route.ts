@@ -14,6 +14,7 @@ import { BrowserBusyError, limitAuthenticated, withBrowserSlot } from "@/lib/net
 import { deletePreviewFiles } from "@/lib/previews/repository";
 import { slugifyHostname } from "@/lib/previews/slug";
 import { cleanupStalePreviewsThrottled } from "@/lib/previews/maintenance";
+import { requireUser } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 /** Orçamento total da geração (extração + IA + imagem). */
@@ -42,6 +43,8 @@ function formatFriendlyScrapeError(raw: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const limited = limitAuthenticated(req, "generate");
   if (limited) return limited;
 
@@ -106,6 +109,7 @@ export async function POST(req: NextRequest) {
             sourceUrl: normalizedUrl,
             storeName: new URL(normalizedUrl).hostname.replace(/^www\./, ""),
             sellerWhatsapp,
+            ownerId: user.id,
             status: PREVIEW_STATUS.processing,
           },
         });

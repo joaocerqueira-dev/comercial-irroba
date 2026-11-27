@@ -35,7 +35,7 @@ npm run db:push             # cria/sincroniza o SQLite em prisma/dev.db
 npm run dev                 # http://localhost:3000
 ```
 
-Em desenvolvimento, sem `ADMIN_USER`/`ADMIN_PASS`, a área interna fica aberta. Sem `GEMINI_API_KEY`, a geração funciona no modo heurístico, e as imagens "por IA" saem do fallback local: uma arte composta com a paleta da marca e renderizada em PNG pelo Chromium.
+No primeiro boot, sem nenhum usuário, `ADMIN_EMAIL` e `ADMIN_PASS` criam o primeiro admin (que precisa trocar a senha no primeiro login). Sem `GEMINI_API_KEY`, a geração funciona no modo heurístico, e as imagens "por IA" saem do fallback local: uma arte composta com a paleta da marca e renderizada em PNG pelo Chromium.
 
 Arquivos gerados (screenshots, espelhos de imagem, uploads e artes de IA) vão para `public/captures/` e são servidos por `/api/captures/<arquivo>`. A pasta não é versionada.
 
@@ -62,7 +62,7 @@ Modelo comentado em [`.env.example`](.env.example).
 | Variável | Obrigatória | Descrição |
 |---|---|---|
 | `DATABASE_URL` | sim | URL do SQLite. Local: `file:./dev.db`, relativo a `prisma/`. No Docker, o compose fixa `file:/app/data/prod.db` e ignora o valor do `.env` |
-| `ADMIN_USER` / `ADMIN_PASS` | em produção | Basic auth da área interna (home, Studio e API). Em produção, sem as duas, a área interna responde 503. Em dev, sem elas, o acesso é livre |
+| `ADMIN_EMAIL` / `ADMIN_PASS` | no primeiro boot | Criam o primeiro admin quando não há usuários; o admin é obrigado a trocar a senha no primeiro login. Depois, o admin gerencia os usuários em `/admin/usuarios`. As propostas sem dono passam para o admin mais antigo |
 | `GEMINI_API_KEY` | não | Chave do Google AI Studio. Liga a análise de identidade visual pelo Gemini e a geração/edição de imagens pelo modelo de imagem. Sem ela, o blueprint é heurístico e as imagens usam o fallback local (arte renderizada pelo Chromium) |
 | `GEMINI_MODEL` | não | Modelo de texto/visão preferido. Padrão `gemini-3.5-flash`; se o preferido falhar, o app tenta os outros da lista em `src/lib/layout-patterns/ai.ts` |
 | `GEMINI_IMAGE_MODEL` | não | Modelo de imagem preferido. Se falhar, o app tenta `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image` e `gemini-2.5-flash-image` |
@@ -72,7 +72,7 @@ Modelo comentado em [`.env.example`](.env.example).
 | `MAX_BROWSER_JOBS` | não | Jobs simultâneos do Chromium (geração, arte de IA, recaptura mobile). Padrão 2 |
 | `PLAYWRIGHT_NO_SANDBOX` | não | `1` desliga o sandbox do Chromium. É só um escape para dev em WSL/CI ou container sem perfil seccomp adequado. Evite em produção: o navegador abre sites de terceiros |
 
-O app também lê `NODE_ENV` (o modo produção exige o Basic auth) e `NEXT_RUNTIME`, ambas definidas pelo Next. A imagem Docker define ainda `PORT`, `HOSTNAME` e `PLAYWRIGHT_BROWSERS_PATH`.
+O app também lê `NODE_ENV` (o modo produção exige o login) e `NEXT_RUNTIME`, ambas definidas pelo Next. A imagem Docker define ainda `PORT`, `HOSTNAME` e `PLAYWRIGHT_BROWSERS_PATH`.
 
 ## Arquitetura
 
@@ -99,7 +99,7 @@ Previews presos em `processing` há mais de 30 minutos são apagados no boot (`i
 
 ### Rotas públicas e autenticadas
 
-O `src/middleware.ts` aplica Basic auth em `/`, `/studio/*` e `/api/*`, com exceção de:
+O `src/middleware.ts` exige login por usuário em `/`, `/studio/*` e `/api/*`, com exceção de:
 
 - `/preview/[slug]`: link do cliente
 - `/render/[slug]`: HTML da vitrine compilada
@@ -121,7 +121,7 @@ O `src/middleware.ts` aplica Basic auth em `/`, `/studio/*` e `/api/*`, com exce
 Resumo:
 
 ```bash
-cp .env.example .env   # ADMIN_USER, ADMIN_PASS, GEMINI_API_KEY, PUBLIC_ASSET_BASE_URL
+cp .env.example .env   # ADMIN_EMAIL, ADMIN_PASS, GEMINI_API_KEY, PUBLIC_ASSET_BASE_URL
 docker compose build
 docker compose up -d
 ```
@@ -163,7 +163,7 @@ src/
     types/             schema do blueprint (Zod)
     client/            utilitários de hooks e do navegador
     __tests__/         testes, fixtures e snapshots
-  middleware.ts        Basic auth
+  middleware.ts        login por usuário
 prisma/                schema.prisma (SQLite)
 scripts/               captures-gc.mjs
 docker/                entrypoint.sh

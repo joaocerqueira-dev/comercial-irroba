@@ -11,6 +11,13 @@ export async function register() {
     void cleanupStalePreviewsThrottled().then((n) => {
       if (n > 0) console.log(`[boot] ${n} preview(s) preso(s) em processing removido(s).`);
     });
+    void import("@/lib/auth/bootstrap")
+      .then(({ ensureBootstrapAdmin }) => ensureBootstrapAdmin())
+      .then(({ created, assigned }) => {
+        if (created) console.log("[boot] Admin inicial criado.");
+        if (assigned > 0) console.log(`[boot] ${assigned} proposta(s) atribuída(s) ao admin.`);
+      })
+      .catch((err: unknown) => console.error("[boot] Bootstrap do admin falhou:", err));
     // Sandbox/seccomp quebrado aparece no log da subida, não só na primeira geração
     if (process.env.NODE_ENV !== "test") {
       void import("@/lib/scraper/browser")

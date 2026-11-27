@@ -5,6 +5,7 @@ import { MAX_IMAGE_URL_LENGTH } from "@/lib/types/blueprint";
 import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { BrowserBusyError, limitAuthenticated } from "@/lib/net/rate-limit";
+import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -26,13 +27,15 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const limited = limitAuthenticated(req, "ai-image");
   if (limited) return limited;
 
   const { id } = await context.params;
   // Blueprint lido do banco também passa pelo schema (não confia no JSON gravado)
   const found = await getPreviewWithBlueprint({ id });
-  if (found.status === "not_found") {
+  if (found.status === "not_found" || !canAccessPreview(user, found.preview.ownerId)) {
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
   if (found.status === "no_blueprint") {

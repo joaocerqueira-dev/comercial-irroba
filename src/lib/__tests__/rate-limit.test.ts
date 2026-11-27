@@ -4,7 +4,6 @@ import {
   BrowserBusyError,
   createBrowserSemaphore,
   createRateLimiter,
-  getBasicAuthUser,
   getClientIp,
   resetRateLimits,
 } from "@/lib/net/rate-limit";
@@ -14,11 +13,16 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
+// Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
+vi.mock("@/lib/auth/session", async (orig) => {
+  const { TEST_USERS } = await import("./fixtures");
+  return { ...(await orig<object>()), getUserFromToken: vi.fn(async () => TEST_USERS.admin) };
+});
+
 import { POST as REANALYZE } from "@/app/api/previews/[id]/reanalyze/route";
 
 const reqWith = (headers: Record<string, string>) =>
   new Request("http://localhost/api/x", { method: "POST", headers });
-const basic = (user: string) => `Basic ${btoa(`${user}:senha`)}`;
 
 beforeEach(() => resetRateLimits());
 afterEach(() => vi.unstubAllEnvs());
@@ -37,11 +41,6 @@ describe("getClientIp", () => {
       "9.9.9.9"
     );
     expect(getClientIp(reqWith({}), { TRUST_PROXY: "1" })).toBe("unknown");
-  });
-  it("extrai o usuário do Basic auth", () => {
-    expect(getBasicAuthUser(reqWith({ authorization: basic("ana") }))).toBe("ana");
-    expect(getBasicAuthUser(reqWith({}))).toBe("anon");
-    expect(getBasicAuthUser(reqWith({ authorization: "Basic %%%" }))).toBe("anon");
   });
 });
 
@@ -66,7 +65,7 @@ describe("429 nas rotas autenticadas", () => {
       REANALYZE(
         new NextRequest("http://localhost/api/previews/abc/reanalyze", {
           method: "POST",
-          headers: { authorization: basic(user) },
+          headers: { cookie: `session=${user}` },
         }),
         { params: Promise.resolve({ id: "abc" }) }
       );

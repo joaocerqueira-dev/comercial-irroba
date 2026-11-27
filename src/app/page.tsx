@@ -30,6 +30,13 @@ interface PreviewSummary {
   status: string;
   screenshotPath: string | null;
   createdAt: string;
+  owner: { id: string; name: string } | null;
+}
+
+interface Me {
+  id: string;
+  name: string;
+  role: string;
 }
 
 export default function HomePage() {
@@ -43,6 +50,10 @@ export default function HomePage() {
   const [extractionWarning, setExtractionWarning] = useState<string | null>(null);
   const [previews, setPreviews] = useState<PreviewSummary[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(true);
+  const [me, setMe] = useState<Me | null>(null);
+  const [ownerFilter, setOwnerFilter] = useState("");
+  // Opções do filtro vêm da lista sem filtro (sem API nova)
+  const [owners, setOwners] = useState<{ id: string; name: string }[]>([]);
   const [touched, setTouched] = useState({ url: false, whatsapp: false });
   const normalizedUrl = normalizeStoreUrl(url);
   const urlError = url.trim() && !normalizedUrl ? "Informe um domínio válido, ex: loja.com.br" : null;
@@ -65,9 +76,18 @@ export default function HomePage() {
     abortRef.current?.abort();
   };
 
-  const loadPreviews = async () => {
+  const loadPreviews = async (owner = "") => {
     try {
-      const res = await fetch("/api/previews");
+      const res = await fetch(owner ? `/api/previews?owner=${encodeURIComponent(owner)}` : "/api/previews");
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (res.status === 403) {
+        const data = (await res.json().catch(() => ({}))) as { code?: string };
+        if (data.code === "MUST_CHANGE_PASSWORD") window.location.href = "/conta/senha";
+        return;
+      }
       if (res.ok) {
         const data = (await res.json()) as { previews: PreviewSummary[] };
         setPreviews(data.previews);
@@ -85,6 +105,15 @@ export default function HomePage() {
   useEffect(() => {
     mountedRef.current = true;
     loadPreviews();
+    fetch("/api/auth/me")
+      .then((res) => (res.ok ? res.json() : null))
+      .then(async (data: { user?: Me } | null) => {
+        setMe(data?.user ?? null);
+        if (data?.user?.role !== "admin") return;
+        const r = await fetch("/api/admin/users");
+        if (r.ok) setOwners(((await r.json()) as { users: { id: string; name: string }[] }).users.map(({ id, name }) => ({ id, name })));
+      })
+      .catch(() => undefined);
     return () => {
       mountedRef.current = false;
     };
@@ -154,6 +183,11 @@ export default function HomePage() {
     }
   };
 
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    window.location.href = "/login";
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Tem certeza que deseja excluir este preview?")) return;
     try {
@@ -185,9 +219,21 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-          <span className="rounded-full bg-brand-50 px-3.5 py-1 font-heading text-xs font-bold text-brand-700 ring-1 ring-inset ring-brand-200/70">
-            Uso Interno Comercial
-          </span>
+          <div className="flex items-center gap-3 text-xs">
+            {me && <span className="hidden font-heading font-bold text-irroba-ink sm:inline">{me.name}</span>}
+            {me?.role === "admin" && (
+              <Link href="/admin/usuarios" className="font-heading font-bold text-brand-700 hover:underline">
+                Usuários
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-full bg-brand-50 px-3.5 py-1 font-heading font-bold text-brand-700 ring-1 ring-inset ring-brand-200/70 hover:bg-brand-100"
+            >
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 
@@ -400,9 +446,29 @@ export default function HomePage() {
                 Abra no Studio para ajustar cores, textos e seções ou envie a prévia direto para o cliente.
               </p>
             </div>
-            <span className="rounded-xl bg-irroba-surface px-3 py-1 font-heading text-xs font-bold text-zinc-700 ring-1 ring-inset ring-zinc-200/80">
-              {pluralize(groups.length, "loja", "lojas")}
-            </span>
+            <div className="flex items-center gap-2">
+              {me?.role === "admin" && (
+                <select
+                  aria-label="Filtrar por dono"
+                  value={ownerFilter}
+                  onChange={(e) => {
+                    setOwnerFilter(e.target.value);
+                    loadPreviews(e.target.value);
+                  }}
+                  className="rounded-xl bg-irroba-surface px-3 py-1 font-heading text-xs font-bold text-zinc-700 ring-1 ring-inset ring-zinc-200/80"
+                >
+                  <option value="">Todos</option>
+                  {owners.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span className="rounded-xl bg-irroba-surface px-3 py-1 font-heading text-xs font-bold text-zinc-700 ring-1 ring-inset ring-zinc-200/80">
+                {pluralize(groups.length, "loja", "lojas")}
+              </span>
+            </div>
           </div>
 
           {isLoadingList ? (
@@ -470,6 +536,9 @@ export default function HomePage() {
                   <div className="flex flex-1 flex-col p-4">
                     <h3 className="truncate font-heading font-bold text-irroba-ink">{item.storeName}</h3>
                     <p className="mt-0.5 truncate text-xs text-zinc-600">{item.sourceUrl}</p>
+                    {me?.role === "admin" && (
+                      <p className="mt-0.5 truncate text-xs text-zinc-500">Dono: {item.owner?.name ?? "Sem dono"}</p>
+                    )}
                     <p className="mt-0.5 text-xs text-zinc-400">
                       Gerado em{" "}
                       {new Date(item.createdAt).toLocaleString("pt-BR", {

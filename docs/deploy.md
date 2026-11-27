@@ -3,13 +3,13 @@
 ## Subir
 
 ```bash
-cp .env.example .env   # preencha ADMIN_USER, ADMIN_PASS, GEMINI_API_KEY, PUBLIC_ASSET_BASE_URL
+cp .env.example .env   # preencha ADMIN_EMAIL, ADMIN_PASS, GEMINI_API_KEY, PUBLIC_ASSET_BASE_URL
 docker compose build
 docker compose up -d
 docker compose ps      # status "healthy" depois de ~30s
 ```
 
-O app fica em `http://localhost:3000`. Em produção, `ADMIN_USER` e `ADMIN_PASS` são obrigatórios. Sem eles a área interna responde 503.
+O app fica em `http://localhost:3000`. Fora do localhost o login exige HTTPS (proxy reverso), porque o cookie de sessão é `Secure` em produção e o navegador não o grava em HTTP. O acesso é por login (e-mail e senha por usuário). `ADMIN_EMAIL` e `ADMIN_PASS` definem o primeiro admin, que troca a senha no primeiro acesso.
 
 Na inicialização, o entrypoint (`docker/entrypoint.sh`) roda `prisma db push --skip-generate` e depois `node server.js` (build `standalone` do Next). O healthcheck chama `GET /api/health`, rota pública que devolve `{"ok":true}`.
 
@@ -31,6 +31,8 @@ No boot, o servidor tenta abrir o Chromium uma vez (`src/instrumentation.ts`). S
 cd /opt/irroba-preview-ai        # ou onde o repositório estiver
 git pull
 # backup do SQLite antes (seção "Volumes e backup")
+# versão com login por usuário: defina ADMIN_EMAIL no .env (mantenha ADMIN_PASS) antes do up -d;
+# sem isso ninguém consegue entrar (o bootstrap só registra um erro no log)
 docker compose build
 docker compose up -d             # recria o container com a imagem nova
 docker compose ps                # aguarde "healthy"
@@ -192,11 +194,11 @@ Para testar sem gerar um preview:
 docker compose exec app node -e "require('playwright').chromium.launch({chromiumSandbox:true}).then(b=>{console.log('ok');return b.close()}).catch(e=>{console.error(e.message);process.exit(1)})"
 ```
 
-## Rotação de `ADMIN_PASS`
+## Primeiro admin e redefinição de senhas
 
-1. Gere uma senha nova, por exemplo com `openssl rand -base64 24`, e troque `ADMIN_PASS` (e `ADMIN_USER`, se for o caso) no `.env`.
-2. `docker compose up -d`: o compose detecta a mudança no `env_file` e recria o container. Um `restart` sozinho **não** relê o `.env`.
-3. Confira: `curl -s -o /dev/null -w '%{http_code}' -u usuario:senha-nova http://127.0.0.1:3000/` deve responder `200`, e com a senha antiga, `401`.
-4. Avise o time. O navegador guarda o Basic auth da sessão, então quem estiver logado recebe o prompt de login de novo.
+1. O primeiro admin nasce de `ADMIN_EMAIL` e `ADMIN_PASS` do `.env` quando ainda não há usuários. Ele é obrigado a trocar a senha no primeiro login.
+2. Depois disso, as demais contas e as redefinições de senha são feitas por um admin. Quem recebe uma senha temporária troca em `/conta/senha`.
+3. Alterar `ADMIN_PASS` no `.env` **não** muda a senha de um admin já criado.
+4. Trocar a senha encerra as outras sessões do usuário.
 
-Há um único par usuário/senha, compartilhado pelo time. Os links públicos (`/preview/*`, `/render/*`, `/api/captures/*`) não dependem da senha e continuam funcionando. Recriar o container também zera os contadores do rate limit, que ficam em memória.
+Os links públicos (`/preview/*`, `/render/*`, `/api/captures/*`) não exigem login e continuam funcionando. Recriar o container também zera os contadores do rate limit, que ficam em memória.

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { ExtractedStoreDataSchema } from "@/lib/types/blueprint";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
+import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 /** Só Gemini: até 3 modelos × 35 s de timeout cada, mais a leitura das imagens. */
@@ -13,6 +14,8 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   // Só Gemini (sem Playwright): entra no rate limit, mas não no semáforo do navegador
   const limited = limitAuthenticated(req, "reanalyze");
   if (limited) return limited;
@@ -20,7 +23,7 @@ export async function POST(
   const { id } = await context.params;
   const preview = await prisma.storePreview.findUnique({ where: { id } });
 
-  if (!preview || !preview.extractedData) {
+  if (!preview || !canAccessPreview(user, preview.ownerId) || !preview.extractedData) {
     return NextResponse.json(
       { error: "Dados extraídos não encontrados para reanálise" },
       { status: 404 }

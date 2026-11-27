@@ -3,18 +3,21 @@ import { prisma } from "@/lib/db";
 import { StoreBlueprintSchema } from "@/lib/types/blueprint";
 import { deletePreviewFiles, saveBlueprint } from "@/lib/previews/repository";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
+import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 
 const MAX_WHATSAPP_LENGTH = 32;
 /** Blueprint salvo pelo Studio (HTML customizado incluso) fica bem abaixo disso. */
 const MAX_PATCH_BYTES = 5_000_000;
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const { id } = await context.params;
   const preview = await prisma.storePreview.findUnique({ where: { id } });
-  if (!preview) {
+  if (!preview || !canAccessPreview(user, preview.ownerId)) {
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
   return NextResponse.json({ preview });
@@ -24,6 +27,8 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const limited = limitAuthenticated(req, "save");
   if (limited) return limited;
   if (Number(req.headers.get("content-length")) > MAX_PATCH_BYTES) {
@@ -40,8 +45,8 @@ export async function PATCH(
     );
   }
 
-  const exists = await prisma.storePreview.findUnique({ where: { id }, select: { id: true } });
-  if (!exists) {
+  const exists = await prisma.storePreview.findUnique({ where: { id }, select: { id: true, ownerId: true } });
+  if (!exists || !canAccessPreview(user, exists.ownerId)) {
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
 
@@ -71,9 +76,15 @@ export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const limited = limitAuthenticated(req, "delete");
   if (limited) return limited;
   const { id } = await context.params;
+  const found = await prisma.storePreview.findUnique({ where: { id }, select: { ownerId: true } });
+  if (!found || !canAccessPreview(user, found.ownerId)) {
+    return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
+  }
   try {
     const deleted = await prisma.storePreview.delete({ where: { id } });
     await deletePreviewFiles(deleted).catch(() => 0);

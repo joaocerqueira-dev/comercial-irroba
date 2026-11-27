@@ -52,3 +52,27 @@ export function makeSampleExtracted(overrides: Partial<ExtractedStoreData> = {})
     ...overrides,
   };
 }
+
+import type { AuthUser } from "@/lib/auth/session";
+
+const mk = (id: string, role: AuthUser["role"]): AuthUser => ({
+  id,
+  email: `${id}@irroba.test`,
+  name: id,
+  role,
+  mustChangePassword: false,
+});
+
+/** Usuários de teste para guardas de acesso. */
+export const TEST_USERS: { admin: AuthUser; comercial: AuthUser; outro: AuthUser } = {
+  admin: mk("u-admin", "admin"),
+  comercial: mk("u-comercial", "comercial"),
+  outro: mk("u-outro", "comercial"),
+};
+
+/** Adiciona o cookie de sessão de teste, preservando os headers existentes. */
+export function withSession(init: RequestInit = {}): RequestInit & { signal?: AbortSignal } {
+  const headers = new Headers(init.headers);
+  headers.set("cookie", "session=test");
+  return { ...init, headers, signal: init.signal ?? undefined };
+}

@@ -9,6 +9,7 @@ import {
 import { sanitizeCustomHtmlBlock } from "@/lib/irroba-blocks/sanitize";
 import { GEMINI_TEXT_MODELS } from "@/lib/layout-patterns/ai";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
+import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 import { getPreviewWithBlueprint } from "@/lib/previews/repository";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 
@@ -53,6 +54,8 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const limited = limitAuthenticated(req, "ai-html");
   if (limited) return limited;
 
@@ -70,7 +73,7 @@ export async function POST(
 
   const { id } = await context.params;
   const lookup = await getPreviewWithBlueprint({ id });
-  if (lookup.status === "not_found") {
+  if (lookup.status === "not_found" || !canAccessPreview(user, lookup.preview.ownerId)) {
     return NextResponse.json({ error: "Preview não encontrado" }, { status: 404 });
   }
   if (lookup.status === "no_blueprint") {

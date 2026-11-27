@@ -6,6 +6,7 @@ import sharp from "sharp";
 import { prisma } from "@/lib/db";
 import { CAPTURES_DIR, uploadFilePrefix } from "@/lib/files/captures";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
+import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,8 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const user = await requireUser(req);
+  if (user instanceof Response) return user;
   const limited = limitAuthenticated(req, "upload-image");
   if (limited) return limited;
   // Falha rápida pelo Content-Length declarado, antes de ler o corpo. Não cobre
@@ -69,9 +72,9 @@ export async function POST(
   const { id } = await context.params;
   const preview = await prisma.storePreview.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, ownerId: true },
   });
-  if (!preview) {
+  if (!preview || !canAccessPreview(user, preview.ownerId)) {
     return NextResponse.json({ error: "Preview não encontrado." }, { status: 404 });
   }
 

@@ -32,19 +32,6 @@ export function getClientIp(req: Request, env: Record<string, string | undefined
   return direct || "unknown";
 }
 
-/** Usuário do Basic auth (só o nome; a senha já foi conferida no middleware). */
-export function getBasicAuthUser(req: Request): string {
-  const header = req.headers.get("authorization");
-  if (!header?.startsWith("Basic ")) return "anon";
-  try {
-    const decoded = atob(header.slice(6).trim());
-    const sep = decoded.indexOf(":");
-    return (sep >= 0 ? decoded.slice(0, sep) : decoded) || "anon";
-  } catch {
-    return "anon";
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Token bucket
 // ---------------------------------------------------------------------------
@@ -132,7 +119,8 @@ export function tooManyRequests(retryAfterSec: number): Response {
  */
 export function limitAuthenticated(req: Request, scope: string): Response | null {
   const perMinute = envInt(process.env.RATE_LIMIT_PER_MIN, DEFAULT_AUTH_PER_MIN);
-  const key = `${scope}:${getBasicAuthUser(req)}:${getClientIp(req)}`;
+  const token = /(?:^|;\s*)session=([^;]*)/.exec(req.headers.get("cookie") ?? "")?.[1];
+  const key = `${scope}:${token ? token.slice(0, 16) : "anon"}:${getClientIp(req)}`;
   const result = sharedLimiter.take(key, perMinute);
   return result.ok ? null : tooManyRequests(result.retryAfterSec);
 }

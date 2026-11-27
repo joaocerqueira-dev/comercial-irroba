@@ -1,65 +1,49 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Basic auth para a área interna (home, estúdio e API).
- * Públicos: /preview/[slug], /render/[slug], /api/captures/* e /api/health.
- * Sem ADMIN_USER/ADMIN_PASS: libera em desenvolvimento e bloqueia em produção.
+ * Exige o cookie de sessão na área interna (home, estúdio, admin, conta e API).
+ * Aqui só confere a presença: o middleware roda no Edge e não acessa o banco.
+ * A validação real fica em requireUser/requirePageUser.
+ * Públicos: /preview/[slug], /render/[slug], /api/captures/*, /api/health e /api/auth/login.
  */
 export function isPublicPath(pathname: string): boolean {
   return (
     pathname.startsWith("/preview/") ||
     pathname.startsWith("/render/") ||
     pathname.startsWith("/api/captures/") ||
-    pathname === "/api/health"
+    pathname === "/api/health" ||
+    pathname === "/api/auth/login"
   );
-}
-
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-export function checkBasicAuth(
-  header: string | null,
-  user: string | undefined,
-  pass: string | undefined,
-  nodeEnv: string | undefined
-): "ok" | "unauthorized" | "misconfigured" {
-  if (!user || !pass) return nodeEnv === "production" ? "misconfigured" : "ok";
-  if (!header?.startsWith("Basic ")) return "unauthorized";
-  let decoded = "";
-  try {
-    decoded = atob(header.slice(6).trim());
-  } catch {
-    return "unauthorized";
-  }
-  const sep = decoded.indexOf(":");
-  if (sep < 0) return "unauthorized";
-  return safeEqual(decoded.slice(0, sep), user) && safeEqual(decoded.slice(sep + 1), pass)
-    ? "ok"
-    : "unauthorized";
 }
 
 export function middleware(req: NextRequest) {
-  if (isPublicPath(req.nextUrl.pathname)) return NextResponse.next();
-  const result = checkBasicAuth(
-    req.headers.get("authorization"),
-    process.env.ADMIN_USER,
-    process.env.ADMIN_PASS,
-    process.env.NODE_ENV
-  );
-  if (result === "ok") return NextResponse.next();
-  if (result === "misconfigured") {
-    return new NextResponse("Acesso bloqueado: defina ADMIN_USER e ADMIN_PASS.", { status: 503 });
+  const { pathname, search } = req.nextUrl;
+  if (isPublicPath(pathname)) return NextResponse.next();
+  // "session" = SESSION_COOKIE; session.ts importa prisma/node:crypto, impróprios para o Edge
+  const token = req.cookies.get("session")?.value;
+  if (token) {
+    const res = NextResponse.next();
+    // sliding: renova o cookie do navegador (a sessão no banco já renova); login/logout/password mexem no cookie sozinhos
+    if (!pathname.startsWith("/api/auth/")) {
+      res.cookies.set("session", token, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 7 * 24 * 3600,
+        secure: process.env.NODE_ENV === "production",
+      });
+    }
+    return res;
   }
-  return new NextResponse("Autenticação necessária", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Irroba Preview", charset="UTF-8"' },
-  });
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Sessão expirada. Entre novamente." }, { status: 401 });
+  }
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = `?next=${encodeURIComponent(pathname + search)}`;
+  return NextResponse.redirect(url);
 }
 
 export const config = {
-  matcher: ["/", "/studio/:path*", "/api/:path*"],
+  matcher: ["/", "/studio/:path*", "/admin/:path*", "/conta/:path*", "/api/:path*"],
 };

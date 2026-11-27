@@ -1,3 +1,4 @@
+import { withSession } from "./fixtures";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { middleware, isPublicPath } from "@/middleware";
@@ -13,6 +14,12 @@ const shots = vi.hoisted(() => ({
   getCachedMobileScreenshots: vi.fn(),
 }));
 vi.mock("@/lib/scraper/mobile-screenshot", () => shots);
+
+// Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
+vi.mock("@/lib/auth/session", async (orig) => {
+  const { TEST_USERS } = await import("./fixtures");
+  return { ...(await orig<object>()), getUserFromToken: vi.fn(async () => TEST_USERS.admin) };
+});
 
 import * as publicMobileRoute from "@/app/api/captures/mobile/[slug]/route";
 import { POST as RECAPTURE } from "@/app/api/previews/[id]/mobile-capture/route";
@@ -61,7 +68,7 @@ describe("GET /api/captures/mobile/[slug] (público)", () => {
 
 describe("POST /api/previews/[id]/mobile-capture (autenticado)", () => {
   const post = (id = "p1") =>
-    RECAPTURE(new NextRequest(`http://localhost/api/previews/${id}/mobile-capture`, { method: "POST" }), {
+    RECAPTURE(new NextRequest(`http://localhost/api/previews/${id}/mobile-capture`, withSession({ method: "POST" })), {
       params: Promise.resolve({ id }),
     });
 
@@ -106,11 +113,9 @@ describe("POST /api/previews/[id]/mobile-capture (autenticado)", () => {
 });
 
 describe("middleware", () => {
-  it("rota de recaptura mobile não é pública e exige Basic auth", () => {
+  it("rota de recaptura mobile não é pública e exige sessão", () => {
     expect(isPublicPath("/api/previews/abc/mobile-capture")).toBe(false);
     expect(isPublicPath("/api/captures/mobile/loja-abc")).toBe(true);
-    vi.stubEnv("ADMIN_USER", "admin");
-    vi.stubEnv("ADMIN_PASS", "segredo");
     const anon = middleware(
       new NextRequest("http://localhost/api/previews/abc/mobile-capture", { method: "POST" })
     );
@@ -118,7 +123,7 @@ describe("middleware", () => {
     const authed = middleware(
       new NextRequest("http://localhost/api/previews/abc/mobile-capture", {
         method: "POST",
-        headers: { authorization: `Basic ${btoa("admin:segredo")}` },
+        headers: { cookie: "session=abc" },
       })
     );
     expect(authed.status).toBe(200);
