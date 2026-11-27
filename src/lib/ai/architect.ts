@@ -2,7 +2,9 @@ import { mimeFromFilename } from "@/lib/files/mime";
 import { isApparelText, isFootwearText } from "@/lib/catalog/niche";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { GoogleGenAI } from "@google/genai";
+import { generateText, type ImagePart, type TextPart } from "ai";
+import { describeAiError } from "./errors";
+import type { UserTextAi } from "./providers";
 import {
   contrastRatio,
   darkenHex,
@@ -17,9 +19,7 @@ import {
   COLOR_DERIVATION,
   COLOR_THRESHOLDS,
   DEFAULT_COPY,
-  GEMINI_ARCHITECT,
-  GEMINI_DEFAULT_MODEL,
-  GEMINI_TEXT_MODELS,
+  AI_ARCHITECT,
   HEADER_DEFAULTS,
   PALETTE,
   PLACEHOLDER_IMAGES,
@@ -48,22 +48,6 @@ export function ensureReadableForeground(bg: string, candidate?: string): string
     return norm;
   }
   return getContrastingForeground(bg);
-}
-
-export function formatFriendlyAiError(raw: string): string {
-  if (/503|UNAVAILABLE|high demand|overloaded/i.test(raw)) {
-    return "Servidores do Gemini temporariamente sobrecarregados (503).";
-  }
-  if (/429|quota|RESOURCE_EXHAUSTED/i.test(raw)) {
-    return "Limite temporário de requisições da API Gemini atingido.";
-  }
-  if (/Timeout/i.test(raw)) {
-    return "A análise visual excedeu o tempo limite de resposta.";
-  }
-  if (/401|403|API_KEY_INVALID/i.test(raw)) {
-    return "Chave API do Gemini inválida ou sem permissão.";
-  }
-  return "Serviço Gemini temporariamente indisponível.";
 }
 
 function inferNicheAndTone(extracted: ExtractedStoreData): {
@@ -646,12 +630,11 @@ export function buildHeuristicBlueprint(extracted: ExtractedStoreData): StoreBlu
 
 export interface ArchitectResult {
   blueprint: StoreBlueprint;
-  mode: "gemini" | "heuristic";
+  mode: "ai" | "heuristic";
+  aiProvider?: string;
   modelUsed?: string;
   aiError?: string;
 }
-
-const DEFAULT_GEMINI_MODELS = GEMINI_TEXT_MODELS;
 
 export function extractJsonObject(raw: string): Record<string, unknown> {
   const cleaned = raw
@@ -663,51 +646,34 @@ export function extractJsonObject(raw: string): Record<string, unknown> {
   return JSON.parse(cleaned) as Record<string, unknown>;
 }
 
-export async function callGeminiWithTimeout(
-  ai: GoogleGenAI,
-  model: string,
-  parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
-  timeoutMs: number = GEMINI_ARCHITECT.timeoutMs,
-  outerSignal?: AbortSignal
-) {
-  const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const abortSignal = outerSignal ? AbortSignal.any([timeoutSignal, outerSignal]) : timeoutSignal;
-  try {
-    return await ai.models.generateContent({
-      model,
-      contents: parts,
-      config: {
-        responseMimeType: "application/json",
-        temperature: GEMINI_ARCHITECT.temperature,
-        abortSignal,
-      },
-    });
-  } catch (err) {
-    if (timeoutSignal.aborted) {
-      throw new Error(`Timeout após ${Math.round(timeoutMs / 1000)}s em ${model}`);
-    }
-    throw err;
-  }
-}
-
 export async function buildStoreBlueprint(
   extracted: ExtractedStoreData,
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; ai?: UserTextAi | null } = {}
 ): Promise<ArchitectResult> {
   const baseBlueprint = buildHeuristicBlueprint(extracted);
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const userAi = options.ai;
 
-  if (!apiKey) {
-    return { blueprint: baseBlueprint, mode: "heuristic" };
+  if (!userAi) {
+    return {
+      blueprint: {
+        ...baseBlueprint,
+        designInsights: [
+          {
+            id: "ai-not-configured",
+            category: "palette",
+            severity: "suggestion",
+            title: "Configure sua IA para gerar com IA",
+            description: "Layout montado em modo heurístico. Cadastre sua chave em Minha IA (/conta/ia) para analisar a identidade visual com IA.",
+          },
+          ...baseBlueprint.designInsights,
+        ],
+      },
+      mode: "heuristic",
+    };
   }
 
-  const preferredModel = process.env.GEMINI_MODEL?.trim();
-  const modelQueue = Array.from(
-    new Set([preferredModel || GEMINI_DEFAULT_MODEL, ...DEFAULT_GEMINI_MODELS])
-  );
-
-  const ai = new GoogleGenAI({ apiKey });
-  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+  const model = userAi.modelId;
+  const parts: Array<TextPart | ImagePart> = [];
 
   const capturePaths = [
     { imgPath: extracted.screenshotPath, maxBytes: 4_000_000 },
@@ -715,7 +681,8 @@ export async function buildStoreBlueprint(
   ];
 
   let attachedScreenshots = 0;
-  for (const { imgPath, maxBytes } of capturePaths) {
+  // Provedor sem imagem na entrada (openai-compatible): só os dados do DOM
+  for (const { imgPath, maxBytes } of userAi.supportsImageInput ? capturePaths : []) {
     if (!imgPath) continue;
     const filename = path.basename(imgPath);
     const diskPath = path.join(process.cwd(), "public", "captures", filename);
@@ -723,12 +690,7 @@ export async function buildStoreBlueprint(
       const stat = await fs.stat(diskPath);
       if (stat.size > maxBytes) continue;
       const imgBuffer = await fs.readFile(diskPath);
-      parts.push({
-        inlineData: {
-          mimeType: mimeFromFilename(filename),
-          data: imgBuffer.toString("base64"),
-        },
-      });
+      parts.push({ type: "image", image: imgBuffer, mediaType: mimeFromFilename(filename) });
       attachedScreenshots += 1;
     } catch {
       // Skip unavailable captures
@@ -804,349 +766,349 @@ Retorne APENAS um JSON válido com esta estrutura exata:
   ]
 }`;
 
-  parts.push({ text: prompt });
+  parts.push({ type: "text", text: prompt });
 
-  let lastErrorMsg = "";
+  // Uma única chamada, no modelo do usuário: sem troca silenciosa de modelo
+  let friendlyAiError: string;
+  const timeoutSignal = AbortSignal.timeout(AI_ARCHITECT.timeoutMs);
+  try {
+    const response = await generateText({
+      model: userAi.model,
+      messages: [{ role: "user", content: parts }],
+      temperature: AI_ARCHITECT.temperature,
+      abortSignal: options.signal ? AbortSignal.any([timeoutSignal, options.signal]) : timeoutSignal,
+    });
+    const text = response.text?.trim();
+    if (!text) throw new Error("Resposta vazia da IA");
 
-  for (const model of modelQueue) {
-    try {
-      const response = await callGeminiWithTimeout(ai, model, parts, GEMINI_ARCHITECT.timeoutMs, options.signal);
-      const text = response.text?.trim();
-      if (!text) {
-        lastErrorMsg = `Resposta vazia do modelo ${model}`;
-        continue;
-      }
+    const aiData = extractJsonObject(text);
 
-      const aiData = extractJsonObject(text);
+    const bodyBg = normalizeHex(
+      typeof aiData.bodyBackground === "string" ? aiData.bodyBackground : undefined,
+      baseBlueprint.theme.bodyBackground
+    );
+    const bodyFg = ensureReadableForeground(bodyBg, baseBlueprint.theme.bodyForeground);
 
-      const bodyBg = normalizeHex(
-        typeof aiData.bodyBackground === "string" ? aiData.bodyBackground : undefined,
-        baseBlueprint.theme.bodyBackground
-      );
-      const bodyFg = ensureReadableForeground(bodyBg, baseBlueprint.theme.bodyForeground);
+    const headerBg = normalizeHex(
+      typeof aiData.headerBackground === "string" ? aiData.headerBackground : undefined,
+      baseBlueprint.visualOverrides.header.background
+    );
+    const headerFg = ensureReadableForeground(headerBg, baseBlueprint.visualOverrides.header.foreground);
 
-      const headerBg = normalizeHex(
-        typeof aiData.headerBackground === "string" ? aiData.headerBackground : undefined,
-        baseBlueprint.visualOverrides.header.background
-      );
-      const headerFg = ensureReadableForeground(headerBg, baseBlueprint.visualOverrides.header.foreground);
+    const announcementBg = normalizeHex(
+      typeof aiData.announcementBackground === "string" ? aiData.announcementBackground : undefined,
+      baseBlueprint.visualOverrides.announcement.background
+    );
+    const announcementFg = ensureReadableForeground(
+      announcementBg,
+      baseBlueprint.visualOverrides.announcement.foreground
+    );
 
-      const announcementBg = normalizeHex(
-        typeof aiData.announcementBackground === "string" ? aiData.announcementBackground : undefined,
-        baseBlueprint.visualOverrides.announcement.background
-      );
-      const announcementFg = ensureReadableForeground(
-        announcementBg,
-        baseBlueprint.visualOverrides.announcement.foreground
-      );
+    const primaryBg = normalizeHex(
+      typeof aiData.primaryBackground === "string" ? aiData.primaryBackground : undefined,
+      baseBlueprint.theme.primaryBackground
+    );
+    const primaryFg = ensureReadableForeground(primaryBg, baseBlueprint.theme.primaryForeground);
 
-      const primaryBg = normalizeHex(
-        typeof aiData.primaryBackground === "string" ? aiData.primaryBackground : undefined,
-        baseBlueprint.theme.primaryBackground
-      );
-      const primaryFg = ensureReadableForeground(primaryBg, baseBlueprint.theme.primaryForeground);
+    const secondaryBg = normalizeHex(
+      typeof aiData.secondaryBackground === "string" ? aiData.secondaryBackground : undefined,
+      baseBlueprint.theme.secondaryBackground
+    );
+    const secondaryFg = ensureReadableForeground(secondaryBg, baseBlueprint.theme.secondaryForeground);
+    const legalBg = darkenHex(secondaryBg, COLOR_DERIVATION.legalDarken);
+    const legalFg = ensureReadableForeground(legalBg, secondaryFg);
 
-      const secondaryBg = normalizeHex(
-        typeof aiData.secondaryBackground === "string" ? aiData.secondaryBackground : undefined,
-        baseBlueprint.theme.secondaryBackground
-      );
-      const secondaryFg = ensureReadableForeground(secondaryBg, baseBlueprint.theme.secondaryForeground);
-      const legalBg = darkenHex(secondaryBg, COLOR_DERIVATION.legalDarken);
-      const legalFg = ensureReadableForeground(legalBg, secondaryFg);
+    const neutralBg = normalizeHex(
+      typeof aiData.neutralBackground === "string" ? aiData.neutralBackground : undefined,
+      baseBlueprint.theme.neutralBackground
+    );
+    const neutralFg = ensureReadableForeground(neutralBg, baseBlueprint.theme.neutralForeground);
 
-      const neutralBg = normalizeHex(
-        typeof aiData.neutralBackground === "string" ? aiData.neutralBackground : undefined,
-        baseBlueprint.theme.neutralBackground
-      );
-      const neutralFg = ensureReadableForeground(neutralBg, baseBlueprint.theme.neutralForeground);
+    const btnPrimaryBg = normalizeHex(
+      typeof aiData.btnPrimaryBackground === "string" ? aiData.btnPrimaryBackground : undefined,
+      primaryBg
+    );
+    const btnPrimaryFg = ensureReadableForeground(btnPrimaryBg, baseBlueprint.theme.btnPrimaryColor);
 
-      const btnPrimaryBg = normalizeHex(
-        typeof aiData.btnPrimaryBackground === "string" ? aiData.btnPrimaryBackground : undefined,
-        primaryBg
-      );
-      const btnPrimaryFg = ensureReadableForeground(btnPrimaryBg, baseBlueprint.theme.btnPrimaryColor);
+    const aiInsightsRaw = Array.isArray(aiData.insights) ? aiData.insights : [];
+    const parsedAiInsights: DesignInsight[] = aiInsightsRaw
+      .slice(0, 4)
+      .map((item, idx): DesignInsight | null => {
+        if (!item || typeof item !== "object") return null;
+        const rec = item as Record<string, unknown>;
+        const title = typeof rec.title === "string" ? rec.title.trim() : "";
+        const description = typeof rec.description === "string" ? rec.description.trim() : "";
+        if (!title || !description) return null;
 
-      const aiInsightsRaw = Array.isArray(aiData.insights) ? aiData.insights : [];
-      const parsedAiInsights: DesignInsight[] = aiInsightsRaw
-        .slice(0, 4)
-        .map((item, idx): DesignInsight | null => {
-          if (!item || typeof item !== "object") return null;
-          const rec = item as Record<string, unknown>;
-          const title = typeof rec.title === "string" ? rec.title.trim() : "";
-          const description = typeof rec.description === "string" ? rec.description.trim() : "";
-          if (!title || !description) return null;
+        const category = ["palette", "contrast", "banners", "conversion"].includes(
+          String(rec.category)
+        )
+          ? (rec.category as DesignInsight["category"])
+          : "palette";
+        const severity = rec.severity === "info" ? "info" : "suggestion";
+        const sugHex =
+          typeof rec.suggestedCtaHex === "string"
+            ? normalizeHex(rec.suggestedCtaHex, "")
+            : "";
 
-          const category = ["palette", "contrast", "banners", "conversion"].includes(
-            String(rec.category)
-          )
-            ? (rec.category as DesignInsight["category"])
-            : "palette";
-          const severity = rec.severity === "info" ? "info" : "suggestion";
-          const sugHex =
-            typeof rec.suggestedCtaHex === "string"
-              ? normalizeHex(rec.suggestedCtaHex, "")
-              : "";
-
-          return {
-            id: `gemini-insight-${idx + 1}`,
-            category,
-            severity,
-            title,
-            description,
-            ...(sugHex
-              ? {
-                  actionLabel: `Aplicar CTA ${sugHex}`,
-                  suggestedThemePatch: {
-                    btnPrimaryBackground: sugHex,
-                    btnPrimaryColor: getContrastingForeground(sugHex),
-                    buyBtnBackground: sugHex,
-                    buyBtnForeground: getContrastingForeground(sugHex),
-                  },
-                }
-              : {}),
-          };
-        })
-        .filter((x): x is DesignInsight => x !== null);
-
-      const finalInsights: DesignInsight[] = [
-        {
-          id: "gemini-visual-analysis-badge",
-          category: "palette",
-          severity: "info",
-          title: `Identidade visual analisada por ${model}`,
-          description: `O modelo multimodal analisou ${attachedScreenshots > 0 ? `${attachedScreenshots} captura(s) visual(is)` : "os dados"} da loja original para calibrar paleta, tipografia, espaçamento e tom de voz no Tema LIME.`,
-        },
-        ...parsedAiInsights,
-      ];
-
-      const rawBenefits = Array.isArray(aiData.benefits) ? aiData.benefits : [];
-      const parsedBenefits = rawBenefits
-        .slice(0, 4)
-        .map((b) => {
-          if (!b || typeof b !== "object") return null;
-          const rec = b as Record<string, unknown>;
-          if (typeof rec.title !== "string" || typeof rec.subtitle !== "string") return null;
-          const icon = ["truck", "credit-card", "shield-check", "refresh-cw"].includes(
-            String(rec.icon)
-          )
-            ? String(rec.icon)
-            : "shield-check";
-          return { icon, title: rec.title.slice(0, 32), subtitle: rec.subtitle.slice(0, 52) };
-        })
-        .filter((x): x is StoreBlueprint["sections"]["benefits"][number] => x !== null);
-
-      const rawTestimonials = Array.isArray(aiData.testimonials) ? aiData.testimonials : [];
-      const parsedTestimonials = rawTestimonials
-        .slice(0, 3)
-        .map((t) => {
-          if (!t || typeof t !== "object") return null;
-          const rec = t as Record<string, unknown>;
-          if (typeof rec.author !== "string" || typeof rec.comment !== "string") return null;
-          return {
-            author: rec.author.slice(0, 40),
-            rating: 5,
-            comment: rec.comment.slice(0, 200),
-          };
-        })
-        .filter((x): x is StoreBlueprint["sections"]["testimonials"][number] => x !== null);
-
-      const heroMode = aiData.heroMode === "editorial" ? "editorial" : "artwork";
-      const validRadius = ["none", "small", "medium", "large"].includes(String(aiData.radius))
-        ? (aiData.radius as StoreBlueprint["theme"]["radius"])
-        : baseBlueprint.theme.radius;
-      const validHeaderLayout = ["layout-1", "layout-2", "layout-3"].includes(
-        String(aiData.headerLayout)
-      )
-        ? (aiData.headerLayout as StoreBlueprint["theme"]["headerLayout"])
-        : baseBlueprint.theme.headerLayout;
-      const validHeaderPos = ["default", "sticky", "overlay"].includes(
-        String(aiData.headerPosition)
-      )
-        ? (aiData.headerPosition as "default" | "sticky" | "overlay")
-        : baseBlueprint.visualOverrides.header.position;
-      const validCatCase = ["normal", "uppercase", "lowercase", "capitalize"].includes(
-        String(aiData.categoryCase)
-      )
-        ? (aiData.categoryCase as "normal" | "uppercase" | "lowercase" | "capitalize")
-        : baseBlueprint.visualOverrides.header.categoryCase;
-      const validAlign = ["left", "center", "right"].includes(String(aiData.productCardAlign))
-        ? (aiData.productCardAlign as "left" | "center" | "right")
-        : baseBlueprint.visualOverrides.productCard.titleAlign;
-      const validPadding = [8, 16, 24, 40].includes(Number(aiData.productCardPaddingX))
-        ? (Number(aiData.productCardPaddingX) as 8 | 16 | 24 | 40)
-        : baseBlueprint.visualOverrides.productCard.paddingX;
-
-      const merged: StoreBlueprint = {
-        ...baseBlueprint,
-        brand: {
-          ...baseBlueprint.brand,
-          niche: typeof aiData.niche === "string" ? aiData.niche : baseBlueprint.brand.niche,
-          tone: ["modern", "luxury", "vibrant", "minimal", "tech"].includes(String(aiData.tone))
-            ? (aiData.tone as StoreBlueprint["brand"]["tone"])
-            : baseBlueprint.brand.tone,
-        },
-        theme: {
-          ...baseBlueprint.theme,
-          bodyBackground: bodyBg,
-          bodyForeground: bodyFg,
-          primaryBackground: primaryBg,
-          primaryForeground: primaryFg,
-          secondaryBackground: secondaryBg,
-          secondaryForeground: secondaryFg,
-          neutralBackground: neutralBg,
-          neutralForeground: neutralFg,
-          btnPrimaryBackground: btnPrimaryBg,
-          btnPrimaryColor: btnPrimaryFg,
-          btnSecondaryOutline:
-            typeof aiData.btnSecondaryOutline === "boolean"
-              ? aiData.btnSecondaryOutline
-              : baseBlueprint.theme.btnSecondaryOutline,
-          // Só aceita fontes suportadas; qualquer outra mantém a fonte da heurística.
-          headingFont: matchAllowedFont(aiData.headingFont, ALLOWED_FONTS) ?? baseBlueprint.theme.headingFont,
-          bodyFont: matchAllowedFont(aiData.bodyFont, ALLOWED_FONTS) ?? baseBlueprint.theme.bodyFont,
-          radius: validRadius,
-          headerLayout: validHeaderLayout,
-        },
-        visualOverrides: {
-          ...baseBlueprint.visualOverrides,
-          announcement: {
-            background: announcementBg,
-            foreground: announcementFg,
-          },
-          header: {
-            ...baseBlueprint.visualOverrides.header,
-            background: headerBg,
-            foreground: headerFg,
-            position: validHeaderPos,
-            categoryCase: validCatCase,
-          },
-          productCard: {
-            ...baseBlueprint.visualOverrides.productCard,
-            titleAlign: validAlign,
-            paddingX: validPadding,
-            cardBackground: bodyBg,
-            priceColor: bodyFg,
-            buyBtnBackground: btnPrimaryBg,
-            buyBtnForeground: btnPrimaryFg,
-          },
-          pageProduct: {
-            ...baseBlueprint.visualOverrides.pageProduct,
-            buyButtonText:
-              typeof aiData.buyButtonText === "string"
-                ? aiData.buyButtonText
-                : baseBlueprint.visualOverrides.pageProduct.buyButtonText,
-          },
-          footer: {
-            ...baseBlueprint.visualOverrides.footer,
-            background: secondaryBg,
-            foreground: secondaryFg,
-            legalBackground: legalBg,
-            legalForeground: legalFg,
-          },
-        },
-        sections: {
-          ...baseBlueprint.sections,
-          announcementText:
-            typeof aiData.announcementText === "string"
-              ? aiData.announcementText
-              : baseBlueprint.sections.announcementText,
-          heroSlides: baseBlueprint.sections.heroSlides.map((s, idx) =>
-            idx === 0 ? { ...s, mode: heroMode } : s
-          ),
-          benefitsBanner: baseBlueprint.sections.benefitsBanner
+        return {
+          id: `ai-insight-${idx + 1}`,
+          category,
+          severity,
+          title,
+          description,
+          ...(sugHex
             ? {
-                ...baseBlueprint.sections.benefitsBanner,
-                backgroundColor:
-                  baseBlueprint.sections.benefitsBanner.mode === "site-images"
-                    ? baseBlueprint.sections.benefitsBanner.backgroundColor
-                    : neutralBg,
-                textColor:
-                  baseBlueprint.sections.benefitsBanner.mode === "site-images"
-                    ? baseBlueprint.sections.benefitsBanner.textColor
-                    : neutralFg,
+                actionLabel: `Aplicar CTA ${sugHex}`,
+                suggestedThemePatch: {
+                  btnPrimaryBackground: sugHex,
+                  btnPrimaryColor: getContrastingForeground(sugHex),
+                  buyBtnBackground: sugHex,
+                  buyBtnForeground: getContrastingForeground(sugHex),
+                },
               }
-            : undefined,
-          moodSectionTitle:
-            typeof aiData.moodSectionTitle === "string"
-              ? aiData.moodSectionTitle
-              : baseBlueprint.sections.moodSectionTitle,
-          slimBanner: baseBlueprint.sections.slimBanner
-            ? {
-                ...baseBlueprint.sections.slimBanner,
-                headline:
-                  typeof aiData.slimHeadline === "string"
-                    ? aiData.slimHeadline
-                    : baseBlueprint.sections.slimBanner.headline,
-                backgroundColor: secondaryBg,
-                textColor: secondaryFg,
-              }
-            : undefined,
-          secondaryBanner: baseBlueprint.sections.secondaryBanner
-            ? {
-                ...baseBlueprint.sections.secondaryBanner,
-                headline:
-                  typeof aiData.secondaryHeadline === "string"
-                    ? aiData.secondaryHeadline
-                    : baseBlueprint.sections.secondaryBanner.headline,
-                subheadline:
-                  typeof aiData.secondarySubheadline === "string"
-                    ? aiData.secondarySubheadline
-                    : baseBlueprint.sections.secondaryBanner.subheadline,
-                backgroundColor: secondaryBg,
-                textColor: secondaryFg,
-              }
-            : undefined,
-          promoStripText:
-            typeof aiData.promoStripText === "string"
-              ? aiData.promoStripText
-              : baseBlueprint.sections.promoStripText,
-          benefits: parsedBenefits.length >= 3 ? parsedBenefits : baseBlueprint.sections.benefits,
-          // Depoimentos vindos da IA também são inventados: continuam ilustrativos.
-          testimonialsIllustrative: true,
-          testimonials:
-            parsedTestimonials.length >= 2
-              ? parsedTestimonials
-              : baseBlueprint.sections.testimonials,
-          showcases: baseBlueprint.sections.showcases.map((sc, idx) => {
-            if (idx === 0 && typeof aiData.showcase1Title === "string") {
-              return { ...sc, title: aiData.showcase1Title };
-            }
-            if (idx === 1 && typeof aiData.showcase2Title === "string") {
-              return { ...sc, title: aiData.showcase2Title };
-            }
-            return sc;
-          }),
+            : {}),
+        };
+      })
+      .filter((x): x is DesignInsight => x !== null);
+
+    const finalInsights: DesignInsight[] = [
+      {
+        id: "ai-visual-analysis-badge",
+        category: "palette",
+        severity: "info",
+        title: `Identidade visual analisada por ${model}`,
+        description: `O modelo multimodal analisou ${attachedScreenshots > 0 ? `${attachedScreenshots} captura(s) visual(is)` : "os dados"} da loja original para calibrar paleta, tipografia, espaçamento e tom de voz no Tema LIME.`,
+      },
+      ...parsedAiInsights,
+    ];
+
+    const rawBenefits = Array.isArray(aiData.benefits) ? aiData.benefits : [];
+    const parsedBenefits = rawBenefits
+      .slice(0, 4)
+      .map((b) => {
+        if (!b || typeof b !== "object") return null;
+        const rec = b as Record<string, unknown>;
+        if (typeof rec.title !== "string" || typeof rec.subtitle !== "string") return null;
+        const icon = ["truck", "credit-card", "shield-check", "refresh-cw"].includes(
+          String(rec.icon)
+        )
+          ? String(rec.icon)
+          : "shield-check";
+        return { icon, title: rec.title.slice(0, 32), subtitle: rec.subtitle.slice(0, 52) };
+      })
+      .filter((x): x is StoreBlueprint["sections"]["benefits"][number] => x !== null);
+
+    const rawTestimonials = Array.isArray(aiData.testimonials) ? aiData.testimonials : [];
+    const parsedTestimonials = rawTestimonials
+      .slice(0, 3)
+      .map((t) => {
+        if (!t || typeof t !== "object") return null;
+        const rec = t as Record<string, unknown>;
+        if (typeof rec.author !== "string" || typeof rec.comment !== "string") return null;
+        return {
+          author: rec.author.slice(0, 40),
+          rating: 5,
+          comment: rec.comment.slice(0, 200),
+        };
+      })
+      .filter((x): x is StoreBlueprint["sections"]["testimonials"][number] => x !== null);
+
+    const heroMode = aiData.heroMode === "editorial" ? "editorial" : "artwork";
+    const validRadius = ["none", "small", "medium", "large"].includes(String(aiData.radius))
+      ? (aiData.radius as StoreBlueprint["theme"]["radius"])
+      : baseBlueprint.theme.radius;
+    const validHeaderLayout = ["layout-1", "layout-2", "layout-3"].includes(
+      String(aiData.headerLayout)
+    )
+      ? (aiData.headerLayout as StoreBlueprint["theme"]["headerLayout"])
+      : baseBlueprint.theme.headerLayout;
+    const validHeaderPos = ["default", "sticky", "overlay"].includes(
+      String(aiData.headerPosition)
+    )
+      ? (aiData.headerPosition as "default" | "sticky" | "overlay")
+      : baseBlueprint.visualOverrides.header.position;
+    const validCatCase = ["normal", "uppercase", "lowercase", "capitalize"].includes(
+      String(aiData.categoryCase)
+    )
+      ? (aiData.categoryCase as "normal" | "uppercase" | "lowercase" | "capitalize")
+      : baseBlueprint.visualOverrides.header.categoryCase;
+    const validAlign = ["left", "center", "right"].includes(String(aiData.productCardAlign))
+      ? (aiData.productCardAlign as "left" | "center" | "right")
+      : baseBlueprint.visualOverrides.productCard.titleAlign;
+    const validPadding = [8, 16, 24, 40].includes(Number(aiData.productCardPaddingX))
+      ? (Number(aiData.productCardPaddingX) as 8 | 16 | 24 | 40)
+      : baseBlueprint.visualOverrides.productCard.paddingX;
+
+    const merged: StoreBlueprint = {
+      ...baseBlueprint,
+      brand: {
+        ...baseBlueprint.brand,
+        niche: typeof aiData.niche === "string" ? aiData.niche : baseBlueprint.brand.niche,
+        tone: ["modern", "luxury", "vibrant", "minimal", "tech"].includes(String(aiData.tone))
+          ? (aiData.tone as StoreBlueprint["brand"]["tone"])
+          : baseBlueprint.brand.tone,
+      },
+      theme: {
+        ...baseBlueprint.theme,
+        bodyBackground: bodyBg,
+        bodyForeground: bodyFg,
+        primaryBackground: primaryBg,
+        primaryForeground: primaryFg,
+        secondaryBackground: secondaryBg,
+        secondaryForeground: secondaryFg,
+        neutralBackground: neutralBg,
+        neutralForeground: neutralFg,
+        btnPrimaryBackground: btnPrimaryBg,
+        btnPrimaryColor: btnPrimaryFg,
+        btnSecondaryOutline:
+          typeof aiData.btnSecondaryOutline === "boolean"
+            ? aiData.btnSecondaryOutline
+            : baseBlueprint.theme.btnSecondaryOutline,
+        // Só aceita fontes suportadas; qualquer outra mantém a fonte da heurística.
+        headingFont: matchAllowedFont(aiData.headingFont, ALLOWED_FONTS) ?? baseBlueprint.theme.headingFont,
+        bodyFont: matchAllowedFont(aiData.bodyFont, ALLOWED_FONTS) ?? baseBlueprint.theme.bodyFont,
+        radius: validRadius,
+        headerLayout: validHeaderLayout,
+      },
+      visualOverrides: {
+        ...baseBlueprint.visualOverrides,
+        announcement: {
+          background: announcementBg,
+          foreground: announcementFg,
+        },
+        header: {
+          ...baseBlueprint.visualOverrides.header,
+          background: headerBg,
+          foreground: headerFg,
+          position: validHeaderPos,
+          categoryCase: validCatCase,
+        },
+        productCard: {
+          ...baseBlueprint.visualOverrides.productCard,
+          titleAlign: validAlign,
+          paddingX: validPadding,
+          cardBackground: bodyBg,
+          priceColor: bodyFg,
+          buyBtnBackground: btnPrimaryBg,
+          buyBtnForeground: btnPrimaryFg,
+        },
+        pageProduct: {
+          ...baseBlueprint.visualOverrides.pageProduct,
+          buyButtonText:
+            typeof aiData.buyButtonText === "string"
+              ? aiData.buyButtonText
+              : baseBlueprint.visualOverrides.pageProduct.buyButtonText,
         },
         footer: {
-          ...baseBlueprint.footer,
-          aboutText:
-            typeof aiData.aboutText === "string"
-              ? aiData.aboutText
-              : baseBlueprint.footer.aboutText,
+          ...baseBlueprint.visualOverrides.footer,
+          background: secondaryBg,
+          foreground: secondaryFg,
+          legalBackground: legalBg,
+          legalForeground: legalFg,
         },
-        designInsights: finalInsights,
-      };
+      },
+      sections: {
+        ...baseBlueprint.sections,
+        announcementText:
+          typeof aiData.announcementText === "string"
+            ? aiData.announcementText
+            : baseBlueprint.sections.announcementText,
+        heroSlides: baseBlueprint.sections.heroSlides.map((s, idx) =>
+          idx === 0 ? { ...s, mode: heroMode } : s
+        ),
+        benefitsBanner: baseBlueprint.sections.benefitsBanner
+          ? {
+              ...baseBlueprint.sections.benefitsBanner,
+              backgroundColor:
+                baseBlueprint.sections.benefitsBanner.mode === "site-images"
+                  ? baseBlueprint.sections.benefitsBanner.backgroundColor
+                  : neutralBg,
+              textColor:
+                baseBlueprint.sections.benefitsBanner.mode === "site-images"
+                  ? baseBlueprint.sections.benefitsBanner.textColor
+                  : neutralFg,
+            }
+          : undefined,
+        moodSectionTitle:
+          typeof aiData.moodSectionTitle === "string"
+            ? aiData.moodSectionTitle
+            : baseBlueprint.sections.moodSectionTitle,
+        slimBanner: baseBlueprint.sections.slimBanner
+          ? {
+              ...baseBlueprint.sections.slimBanner,
+              headline:
+                typeof aiData.slimHeadline === "string"
+                  ? aiData.slimHeadline
+                  : baseBlueprint.sections.slimBanner.headline,
+              backgroundColor: secondaryBg,
+              textColor: secondaryFg,
+            }
+          : undefined,
+        secondaryBanner: baseBlueprint.sections.secondaryBanner
+          ? {
+              ...baseBlueprint.sections.secondaryBanner,
+              headline:
+                typeof aiData.secondaryHeadline === "string"
+                  ? aiData.secondaryHeadline
+                  : baseBlueprint.sections.secondaryBanner.headline,
+              subheadline:
+                typeof aiData.secondarySubheadline === "string"
+                  ? aiData.secondarySubheadline
+                  : baseBlueprint.sections.secondaryBanner.subheadline,
+              backgroundColor: secondaryBg,
+              textColor: secondaryFg,
+            }
+          : undefined,
+        promoStripText:
+          typeof aiData.promoStripText === "string"
+            ? aiData.promoStripText
+            : baseBlueprint.sections.promoStripText,
+        benefits: parsedBenefits.length >= 3 ? parsedBenefits : baseBlueprint.sections.benefits,
+        // Depoimentos vindos da IA também são inventados: continuam ilustrativos.
+        testimonialsIllustrative: true,
+        testimonials:
+          parsedTestimonials.length >= 2
+            ? parsedTestimonials
+            : baseBlueprint.sections.testimonials,
+        showcases: baseBlueprint.sections.showcases.map((sc, idx) => {
+          if (idx === 0 && typeof aiData.showcase1Title === "string") {
+            return { ...sc, title: aiData.showcase1Title };
+          }
+          if (idx === 1 && typeof aiData.showcase2Title === "string") {
+            return { ...sc, title: aiData.showcase2Title };
+          }
+          return sc;
+        }),
+      },
+      footer: {
+        ...baseBlueprint.footer,
+        aboutText:
+          typeof aiData.aboutText === "string"
+            ? aiData.aboutText
+            : baseBlueprint.footer.aboutText,
+      },
+      designInsights: finalInsights,
+    };
 
-      const validated = StoreBlueprintSchema.parse(merged);
-      return { blueprint: validated, mode: "gemini", modelUsed: model };
-    } catch (err) {
-      lastErrorMsg = err instanceof Error ? err.message : String(err);
-      console.warn(`[architect] Falha no modelo ${model}:`, lastErrorMsg);
-    }
+    const validated = StoreBlueprintSchema.parse(merged);
+    return { blueprint: validated, mode: "ai", aiProvider: userAi.provider, modelUsed: model };
+  } catch (err) {
+    // Só a mensagem fixa vai para o log: o texto cru do provedor pode ecoar a chave
+    friendlyAiError = describeAiError(timeoutSignal.aborted ? { name: "TimeoutError" } : err);
+    console.warn(`[architect] Falha na IA (${userAi.provider}/${model}):`, friendlyAiError);
   }
-
-  const friendlyAiError = formatFriendlyAiError(lastErrorMsg);
 
   // Fallback with transparent diagnostic insight (never fail silently)
   const fallbackWithNotice: StoreBlueprint = {
     ...baseBlueprint,
     designInsights: [
       {
-        id: "gemini-fallback-notice",
+        id: "ai-fallback-notice",
         category: "palette",
         severity: "suggestion",
-        title: "Fallback heurístico ativado (Gemini indisponível)",
-        description: `Não foi possível concluir a análise visual com Gemini nesta tentativa: ${friendlyAiError} Clique em "Reanalisar Identidade com Gemini" para tentar novamente sem raspar o site do zero.`,
+        title: "Fallback heurístico ativado (IA indisponível)",
+        description: `Não foi possível concluir a análise visual com IA nesta tentativa: ${friendlyAiError} Clique em "Reanalisar identidade com IA" para tentar novamente sem raspar o site do zero.`,
       },
       ...baseBlueprint.designInsights,
     ],

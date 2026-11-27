@@ -1,6 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
+import { useAiStatus } from "./AiStatusContext";
+import { aiDisabledReason } from "@/lib/ai/status";
 import { Image as ImageIcon, Loader2, Trash2, Upload, Wand2 } from "lucide-react";
 
 export type AiRatio = "16:9" | "21:9" | "3:4" | "1:1";
@@ -26,6 +29,9 @@ export function AiImageSlot({
   allowClear?: boolean;
   onChange: (nextUrl: string) => void;
 }) {
+  const aiStatus = useAiStatus();
+  const imageReason = aiDisabledReason(aiStatus, "image");
+  const editReason = aiDisabledReason(aiStatus, "image-edit");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [imgStatus, setImgStatus] = useState<"idle" | "ok" | "error">("idle");
   const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
@@ -338,7 +344,8 @@ export function AiImageSlot({
           <div className="grid grid-cols-3 gap-1">
             <button
               type="button"
-              disabled={busyMode !== null || isMissing}
+              disabled={busyMode !== null || isMissing || Boolean(editReason)}
+              title={editReason ?? undefined}
               onClick={() => runAiImage("enhance")}
               className="inline-flex items-center justify-center gap-1 rounded-lg bg-irroba-ink px-1.5 py-1.5 text-xs font-bold text-white hover:bg-zinc-800 disabled:opacity-40"
             >
@@ -347,7 +354,8 @@ export function AiImageSlot({
             </button>
             <button
               type="button"
-              disabled={busyMode !== null || isMissing}
+              disabled={busyMode !== null || isMissing || Boolean(editReason)}
+              title={editReason ?? undefined}
               onClick={() => runAiImage("resize")}
               className="inline-flex items-center justify-center gap-1 rounded-lg bg-brand-700 px-1.5 py-1.5 text-xs font-bold text-white hover:bg-brand-800 disabled:opacity-40"
             >
@@ -356,7 +364,8 @@ export function AiImageSlot({
             </button>
             <button
               type="button"
-              disabled={busyMode !== null}
+              disabled={busyMode !== null || Boolean(imageReason)}
+              title={imageReason ?? undefined}
               onClick={() => runAiImage("generate")}
               className="inline-flex items-center justify-center gap-1 rounded-lg bg-brand-500 px-1.5 py-1.5 text-xs font-bold text-white hover:bg-brand-600 disabled:opacity-40"
             >
@@ -364,6 +373,14 @@ export function AiImageSlot({
               Recriar IA
             </button>
           </div>
+          {(imageReason || editReason) && (
+            <p className="text-xs text-zinc-700">
+              {imageReason ?? editReason}{" "}
+              <Link href="/conta/ia" className="font-semibold underline">
+                Minha IA
+              </Link>
+            </p>
+          )}
           {feedback && (
             <div
               className={`rounded-lg px-2 py-1 text-xs leading-snug ${

@@ -3,7 +3,7 @@
 ## Subir
 
 ```bash
-cp .env.example .env   # preencha ADMIN_EMAIL, ADMIN_PASS, GEMINI_API_KEY, PUBLIC_ASSET_BASE_URL
+cp .env.example .env   # preencha ADMIN_EMAIL, ADMIN_PASS, PUBLIC_ASSET_BASE_URL
 docker compose build
 docker compose up -d
 docker compose ps      # status "healthy" depois de ~30s
@@ -60,6 +60,8 @@ Para build offline, troque para `next/font/local` com os arquivos `.woff2` versi
 `DATABASE_URL` é fixado em `file:/app/data/prod.db` pelo compose. Qualquer valor no `.env` é ignorado.
 
 `SESSION_SECRET` assina o cookie de acesso ao link do cliente. Em produção é obrigatório, com pelo menos 32 caracteres (`openssl rand -base64 48`). Sem ele o link do cliente não abre.
+
+`AI_KEYS_SECRET` cifra (AES-256-GCM) as chaves de IA que cada usuário salva em Minha IA. Em produção é obrigatório, com pelo menos 32 caracteres (`openssl rand -base64 48`); sem ele o container não sobe. Trocar o segredo invalida as chaves salvas: cada usuário precisa salvar a chave de novo.
 
 Backup do SQLite, consistente mesmo com o app rodando:
 
@@ -205,3 +207,9 @@ docker compose exec app node -e "require('playwright').chromium.launch({chromium
 4. Trocar a senha encerra as outras sessões do usuário.
 
 Os links públicos (`/preview/*`, `/render/*`, `/api/captures/*`) não exigem login e continuam funcionando. Recriar o container também zera os contadores do rate limit, que ficam em memória.
+
+## Upgrade: IA por usuário
+
+A chave Gemini do servidor deixou de ser usada (`GEMINI_API_KEY`, `GEMINI_MODEL` e `GEMINI_IMAGE_MODEL` podem ser removidas do `.env`); cada usuário cadastra a sua em Minha IA (`/conta/ia`).
+
+Antes de subir a nova versão, adicione `AI_KEYS_SECRET` ao `.env` (mínimo 32 caracteres; gere com `openssl rand -base64 48`). Sem ele o container não inicia.

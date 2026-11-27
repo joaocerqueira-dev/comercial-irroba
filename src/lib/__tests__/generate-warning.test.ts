@@ -43,6 +43,12 @@ vi.mock("@/lib/ai/architect", async (orig) => {
   };
 });
 
+const providers = vi.hoisted(() => ({
+  getUserTextAi: vi.fn(async () => null as unknown),
+  getUserImageAi: vi.fn(async () => null as unknown),
+}));
+vi.mock("@/lib/ai/providers", () => providers);
+
 // Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
 vi.mock("@/lib/auth/session", async (orig) => {
   const { TEST_USERS } = await import("./fixtures");
@@ -50,6 +56,8 @@ vi.mock("@/lib/auth/session", async (orig) => {
 });
 
 import { POST } from "@/app/api/previews/generate/route";
+import { processAiImageRequest } from "@/lib/ai/image-studio";
+import { buildHeuristicBlueprint, buildStoreBlueprint } from "@/lib/ai/architect";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -78,6 +86,36 @@ describe("POST /api/previews/generate com extração vazia", () => {
     expect(text).toContain("event: done");
     const saved = db.storePreview.update.mock.calls[0][0].data as { extractedData: { extractionWarnings: string[] } };
     expect(saved.extractedData.extractionWarnings).toHaveLength(1);
+  });
+
+  it("banner faltante: só gera com a IA de imagem de quem gera", async () => {
+    const withoutHero = () => {
+      const blueprint = buildHeuristicBlueprint(makeSampleExtracted({ products: [], banners: [] }));
+      blueprint.sections.hero.imageUrl = "";
+      return Promise.resolve({ blueprint, mode: "heuristic" as const });
+    };
+    const generate = async () =>
+      (
+        await POST(
+          new NextRequest("http://localhost/api/previews/generate", {
+            method: "POST",
+            body: JSON.stringify({ url: "https://loja.exemplo.com.br" }),
+          })
+        )
+      ).text();
+    scraper.extractStoreFromUrl.mockResolvedValue(makeSampleExtracted({ products: [], banners: [] }));
+
+    // sem IA de imagem: fallback atual, sem chamar o estúdio
+    vi.mocked(buildStoreBlueprint).mockImplementationOnce(withoutHero);
+    expect(await generate()).toContain("event: done");
+    expect(providers.getUserImageAi).toHaveBeenCalledWith("u-admin");
+    expect(processAiImageRequest).not.toHaveBeenCalled();
+
+    const imageAi = { provider: "openai", modelId: "gpt-image-1.5", apiKey: "k" };
+    providers.getUserImageAi.mockResolvedValueOnce(imageAi);
+    vi.mocked(buildStoreBlueprint).mockImplementationOnce(withoutHero);
+    expect(await generate()).toContain("event: done");
+    expect(vi.mocked(processAiImageRequest).mock.calls[0][1]).toMatchObject({ imageAi, textAi: null });
   });
 });
 
@@ -110,5 +148,38 @@ describe("POST /api/previews/generate: etapa da captura mobile", () => {
     const text = await (await generate()).text();
     expect(text).toContain("event: done");
     expect(text).not.toContain("event: error");
+  });
+});
+
+describe("POST /api/previews/generate com a IA do usuário", () => {
+  it("usa a IA de quem gera e grava generationMode, aiProvider e aiModel", async () => {
+    const arch = await import("@/lib/ai/architect");
+    const { TEST_USERS } = await import("./fixtures");
+    const userAi = { provider: "anthropic", modelId: "claude-x", model: {}, supportsImageInput: true };
+    providers.getUserTextAi.mockResolvedValueOnce(userAi);
+    vi.mocked(arch.buildStoreBlueprint).mockImplementationOnce(async (data) => ({
+      blueprint: arch.buildHeuristicBlueprint(data),
+      mode: "ai",
+      aiProvider: "anthropic",
+      modelUsed: "claude-x",
+    }));
+    scraper.extractStoreFromUrl.mockResolvedValue(makeSampleExtracted());
+    const text = await (
+      await POST(
+        new NextRequest("http://localhost/api/previews/generate", {
+          method: "POST",
+          body: JSON.stringify({ url: "https://loja.exemplo.com.br" }),
+        })
+      )
+    ).text();
+    expect(text).toContain("Analisando identidade visual com IA (anthropic)...");
+    expect(text).not.toMatch(/Gemini/);
+    expect(providers.getUserTextAi).toHaveBeenCalledWith(TEST_USERS.admin.id);
+    expect(vi.mocked(arch.buildStoreBlueprint).mock.calls[0][1]).toMatchObject({ ai: userAi });
+    expect(db.storePreview.update.mock.calls[0][0].data).toMatchObject({
+      generationMode: "ai",
+      aiProvider: "anthropic",
+      aiModel: "claude-x",
+    });
   });
 });

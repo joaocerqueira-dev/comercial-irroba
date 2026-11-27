@@ -5,7 +5,7 @@ Ferramenta interna do time comercial da Irroba. Recebe a URL da loja atual de um
 O que o app faz hoje:
 
 - **Geração** (`/`): o consultor informa a URL da loja e, opcionalmente, o próprio WhatsApp. O progresso chega por SSE. O Chromium (Playwright) captura screenshots desktop e mobile e extrai logo, cores, banners, categorias e produtos.
-- **Identidade visual**: com `GEMINI_API_KEY`, o Gemini analisa os screenshots e refina o blueprint (modo `gemini`). Sem a chave, um blueprint heurístico é montado a partir dos dados extraídos (modo `heuristic`). Se faltar imagem para o banner principal, o app tenta gerar uma arte por IA.
+- **Identidade visual**: com a IA do próprio usuário (cadastrada em `/conta/ia`), a IA analisa os screenshots e refina o blueprint (modo `ai`). Sem IA configurada, um blueprint heurístico é montado a partir dos dados extraídos (modo `heuristic`). Se faltar imagem para o banner principal, o app tenta gerar uma arte por IA.
 - **Studio** (`/studio/[id]`): edição visual da vitrine (seleção de elementos no iframe, banners, produtos, cores, fontes, barra de anúncios, links do cabeçalho), upload de imagens, geração e edição de imagens por IA, recaptura mobile, reanálise, comparativo mobile/desktop e painel de exportação. A exportação traz os campos do LIME, os checklists de tema e de banners e o CSV de produtos.
 - **Link público** (`/preview/[slug]`): página sem login para o cliente, marcada com `noindex`.
 
@@ -17,7 +17,7 @@ Plano de auditoria e refatoração, com as fases e o que já foi feito: [`docs/P
 - Tailwind CSS 3
 - Prisma 6 com SQLite
 - Playwright (Chromium) para captura e extração, mais Cheerio
-- `@google/genai` (Gemini) para análise multimodal e imagens
+- Vercel AI SDK (OpenAI, Anthropic, Google, OpenAI-compatível) com a IA de cada usuário
 - `sharp` para normalizar uploads e gerar miniaturas
 - `undici` para o `fetch` com proteção contra SSRF
 - Zod para validar o blueprint e os payloads
@@ -35,7 +35,7 @@ npm run db:push             # cria/sincroniza o SQLite em prisma/dev.db
 npm run dev                 # http://localhost:3000
 ```
 
-No primeiro boot, sem nenhum usuário, `ADMIN_EMAIL` e `ADMIN_PASS` criam o primeiro admin (que precisa trocar a senha no primeiro login). Sem `GEMINI_API_KEY`, a geração funciona no modo heurístico, e as imagens "por IA" saem do fallback local: uma arte composta com a paleta da marca e renderizada em PNG pelo Chromium.
+No primeiro boot, sem nenhum usuário, `ADMIN_EMAIL` e `ADMIN_PASS` criam o primeiro admin (que precisa trocar a senha no primeiro login). Sem IA configurada em `/conta/ia`, a geração funciona no modo heurístico, e as imagens "por IA" saem do fallback local: uma arte composta com a paleta da marca e renderizada em PNG pelo Chromium.
 
 Arquivos gerados (screenshots, espelhos de imagem, uploads e artes de IA) vão para `public/captures/` e são servidos por `/api/captures/<arquivo>`. A pasta não é versionada.
 
@@ -63,9 +63,6 @@ Modelo comentado em [`.env.example`](.env.example).
 |---|---|---|
 | `DATABASE_URL` | sim | URL do SQLite. Local: `file:./dev.db`, relativo a `prisma/`. No Docker, o compose fixa `file:/app/data/prod.db` e ignora o valor do `.env` |
 | `ADMIN_EMAIL` / `ADMIN_PASS` | no primeiro boot | Criam o primeiro admin quando não há usuários; o admin é obrigado a trocar a senha no primeiro login. Depois, o admin gerencia os usuários em `/admin/usuarios`. As propostas sem dono passam para o admin mais antigo |
-| `GEMINI_API_KEY` | não | Chave do Google AI Studio. Liga a análise de identidade visual pelo Gemini e a geração/edição de imagens pelo modelo de imagem. Sem ela, o blueprint é heurístico e as imagens usam o fallback local (arte renderizada pelo Chromium) |
-| `GEMINI_MODEL` | não | Modelo de texto/visão preferido. Padrão `gemini-3.5-flash`; se o preferido falhar, o app tenta os outros da lista em `src/lib/layout-patterns/ai.ts` |
-| `GEMINI_IMAGE_MODEL` | não | Modelo de imagem preferido. Se falhar, o app tenta `gemini-3.1-flash-image`, `gemini-3.1-flash-lite-image` e `gemini-2.5-flash-image` |
 | `PUBLIC_ASSET_BASE_URL` | recomendada em produção | Base pública (domínio/CDN) onde `/api/captures/*` responde. O Studio a usa para escrever URLs absolutas no material exportado para o painel da Irroba |
 | `TRUST_PROXY` | não | `1` faz o app ler o IP do cliente do `X-Forwarded-For` (hop mais à direita) ou do `X-Real-IP`. Use só atrás de um proxy confiável que sobrescreva esses headers. Sem isso, o rate limit usa a chave `unknown` para o IP |
 | `RATE_LIMIT_PER_MIN` | não | Requisições por minuto por usuário+IP nas rotas caras (`generate`, `reanalyze`, `ai-image`, `mobile-capture`). Padrão 30 |
@@ -79,7 +76,7 @@ O app também lê `NODE_ENV` (o modo produção exige o login) e `NEXT_RUNTIME`,
 ```
 URL da loja
   └─ scraper (src/lib/scraper)       Chromium: screenshots desktop/mobile, extração, detecção de plataforma
-      └─ architect (src/lib/ai)      Gemini ou heurística → StoreBlueprint (validado com Zod)
+      └─ architect (src/lib/ai)      IA do usuário ou heurística → StoreBlueprint (validado com Zod)
           └─ blueprint (SQLite)      StorePreview: extractedData, blueprint, compiledExport
               └─ compiler (src/lib/irroba-blocks)
                   ├─ HTML da vitrine → /render/[slug] (iframe do Studio e do link público)
@@ -88,7 +85,7 @@ URL da loja
 ```
 
 - `src/lib/scraper`: abre a loja no Chromium compartilhado, com navegação protegida, e extrai os dados. Faz também os screenshots mobile.
-- `src/lib/ai`: o `architect` monta o blueprint, heurístico como base e refinado pelo Gemini quando há chave. O `image-studio` gera e edita imagens: tenta o modelo de imagem do Gemini e, se não houver chave ou a chamada falhar, renderiza uma arte em PNG no Chromium.
+- `src/lib/ai`: o `architect` monta o blueprint, heurístico como base e refinado pela IA do usuário quando configurada. O `image-studio` gera e edita imagens: usa a IA de imagem do usuário (Gemini ou OpenAI; melhorar e redimensionar só com Gemini). Sem IA de imagem, a geração de imagens fica desativada.
 - `src/lib/types/blueprint.ts`: schema Zod do `StoreBlueprint`, a fonte de verdade que o Studio edita.
 - `src/lib/layout-patterns`: padrões de geração (paleta, layout, tipografia, textos, modelos de IA). Tem [README próprio](src/lib/layout-patterns/README.md).
 - `src/lib/irroba-blocks`: compilador do blueprint para o HTML/CSS/JS da vitrine (com o runtime do inspetor do Studio), para o export da Irroba e para o CSV, além da sanitização de HTML, CSS, URLs e células CSV.
@@ -121,7 +118,7 @@ O `src/middleware.ts` exige login por usuário em `/`, `/studio/*` e `/api/*`, c
 Resumo:
 
 ```bash
-cp .env.example .env   # ADMIN_EMAIL, ADMIN_PASS, GEMINI_API_KEY, PUBLIC_ASSET_BASE_URL
+cp .env.example .env   # ADMIN_EMAIL, ADMIN_PASS, PUBLIC_ASSET_BASE_URL
 docker compose build
 docker compose up -d
 ```

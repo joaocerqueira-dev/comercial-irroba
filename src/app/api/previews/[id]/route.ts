@@ -51,7 +51,7 @@ export async function PATCH(
   }
 
   const generationMode =
-    typeof body?.generationMode === "string" && ["gemini", "heuristic"].includes(body.generationMode)
+    typeof body?.generationMode === "string" && ["ai", "gemini", "heuristic"].includes(body.generationMode)
       ? (body.generationMode as string)
       : undefined;
 

@@ -8,6 +8,7 @@ import {
 import { normalizeBaseUrl } from "@/lib/public-url";
 import { prisma } from "@/lib/db";
 import StudioClient from "@/components/StudioClient";
+import { getUserImageAi, getUserTextAi } from "@/lib/ai/providers";
 import { canAccessPreview, requirePageUser } from "@/lib/auth/guard";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +29,9 @@ export default async function StudioPage({
     .updateMany({ where: { previewId: id, seenAt: null }, data: { seenAt: new Date() } })
     .catch((e: unknown) => console.error("[studio] marcar respostas como vistas falhou", e));
   const { preview, blueprint } = result;
+  // Quem executa paga: IA do usuário logado. Só flags, nunca a chave.
+  const [textAi, imageAi] = await Promise.all([getUserTextAi(user.id), getUserImageAi(user.id)]);
+  const aiStatus = { text: Boolean(textAi), image: imageAi?.provider ?? null };
   const fullScreenshotPath = resolveFullScreenshotPath(preview);
   const { mobileScreenshotPath, mobileFullScreenshotPath } = resolveMobileScreenshotPaths(preview);
 
@@ -38,6 +42,7 @@ export default async function StudioPage({
       sourceUrl={preview.sourceUrl}
       detectedPlatform={preview.detectedPlatform ?? "E-commerce"}
       generationMode={preview.generationMode}
+      aiStatus={aiStatus}
       initialWhatsapp={preview.sellerWhatsapp ?? ""}
       screenshotPath={preview.screenshotPath}
       fullScreenshotPath={fullScreenshotPath}

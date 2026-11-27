@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { SharePanel } from "@/components/studio/SharePanel";
 import { IrrobaLogo } from "@/components/ui/IrrobaLogo";
 import type { StudioState } from "@/components/studio/useStudioState";
+import { isAiMode } from "@/lib/ai/mode";
 
 interface StudioTopBarProps {
   studio: StudioState;
@@ -62,13 +63,13 @@ export function StudioTopBar({ studio, sourceUrl, detectedPlatform }: StudioTopB
             </span>
             <span
               className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold ${
-                currentMode === "gemini"
+                isAiMode(currentMode)
                   ? "bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200/70"
                   : "bg-zinc-100 text-zinc-700"
               }`}
             >
               <Sparkles className="h-3 w-3" />
-              {currentMode === "gemini" ? "Analisado com IA" : "Modo heurístico"}
+              {isAiMode(currentMode) ? "Analisado com IA" : "Modo heurístico"}
             </span>
             {hasUnsavedChanges && (
               <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">

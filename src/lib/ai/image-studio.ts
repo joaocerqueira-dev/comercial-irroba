@@ -1,4 +1,8 @@
-import { GEMINI_TEXT_MODELS as SHARED_GEMINI_MODELS } from "@/lib/layout-patterns/ai";
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateImage, generateText } from "ai";
+import { extractJsonObject } from "@/lib/ai/architect";
+import { describeAiError } from "@/lib/ai/errors";
+import type { UserImageAi, UserTextAi } from "@/lib/ai/providers";
 import { mimeFromFilename } from "@/lib/files/mime";
 import { BROWSER_USER_AGENT } from "@/lib/net/constants";
 import crypto from "node:crypto";
@@ -70,7 +74,7 @@ export interface AiImageResult {
   imageUrl: string;
   width: number;
   height: number;
-  engine: "gemini-image" | "gemini-art-studio";
+  engine: "ai-image" | "art-studio";
   modelUsed: string;
   notice?: string;
 }
@@ -82,25 +86,20 @@ const DIMENSIONS_BY_RATIO: Record<AiImageAspectRatio, { width: number; height: n
   "1:1": { width: 1080, height: 1080 },
 };
 
-const GEMINI_IMAGE_MODELS = Array.from(
-  new Set(
-    [
-      process.env.GEMINI_IMAGE_MODEL?.trim(),
-      "gemini-3.1-flash-image",
-      "gemini-3.1-flash-lite-image",
-      "gemini-2.5-flash-image",
-    ].filter((m): m is string => Boolean(m))
-  )
-);
+/** Melhorar/redimensionar só existem na IA de imagem Gemini. */
+export class AiImageModeUnsupportedError extends Error {
+  constructor() {
+    super("Melhorar e redimensionar imagem funcionam só com IA de imagem Gemini.");
+    this.name = "AiImageModeUnsupportedError";
+  }
+}
 
-const GEMINI_TEXT_MODELS = Array.from(
-  new Set(
-    [
-      process.env.GEMINI_MODEL?.trim(),
-      ...SHARED_GEMINI_MODELS.slice(0, 2),
-    ].filter((m): m is string => Boolean(m))
-  )
-);
+const OPENAI_SIZE_BY_RATIO: Record<AiImageAspectRatio, `${number}x${number}`> = {
+  "16:9": "1536x1024",
+  "21:9": "1536x1024",
+  "3:4": "1024x1536",
+  "1:1": "1024x1024",
+};
 
 /** Teto do download da imagem base. */
 export const MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -189,15 +188,27 @@ async function loadImageAsBuffer(
   return null;
 }
 
-async function tryGeminiNativeImage(
+type NativeImage = { buffer: Buffer; mimeType: string; modelUsed: string };
+
+/** Uma chamada só, no modelo do usuário (sem troca silenciosa). Falha → { error } para o fallback. */
+async function tryNativeImage(
   req: AiImageRequest,
   sourceImage: { buffer: Buffer; mimeType: string } | null,
+  imageAi: UserImageAi,
   signal?: AbortSignal
-): Promise<{ buffer: Buffer; mimeType: string; modelUsed: string } | { error: string }> {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) return { error: "GEMINI_API_KEY não configurada." };
+): Promise<NativeImage | { error: unknown }> {
+  try {
+    return imageAi.provider === "openai"
+      ? await openAiImage(req, imageAi, signal)
+      : await geminiImage(req, sourceImage, imageAi, signal);
+  } catch (err) {
+    // Cliente desistiu: propaga em vez de cair no fallback
+    signal?.throwIfAborted();
+    return { error: err };
+  }
+}
 
-  const ratioForApi = req.aspectRatio === "21:9" ? "16:9" : req.aspectRatio;
+function imagePrompt(req: AiImageRequest): string {
   const modeInstruction =
     req.mode === "enhance"
       ? "Melhore a nitidez, iluminação de estúdio e resolução desta imagem preservando fielmente o produto/sujeito original, sem textos indesejados."
@@ -205,12 +216,34 @@ async function tryGeminiNativeImage(
         ? `Reenquadre e estenda o cenário naturalmente para a proporção ${req.aspectRatio} em alta definição, mantendo o produto centralizado e sem cortes nem distorções.`
         : `Crie uma fotografia/arte publicitária sofisticada de e-commerce em alta definição para a marca "${req.brandName}" (nicho: ${req.niche}), harmonizando com a paleta ${req.palette.primary} e ${req.palette.neutral}.`;
 
-  const fullPrompt = `${modeInstruction}
+  return `${modeInstruction}
 Solicitação específica do diretor criativo: ${req.prompt.trim() || "Visual editorial limpo, luxuoso e de alta conversão para loja virtual."}
 Slot: ${req.slotLabel || "Banner de Loja Virtual"}.
 Entregue imagem limpa, fotográfica ou editorial de altíssima qualidade, sem marcas d'água.`;
+}
 
-  const parts: Array<Record<string, unknown>> = [{ text: fullPrompt }];
+async function openAiImage(req: AiImageRequest, imageAi: UserImageAi, signal?: AbortSignal): Promise<NativeImage> {
+  const { image } = await generateImage({
+    model: createOpenAI({ apiKey: imageAi.apiKey }).image(imageAi.modelId),
+    prompt: imagePrompt(req),
+    size: OPENAI_SIZE_BY_RATIO[req.aspectRatio] ?? "1536x1024",
+    abortSignal: withTimeout(signal, 60_000),
+  });
+  return {
+    buffer: Buffer.from(image.uint8Array),
+    mimeType: normalizeImageMime(image.mediaType || "image/png"),
+    modelUsed: imageAi.modelId,
+  };
+}
+
+async function geminiImage(
+  req: AiImageRequest,
+  sourceImage: { buffer: Buffer; mimeType: string } | null,
+  imageAi: UserImageAi,
+  signal?: AbortSignal
+): Promise<NativeImage> {
+  const ratioForApi = req.aspectRatio === "21:9" ? "16:9" : req.aspectRatio;
+  const parts: Array<Record<string, unknown>> = [{ text: imagePrompt(req) }];
   if (sourceImage) {
     parts.push({
       inlineData: {
@@ -220,59 +253,35 @@ Entregue imagem limpa, fotográfica ou editorial de altíssima qualidade, sem ma
     });
   }
 
-  let lastError = "Modelo de imagem indisponível.";
-  for (const model of GEMINI_IMAGE_MODELS) {
-    // Cliente desistiu: não tenta o próximo modelo
-    signal?.throwIfAborted();
-    try {
-      const res = await fetch(
-        `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
-        geminiRequestInit(
-          apiKey,
-          {
-            contents: [{ parts }],
-            generationConfig: {
-              responseModalities: ["IMAGE"],
-              imageConfig: { aspectRatio: ratioForApi },
-            },
-          },
-          35000,
-          signal
-        )
-      );
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        if (res.status === 429) {
-          lastError = "Cota de geração de imagem nativa (Gemini Image) não habilitada na chave atual.";
-        } else {
-          lastError = `${model} HTTP ${res.status}: ${errText.slice(0, 140)}`;
-        }
-        continue;
-      }
-
-      const data = (await res.json()) as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }>;
-          };
-        }>;
-      };
-      const imgPart = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
-      if (imgPart?.inlineData?.data) {
-        return {
-          buffer: Buffer.from(imgPart.inlineData.data, "base64"),
-          mimeType: normalizeImageMime(imgPart.inlineData.mimeType || "image/png"),
-          modelUsed: model,
-        };
-      }
-    } catch (err) {
-      signal?.throwIfAborted();
-      lastError = err instanceof Error ? err.message : String(err);
-    }
+  const model = imageAi.modelId;
+  const res = await fetch(
+    `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
+    geminiRequestInit(
+      imageAi.apiKey,
+      {
+        contents: [{ parts }],
+        generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: ratioForApi } },
+      },
+      35000,
+      signal
+    )
+  );
+  if (!res.ok) {
+    // Texto do provedor só serve para classificar no describeAiError; nunca vai ao cliente nem ao log
+    const errText = await res.text().catch(() => "");
+    throw Object.assign(new Error(errText.slice(0, 500)), { statusCode: res.status });
   }
 
-  return { error: lastError };
+  const data = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }> } }>;
+  };
+  const imgPart = data.candidates?.[0]?.content?.parts?.find((p) => p.inlineData?.data);
+  if (!imgPart?.inlineData?.data) throw new Error("O modelo não devolveu imagem.");
+  return {
+    buffer: Buffer.from(imgPart.inlineData.data, "base64"),
+    mimeType: normalizeImageMime(imgPart.inlineData.mimeType || "image/png"),
+    modelUsed: model,
+  };
 }
 
 interface ArtDirectionSpec {
@@ -290,9 +299,10 @@ interface ArtDirectionSpec {
   showTextOverlay: boolean;
 }
 
-async function getGeminiArtDirection(
+async function getArtDirection(
   req: AiImageRequest,
   hasSourceImage: boolean,
+  textAi: UserTextAi | null | undefined,
   signal?: AbortSignal
 ): Promise<{ spec: ArtDirectionSpec; modelUsed: string }> {
   const defaultBg = sanitizeCssColor(
@@ -321,8 +331,7 @@ async function getGeminiArtDirection(
     showTextOverlay: req.mode === "generate" || !hasSourceImage,
   };
 
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) return { spec: fallback, modelUsed: "local-art-studio" };
+  if (!textAi) return { spec: fallback, modelUsed: "local-art-studio" };
 
   const prompt = `Você é um Diretor de Arte de e-commerce de luxo. Retorne APENAS JSON válido (sem markdown) para compor uma imagem PNG HD (${req.aspectRatio}) da loja "${req.brandName}" (nicho: ${req.niche}).
 Modo solicitado: ${req.mode}. Tem imagem base: ${hasSourceImage ? "sim" : "não"}.
@@ -350,58 +359,38 @@ Formato JSON:
   "showTextOverlay": false
 }`;
 
-  for (const model of GEMINI_TEXT_MODELS) {
+  try {
+    const { text } = await generateText({
+      model: textAi.model,
+      prompt,
+      temperature: 0.4,
+      abortSignal: withTimeout(signal, 12000),
+    });
+    const parsed = (extractJsonObject(text) ?? {}) as Partial<ArtDirectionSpec>;
+    return {
+      spec: {
+        eyebrow: parsed.eyebrow || fallback.eyebrow,
+        headline: parsed.headline || fallback.headline,
+        subheadline: parsed.subheadline || fallback.subheadline,
+        badge: parsed.badge || fallback.badge,
+        bgColor: sanitizeCssColor(parsed.bgColor, fallback.bgColor),
+        textColor: sanitizeCssColor(parsed.textColor, fallback.textColor),
+        accentColor: sanitizeCssColor(parsed.accentColor, fallback.accentColor),
+        fitMode: parsed.fitMode === "contain-backdrop" ? "contain-backdrop" : "cover",
+        brightness: Math.min(1.25, Math.max(0.85, Number(parsed.brightness) || fallback.brightness)),
+        contrast: Math.min(1.25, Math.max(0.9, Number(parsed.contrast) || fallback.contrast)),
+        saturate: Math.min(1.3, Math.max(0.8, Number(parsed.saturate) || fallback.saturate)),
+        showTextOverlay:
+          typeof parsed.showTextOverlay === "boolean"
+            ? parsed.showTextOverlay
+            : fallback.showTextOverlay,
+      },
+      modelUsed: `${textAi.modelId} + Art Studio HD`,
+    };
+  } catch {
     signal?.throwIfAborted();
-    try {
-      const res = await fetch(
-        `${GEMINI_API_BASE}/${encodeURIComponent(model)}:generateContent`,
-        geminiRequestInit(
-          apiKey,
-          {
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.4,
-              responseMimeType: "application/json",
-            },
-          },
-          12000,
-          signal
-        )
-      );
-      if (!res.ok) continue;
-      const data = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-      };
-      const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as Partial<ArtDirectionSpec>;
-      return {
-        spec: {
-          eyebrow: parsed.eyebrow || fallback.eyebrow,
-          headline: parsed.headline || fallback.headline,
-          subheadline: parsed.subheadline || fallback.subheadline,
-          badge: parsed.badge || fallback.badge,
-          bgColor: sanitizeCssColor(parsed.bgColor, fallback.bgColor),
-          textColor: sanitizeCssColor(parsed.textColor, fallback.textColor),
-          accentColor: sanitizeCssColor(parsed.accentColor, fallback.accentColor),
-          fitMode: parsed.fitMode === "contain-backdrop" ? "contain-backdrop" : "cover",
-          brightness: Math.min(1.25, Math.max(0.85, Number(parsed.brightness) || fallback.brightness)),
-          contrast: Math.min(1.25, Math.max(0.9, Number(parsed.contrast) || fallback.contrast)),
-          saturate: Math.min(1.3, Math.max(0.8, Number(parsed.saturate) || fallback.saturate)),
-          showTextOverlay:
-            typeof parsed.showTextOverlay === "boolean"
-              ? parsed.showTextOverlay
-              : fallback.showTextOverlay,
-        },
-        modelUsed: `${model} + Art Studio HD`,
-      };
-    } catch {
-      signal?.throwIfAborted();
-      continue;
-    }
+    return { spec: fallback, modelUsed: "local-art-studio" };
   }
-
-  return { spec: fallback, modelUsed: "local-art-studio" };
 }
 
 async function renderArtStudioPng(
@@ -507,18 +496,20 @@ export function isAllowedArtStudioRequest(url: string): boolean {
 
 export async function processAiImageRequest(
   req: AiImageRequest,
-  options: { signal?: AbortSignal } = {}
+  options: { signal?: AbortSignal; imageAi: UserImageAi; textAi?: UserTextAi | null }
 ): Promise<AiImageResult> {
+  const { signal, imageAi, textAi } = options;
+  if (imageAi.provider === "openai" && req.mode !== "generate") throw new AiImageModeUnsupportedError();
+
   const { width, height } = DIMENSIONS_BY_RATIO[req.aspectRatio] ?? DIMENSIONS_BY_RATIO["16:9"];
   const capturesDir = path.join(process.cwd(), "public", "captures");
   await fs.mkdir(capturesDir, { recursive: true });
 
-  const { signal } = options;
   const sourceImage = await loadImageAsBuffer(req.sourceImageUrl, req.sourceStoreUrl, signal);
   signal?.throwIfAborted();
 
-  // 1) Try native Gemini Image generation / image-to-image editing first
-  const nativeAttempt = await tryGeminiNativeImage(req, sourceImage, signal);
+  // 1) Geração nativa na IA de imagem do usuário (Gemini também edita a imagem base)
+  const nativeAttempt = await tryNativeImage(req, sourceImage, imageAi, signal);
   if ("buffer" in nativeAttempt) {
     const ext = nativeAttempt.mimeType.includes("jpeg")
       ? ".jpg"
@@ -533,13 +524,13 @@ export async function processAiImageRequest(
       imageUrl: `/api/captures/${filename}`,
       width,
       height,
-      engine: "gemini-image",
+      engine: "ai-image",
       modelUsed: nativeAttempt.modelUsed,
     };
   }
 
-  // 2) Guaranteed HD fallback: Gemini Art Direction + Playwright High-Res PNG rendering
-  const { spec, modelUsed } = await getGeminiArtDirection(req, Boolean(sourceImage), signal);
+  // 2) Fallback HD: direção de arte pela IA de texto do usuário + render Playwright
+  const { spec, modelUsed } = await getArtDirection(req, Boolean(sourceImage), textAi, signal);
   const pngBuffer = await renderArtStudioPng(req, sourceImage, spec, width, height, signal);
 
   const hash = crypto.randomBytes(5).toString("hex");
@@ -550,10 +541,8 @@ export async function processAiImageRequest(
     imageUrl: `/api/captures/${filename}`,
     width,
     height,
-    engine: "gemini-art-studio",
+    engine: "art-studio",
     modelUsed,
-    notice: nativeAttempt.error.includes("Cota")
-      ? `Imagem gerada em HD (${width}×${height}) via ${modelUsed}. Para fotorrealismo generativo nativo (Gemini 3.1 Image), ative o faturamento de imagem na sua chave API.`
-      : undefined,
+    notice: `${describeAiError(nativeAttempt.error)} A imagem foi montada no Art Studio (${width}×${height}).`,
   };
 }

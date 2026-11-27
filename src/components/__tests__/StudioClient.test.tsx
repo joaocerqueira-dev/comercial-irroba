@@ -38,6 +38,7 @@ function renderStudio() {
       slug="loja"
       sourceUrl="https://loja.example.com"
       detectedPlatform="Nuvemshop"
+      aiStatus={{ text: true, image: "google" }}
       generationMode="heuristic"
       initialWhatsapp="5511999999999"
       screenshotPath={null}

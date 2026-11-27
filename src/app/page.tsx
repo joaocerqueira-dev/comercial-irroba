@@ -8,6 +8,7 @@ import { readEventStream } from "@/lib/sse/readEventStream";
 import { shareBadgeLabel } from "@/lib/share/badge";
 import { useCopyToClipboard } from "@/components/ui/useCopyToClipboard";
 import Link from "next/link";
+import { isAiMode } from "@/lib/ai/mode";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -28,6 +29,8 @@ interface PreviewSummary {
   detectedPlatform: string | null;
   storeName: string;
   generationMode: string;
+  aiProvider: string | null;
+  aiModel: string | null;
   status: string;
   screenshotPath: string | null;
   createdAt: string;
@@ -56,6 +59,7 @@ export default function HomePage() {
   const [previews, setPreviews] = useState<PreviewSummary[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
+  const [hasTextAi, setHasTextAi] = useState(true);
   const [ownerFilter, setOwnerFilter] = useState("");
   // Opções do filtro vêm da lista sem filtro (sem API nova)
   const [owners, setOwners] = useState<{ id: string; name: string }[]>([]);
@@ -118,6 +122,10 @@ export default function HomePage() {
         const r = await fetch("/api/admin/users");
         if (r.ok) setOwners(((await r.json()) as { users: { id: string; name: string }[] }).users.map(({ id, name }) => ({ id, name })));
       })
+      .catch(() => undefined);
+    fetch("/api/me/ai")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { texto: { broken?: true } | null } | null) => data && setHasTextAi(Boolean(data.texto && !data.texto.broken)))
       .catch(() => undefined);
     return () => {
       mountedRef.current = false;
@@ -226,6 +234,11 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-3 text-xs">
             {me && <span className="hidden font-heading font-bold text-irroba-ink sm:inline">{me.name}</span>}
+            {me && (
+              <Link href="/conta/ia" className="font-heading font-bold text-brand-700 hover:underline">
+                Minha IA
+              </Link>
+            )}
             {me?.role === "admin" && (
               <Link href="/admin/usuarios" className="font-heading font-bold text-brand-700 hover:underline">
                 Usuários
@@ -289,6 +302,15 @@ export default function HomePage() {
                 ferramenta extrai logo, cores, categorias e produtos e gera um link interativo com
                 blocos prontos para o Tema LIME.
               </p>
+
+              {!hasTextAi && (
+                <p className="mt-6 text-sm text-zinc-700">
+                  Configure sua IA para gerar com IA{" "}
+                  <Link href="/conta/ia" className="font-semibold text-brand-700 underline">
+                    Minha IA
+                  </Link>
+                </p>
+              )}
 
               <form
                 onSubmit={handleGenerate}
@@ -526,15 +548,15 @@ export default function HomePage() {
                     </span>
                     <span
                       title={
-                        item.generationMode === "gemini"
-                          ? "Identidade visual analisada com IA (Gemini)"
+                        isAiMode(item.generationMode)
+                          ? `Identidade visual analisada com IA${item.aiProvider ? ` (${item.aiProvider}${item.aiModel ? `/${item.aiModel}` : ""})` : ""}`
                           : "Layout montado por heurística, sem IA"
                       }
                       className={`absolute right-2.5 top-2.5 rounded-lg px-2.5 py-0.5 font-heading text-[11px] font-bold uppercase tracking-wide text-white ${
-                        item.generationMode === "gemini" ? "bg-brand-500" : "bg-zinc-700"
+                        isAiMode(item.generationMode) ? "bg-brand-500" : "bg-zinc-700"
                       }`}
                     >
-                      {item.generationMode === "gemini" ? "Gemini" : "Auto"}
+                      {isAiMode(item.generationMode) ? "IA" : "Auto"}
                     </span>
                   </div>
 

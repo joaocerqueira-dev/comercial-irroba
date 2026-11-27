@@ -31,7 +31,16 @@ const studio = vi.hoisted(() => ({
   buildImageRequestFromBlueprint: vi.fn((_bp: unknown, extra: Record<string, unknown>) => extra),
   processAiImageRequest: vi.fn(),
 }));
-vi.mock("@/lib/ai/image-studio", () => studio);
+vi.mock("@/lib/ai/image-studio", async (orig) => ({
+  ...studio,
+  AiImageModeUnsupportedError: (await orig<typeof import("@/lib/ai/image-studio")>()).AiImageModeUnsupportedError,
+}));
+const imageAi = { provider: "google", modelId: "img-x", apiKey: "k" };
+const providers = vi.hoisted(() => ({
+  getUserTextAi: vi.fn(async () => null as unknown),
+  getUserImageAi: vi.fn(async () => null as unknown),
+}));
+vi.mock("@/lib/ai/providers", () => providers);
 
 // Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
 vi.mock("@/lib/auth/session", async (orig) => {
@@ -51,6 +60,7 @@ const jsonReq = (url: string, body: unknown) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
+  providers.getUserImageAi.mockResolvedValue(imageAi);
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
 });
@@ -132,6 +142,30 @@ describe("ai-image: blueprint validado e erros genéricos", () => {
     db.storePreview.findUnique.mockResolvedValue({ id: "abc", sourceUrl: "https://a.com", blueprint: bp });
     const res = await AI_IMAGE(jsonReq("http://localhost/x", { slotLabel: "x".repeat(121) }), ctx());
     expect(res.status).toBe(400);
+  });
+
+  it("400 sem IA de imagem do usuário logado (admin em proposta alheia)", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", ownerId: "u-outro", sourceUrl: "https://a.com", blueprint: bp });
+    providers.getUserImageAi.mockResolvedValueOnce(null);
+    const res = await AI_IMAGE(jsonReq("http://localhost/x", {}), ctx());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Configure sua IA de imagem para gerar imagens");
+    expect(providers.getUserImageAi).toHaveBeenCalledWith("u-admin");
+    expect(studio.processAiImageRequest).not.toHaveBeenCalled();
+  });
+
+  it("passa a IA de imagem e a de texto do usuário logado; modo não suportado vira 400", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", ownerId: "u-outro", sourceUrl: "https://a.com", blueprint: bp });
+    studio.processAiImageRequest.mockResolvedValueOnce({ imageUrl: "/api/captures/x.png" });
+    expect((await AI_IMAGE(jsonReq("http://localhost/x", {}), ctx())).status).toBe(200);
+    expect(studio.processAiImageRequest.mock.calls[0][1]).toMatchObject({ imageAi, textAi: null });
+    expect(providers.getUserTextAi).toHaveBeenCalledWith("u-admin");
+
+    const { AiImageModeUnsupportedError } = await import("@/lib/ai/image-studio");
+    studio.processAiImageRequest.mockRejectedValueOnce(new AiImageModeUnsupportedError());
+    const res = await AI_IMAGE(jsonReq("http://localhost/x", { mode: "enhance" }), ctx());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Melhorar e redimensionar imagem funcionam só com IA de imagem Gemini.");
   });
 
   it("usa o blueprint validado e esconde o erro interno", async () => {

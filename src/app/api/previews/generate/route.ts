@@ -1,4 +1,3 @@
-import { GEMINI_DEFAULT_MODEL } from "@/lib/layout-patterns/ai";
 import { normalizeStoreUrl } from "@/lib/format/inputs";
 import { PREVIEW_STATUS } from "@/lib/previews/status";
 import { NextRequest } from "next/server";
@@ -7,6 +6,7 @@ import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { prisma } from "@/lib/db";
 import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
+import { getUserImageAi, getUserTextAi } from "@/lib/ai/providers";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
 import { captureMobileStoreScreenshots } from "@/lib/scraper/mobile-screenshot";
@@ -166,21 +166,26 @@ export async function POST(req: NextRequest) {
           safeSend("warning", { message: extractionWarning });
         }
 
-        const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY?.trim());
+        // Quem executa paga: a IA é a do usuário da requisição
+        const ai = await getUserTextAi(user.id);
         safeSend("progress", {
           step: "architect",
-          message: hasGeminiKey
-            ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com Gemini...`
+          message: ai
+            ? `Plataforma: ${extracted.detectedPlatform}. Analisando identidade visual com IA (${ai.provider})...`
             : `Plataforma: ${extracted.detectedPlatform}. Montando layout adaptado ao Tema LIME da Irroba...`,
           progress: 65,
         });
 
-        const { blueprint, mode, modelUsed } = await buildStoreBlueprint(extracted, { signal: budget });
+        const { blueprint, mode, modelUsed } = await buildStoreBlueprint(extracted, { signal: budget, ai });
         budget.throwIfAborted();
 
-        // Ensure hero banner always has a valid high-resolution image (AI fallback if missing)
+        // Banner faltante: gerado com a IA de imagem de quem gera; sem ela, fica o fallback atual
         const firstHero = blueprint.sections.heroSlides[0];
-        if (!blueprint.sections.hero.imageUrl || (firstHero && !firstHero.imageUrl)) {
+        const imageAi =
+          !blueprint.sections.hero.imageUrl || (firstHero && !firstHero.imageUrl)
+            ? await getUserImageAi(user.id)
+            : null;
+        if (imageAi) {
           safeSend("progress", {
             step: "media",
             message: "Gerando arte de banner em alta definição com IA para completar o preview...",
@@ -196,7 +201,7 @@ export async function POST(req: NextRequest) {
                 sourceStoreUrl: normalizedUrl,
                 slotLabel: blueprint.sections.hero.headline,
               }),
-              { signal: budget }
+              { signal: budget, imageAi, textAi: ai }
             );
             blueprint.sections.hero.imageUrl = generatedHero.imageUrl;
             if (firstHero) {
@@ -211,8 +216,8 @@ export async function POST(req: NextRequest) {
         safeSend("progress", {
           step: "compile",
           message:
-            mode === "gemini"
-              ? `Identidade visual refinada (${modelUsed || GEMINI_DEFAULT_MODEL}). Compilando blocos Irroba...`
+            mode === "ai"
+              ? `Identidade visual refinada (${modelUsed}). Compilando blocos Irroba...`
               : "Compilando preview interativo e blocos low-code (SunEditor + LIME)...",
           progress: 90,
         });
@@ -225,6 +230,8 @@ export async function POST(req: NextRequest) {
             storeName: blueprint.brand.name,
             detectedPlatform: extracted.detectedPlatform,
             generationMode: mode,
+            aiProvider: ai?.provider ?? null,
+            aiModel: modelUsed ?? null,
             status: PREVIEW_STATUS.ready,
             screenshotPath: extracted.screenshotPath ?? null,
             extractedData: extracted as object,

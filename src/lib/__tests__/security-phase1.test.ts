@@ -94,7 +94,6 @@ describe("arte IA: MIME, rede e chave", () => {
   });
 
   it("chave do Gemini vai no header x-goog-api-key, nunca na URL", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "chave-secreta");
     const png = Buffer.alloc(400, 1).toString("base64");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
@@ -112,7 +111,7 @@ describe("arte IA: MIME, rede e chave", () => {
       brandName: "Loja",
       niche: "moda",
       palette: { primary: "#000", primaryFg: "#fff", secondary: "#111", secondaryFg: "#fff", neutral: "#eee" },
-    });
+    }, { imageAi: { provider: "google", modelId: "gemini-3.1-flash-image", apiKey: "chave-secreta" } });
     try {
       const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(url).not.toContain("key=");
@@ -133,8 +132,7 @@ describe("image-studio: AbortSignal do pedido", () => {
     vi.unstubAllEnvs();
   });
 
-  it("repassa o signal ao Gemini e para de tentar modelos quando o cliente aborta", async () => {
-    vi.stubEnv("GEMINI_API_KEY", "chave");
+  it("repassa o signal ao Gemini e não cai no fallback quando o cliente aborta", async () => {
     const controller = new AbortController();
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
       const signal = (init as RequestInit).signal!;
@@ -155,10 +153,10 @@ describe("image-studio: AbortSignal do pedido", () => {
           niche: "moda",
           palette: { primary: "#000", primaryFg: "#fff", secondary: "#111", secondaryFg: "#fff", neutral: "#eee" },
         },
-        { signal: controller.signal }
+        { signal: controller.signal, imageAi: { provider: "google", modelId: "gemini-3.1-flash-image", apiKey: "chave" } }
       )
     ).rejects.toThrow("cliente saiu");
-    // um modelo só: nem os outros modelos de imagem, nem a direção de arte
+    // uma chamada só: sem direção de arte depois do abort
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

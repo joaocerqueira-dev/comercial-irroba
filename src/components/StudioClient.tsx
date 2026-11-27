@@ -1,8 +1,10 @@
 "use client";
 
 import { Image as ImageIcon, Palette, SlidersHorizontal, Sparkles } from "lucide-react";
+import type { AiStatus } from "@/lib/ai/status";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 import { ElementInspectorPanel } from "./studio/ElementInspectorPanel";
+import { AiStatusContext } from "./studio/AiStatusContext";
 import { StudioTopBar } from "./studio/StudioTopBar";
 import { StudioWorkspace } from "./studio/StudioWorkspace";
 import { useStudioState } from "./studio/useStudioState";
@@ -17,6 +19,7 @@ interface StudioClientProps {
   sourceUrl: string;
   detectedPlatform: string;
   generationMode: string;
+  aiStatus: AiStatus;
   initialWhatsapp: string;
   screenshotPath: string | null;
   fullScreenshotPath: string | null;
@@ -35,6 +38,7 @@ export default function StudioClient({
   sourceUrl,
   detectedPlatform,
   generationMode,
+  aiStatus,
   initialWhatsapp,
   screenshotPath,
   fullScreenshotPath,
@@ -74,6 +78,7 @@ export default function StudioClient({
   } = studio;
 
   return (
+    <AiStatusContext.Provider value={aiStatus}>
     <div className="flex h-screen flex-col bg-irroba-surface">
       {/* Top Bar — Irroba BrandBook 2026 */}
       <StudioTopBar studio={studio} sourceUrl={sourceUrl} detectedPlatform={detectedPlatform} />
@@ -246,5 +251,6 @@ export default function StudioClient({
         />
       </div>
     </div>
+    </AiStatusContext.Provider>
   );
 }

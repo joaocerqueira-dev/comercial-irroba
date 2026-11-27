@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ExtractedStoreDataSchema } from "@/lib/types/blueprint";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
+import { getUserTextAi } from "@/lib/ai/providers";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
 import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
-/** Só Gemini: até 3 modelos × 35 s de timeout cada, mais a leitura das imagens. */
+/** Só IA: uma chamada de até 35 s, mais a leitura das imagens (folga para provedores lentos). */
 export const maxDuration = 150;
 const REANALYZE_BUDGET_MS = 140_000;
 
@@ -16,7 +17,7 @@ export async function POST(
 ) {
   const user = await requireUser(req);
   if (user instanceof Response) return user;
-  // Só Gemini (sem Playwright): entra no rate limit, mas não no semáforo do navegador
+  // Só IA (sem Playwright): entra no rate limit, mas não no semáforo do navegador
   const limited = limitAuthenticated(req, "reanalyze");
   if (limited) return limited;
 
@@ -38,11 +39,17 @@ export async function POST(
     );
   }
 
+  // Quem executa paga: a IA é a do usuário da requisição, não a do dono da proposta
+  const ai = await getUserTextAi(user.id);
+  if (!ai) {
+    return NextResponse.json({ error: "Configure sua IA para gerar com IA" }, { status: 400 });
+  }
+
   let result: Awaited<ReturnType<typeof buildStoreBlueprint>>;
   try {
-    // Cliente que desiste (fecha a aba, cancela) ou estouro do orçamento aborta a chamada ao Gemini
+    // Cliente que desiste (fecha a aba, cancela) ou estouro do orçamento aborta a chamada à IA
     const signal = AbortSignal.any([req.signal, AbortSignal.timeout(REANALYZE_BUDGET_MS)]);
-    result = await buildStoreBlueprint(parsedExtracted.data, { signal });
+    result = await buildStoreBlueprint(parsedExtracted.data, { signal, ai });
   } catch (err) {
     console.error("[reanalyze] Falha na reanálise:", err);
     return NextResponse.json(
@@ -52,10 +59,10 @@ export async function POST(
   }
   const { blueprint, mode, modelUsed, aiError } = result;
 
-  if (mode !== "gemini") {
+  if (mode !== "ai") {
     return NextResponse.json(
       {
-        error: `${aiError || "Gemini temporariamente indisponível."} O layout atual foi preservado sem alterações.`,
+        error: `${aiError || "IA temporariamente indisponível."} O layout atual foi preservado sem alterações.`,
         preserved: true,
       },
       { status: 503 }

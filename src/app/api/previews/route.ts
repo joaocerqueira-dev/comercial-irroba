@@ -23,6 +23,8 @@ export async function GET(req: Request) {
       detectedPlatform: true,
       storeName: true,
       generationMode: true,
+      aiProvider: true,
+      aiModel: true,
       status: true,
       screenshotPath: true,
       createdAt: true,

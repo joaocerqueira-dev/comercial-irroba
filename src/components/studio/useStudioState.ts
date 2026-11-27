@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { computeUnsaved, type StudioSaveSnapshot } from "@/lib/client/unsavedChanges";
 import { useLatest } from "@/lib/client/useLatest";
+import { isAiMode } from "@/lib/ai/mode";
 import { useTimeout } from "@/lib/client/useTimeout";
 import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
 import { compileIrrobaExport, compileStorefrontDocument, withoutStudioInspector } from "@/lib/irroba-blocks/compiler";
@@ -419,7 +420,7 @@ export function useStudioState({
     }
   };
 
-  const handleReanalyzeWithGemini = async () => {
+  const handleReanalyzeWithAi = async () => {
     setIsReanalyzing(true);
     setActionError(null);
     try {
@@ -435,26 +436,26 @@ export function useStudioState({
         setActionError(
           data.error ||
             (data.aiError
-              ? `Gemini indisponível: ${data.aiError}`
-              : "Falha ao reanalisar com Gemini. O layout atual foi preservado.")
+              ? `IA indisponível: ${data.aiError}`
+              : "Falha ao reanalisar com a IA. O layout atual foi preservado.")
         );
         return;
       }
-      if (data.mode && data.mode !== "gemini") {
+      if (data.mode && !isAiMode(data.mode)) {
         setActionError(
           data.aiError
-            ? `Gemini indisponível: ${data.aiError} O layout atual foi preservado.`
-            : "Gemini indisponível. O layout atual foi preservado."
+            ? `IA indisponível: ${data.aiError} O layout atual foi preservado.`
+            : "IA indisponível. O layout atual foi preservado."
         );
         return;
       }
       // Não aplica direto: o usuário escolhe entre substituir tudo ou só a paleta
-      setPendingReanalysis({ blueprint: data.blueprint, mode: data.mode || "gemini" });
+      setPendingReanalysis({ blueprint: data.blueprint, mode: data.mode || "ai" });
       if (data.aiError) {
-        setActionError(`Gemini indisponível: ${data.aiError}`);
+        setActionError(`IA indisponível: ${data.aiError}`);
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Erro ao conectar com Gemini");
+      setActionError(err instanceof Error ? err.message : "Erro ao conectar com a IA");
     } finally {
       setIsReanalyzing(false);
     }
@@ -608,7 +609,7 @@ export function useStudioState({
     deleteCustomSection,
     copyText,
     handleSave,
-    handleReanalyzeWithGemini,
+    handleReanalyzeWithAi,
     applyInsightSuggestion,
     restoreOriginalPalette,
     acceptReanalysis,
