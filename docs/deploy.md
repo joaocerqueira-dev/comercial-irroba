@@ -3,7 +3,7 @@
 ## Subir
 
 ```bash
-cp .env.example .env   # preencha ADMIN_EMAIL, ADMIN_PASS, GEMINI_API_KEY, PUBLIC_ASSET_BASE_URL
+cp .env.example .env   # preencha ADMIN_EMAIL, ADMIN_PASS, PUBLIC_ASSET_BASE_URL
 docker compose build
 docker compose up -d
 docker compose ps      # status "healthy" depois de ~30s
@@ -207,3 +207,7 @@ docker compose exec app node -e "require('playwright').chromium.launch({chromium
 4. Trocar a senha encerra as outras sessões do usuário.
 
 Os links públicos (`/preview/*`, `/render/*`, `/api/captures/*`) não exigem login e continuam funcionando. Recriar o container também zera os contadores do rate limit, que ficam em memória.
+
+## Upgrade: IA por usuário
+
+A chave Gemini do servidor deixou de ser usada (`GEMINI_API_KEY`, `GEMINI_MODEL` e `GEMINI_IMAGE_MODEL` podem ser removidas do `.env`); cada usuário cadastra a sua em Minha IA (`/conta/ia`).

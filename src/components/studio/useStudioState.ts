@@ -420,7 +420,7 @@ export function useStudioState({
     }
   };
 
-  const handleReanalyzeWithGemini = async () => {
+  const handleReanalyzeWithAi = async () => {
     setIsReanalyzing(true);
     setActionError(null);
     try {
@@ -436,26 +436,26 @@ export function useStudioState({
         setActionError(
           data.error ||
             (data.aiError
-              ? `Gemini indisponível: ${data.aiError}`
-              : "Falha ao reanalisar com Gemini. O layout atual foi preservado.")
+              ? `IA indisponível: ${data.aiError}`
+              : "Falha ao reanalisar com a IA. O layout atual foi preservado.")
         );
         return;
       }
       if (data.mode && !isAiMode(data.mode)) {
         setActionError(
           data.aiError
-            ? `Gemini indisponível: ${data.aiError} O layout atual foi preservado.`
-            : "Gemini indisponível. O layout atual foi preservado."
+            ? `IA indisponível: ${data.aiError} O layout atual foi preservado.`
+            : "IA indisponível. O layout atual foi preservado."
         );
         return;
       }
       // Não aplica direto: o usuário escolhe entre substituir tudo ou só a paleta
       setPendingReanalysis({ blueprint: data.blueprint, mode: data.mode || "ai" });
       if (data.aiError) {
-        setActionError(`Gemini indisponível: ${data.aiError}`);
+        setActionError(`IA indisponível: ${data.aiError}`);
       }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Erro ao conectar com Gemini");
+      setActionError(err instanceof Error ? err.message : "Erro ao conectar com a IA");
     } finally {
       setIsReanalyzing(false);
     }
@@ -609,7 +609,7 @@ export function useStudioState({
     deleteCustomSection,
     copyText,
     handleSave,
-    handleReanalyzeWithGemini,
+    handleReanalyzeWithAi,
     applyInsightSuggestion,
     restoreOriginalPalette,
     acceptReanalysis,

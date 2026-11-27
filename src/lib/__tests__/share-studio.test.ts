@@ -27,11 +27,17 @@ vi.mock("@/lib/previews/repository", () => ({
   resolveMobileScreenshotPaths: () => ({}),
 }));
 vi.mock("@/components/StudioClient", () => ({ default: () => null }));
+const ai = vi.hoisted(() => ({ text: vi.fn(), image: vi.fn() }));
+vi.mock("@/lib/ai/providers", () => ({ getUserTextAi: ai.text, getUserImageAi: ai.image }));
 
 import { GET as LIST } from "@/app/api/previews/route";
 import StudioPage from "@/app/studio/[id]/page";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  ai.text.mockResolvedValue(null);
+  ai.image.mockResolvedValue(null);
+});
 
 describe("lista de propostas", () => {
   it("pede contagem de respostas não vistas e campos de compartilhamento", async () => {
@@ -61,6 +67,14 @@ describe("página do Studio", () => {
       where: { previewId: "abc", seenAt: null },
       data: { seenAt: expect.any(Date) },
     });
+  });
+  it("aiStatus usa a IA do usuário logado, sem chaves", async () => {
+    guard.requirePageUser.mockResolvedValue({ id: "admin", role: "admin" });
+    ai.text.mockResolvedValue({ provider: "openai", apiKey: "sk-secret" });
+    ai.image.mockResolvedValue({ provider: "openai", apiKey: "sk-secret" });
+    const el = (await StudioPage({ params })) as { props: { aiStatus: unknown } };
+    expect(ai.text).toHaveBeenCalledWith("admin");
+    expect(el.props.aiStatus).toEqual({ text: true, image: "openai" });
   });
   it("proposta de outro usuário vira 404 e não marca nada", async () => {
     guard.requirePageUser.mockResolvedValue({ id: "outro", role: "comercial" });

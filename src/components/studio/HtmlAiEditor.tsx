@@ -22,6 +22,9 @@ import {
   sanitizeFontName,
   validateSunEditorHtml,
 } from "@/lib/irroba-blocks/sanitize";
+import Link from "next/link";
+import { useAiStatus } from "./AiStatusContext";
+import { aiDisabledReason } from "@/lib/ai/status";
 import type { StoreBlueprint } from "@/lib/types/blueprint";
 
 interface HtmlAiEditorProps {
@@ -113,6 +116,7 @@ export function HtmlAiEditor({
   defaultResetHtml,
   label = "Editor HTML com IA (SunEditor)",
 }: HtmlAiEditorProps) {
+  const textReason = aiDisabledReason(useAiStatus(), "text");
   const [prompt, setPrompt] = useState("");
   const [refineExisting, setRefineExisting] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -338,7 +342,8 @@ export function HtmlAiEditor({
 
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || Boolean(textReason)}
+            title={textReason ?? undefined}
             onClick={() => void runAiGeneration()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
           >
@@ -349,6 +354,14 @@ export function HtmlAiEditor({
             )}
             {loading ? "Gerando..." : html.trim() && refineExisting ? "Refinar com IA" : "Gerar com IA"}
           </button>
+          {textReason && (
+            <span className="text-[11px] text-zinc-600">
+              {textReason}.{" "}
+              <Link href="/conta/ia" className="font-semibold underline">
+                Minha IA
+              </Link>
+            </span>
+          )}
         </div>
 
         {aiSummary && (

@@ -4,9 +4,12 @@ import { AlertCircle, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { AiImageSlot } from "@/components/studio/AiImageSlot";
 import { AnnouncementBarControls } from "@/components/studio/AnnouncementBarControls";
 import { Field } from "@/components/ui/Field";
+import { useAiStatus } from "@/components/studio/AiStatusContext";
+import { aiDisabledReason } from "@/lib/ai/status";
+import Link from "next/link";
 import type { StudioState } from "@/components/studio/useStudioState";
 
-/** Aba Análise: diagnóstico de paleta, reanálise com Gemini e identidade da marca. */
+/** Aba Análise: diagnóstico de paleta, reanálise com IA e identidade da marca. */
 export function InsightsTab({ studio }: { studio: StudioState }) {
   const {
     id,
@@ -18,11 +21,13 @@ export function InsightsTab({ studio }: { studio: StudioState }) {
     setSellerWhatsapp,
     isReanalyzing,
     updateBp,
-    handleReanalyzeWithGemini,
+    handleReanalyzeWithAi,
     applyInsightSuggestion,
     restoreOriginalPalette,
     acceptReanalysis,
   } = studio;
+
+  const textReason = aiDisabledReason(useAiStatus(), "text");
 
   return (
     <div className="space-y-4">
@@ -45,8 +50,9 @@ export function InsightsTab({ studio }: { studio: StudioState }) {
 
         <button
           type="button"
-          onClick={handleReanalyzeWithGemini}
-          disabled={isReanalyzing}
+          onClick={handleReanalyzeWithAi}
+          disabled={isReanalyzing || Boolean(textReason)}
+          title={textReason ?? undefined}
           className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-500 px-3 py-2 font-heading text-xs font-bold text-white shadow-sm transition hover:bg-brand-600 active:bg-brand-800 disabled:opacity-60"
         >
           {isReanalyzing ? (
@@ -55,9 +61,17 @@ export function InsightsTab({ studio }: { studio: StudioState }) {
             <Sparkles className="h-3.5 w-3.5" />
           )}
           {isReanalyzing
-            ? "Analisando identidade com Gemini..."
-            : "Reanalisar Identidade com Gemini"}
+            ? "Analisando identidade com IA..."
+            : "Reanalisar identidade com IA"}
         </button>
+        {textReason && (
+          <p className="-mt-2 mb-3 text-xs text-zinc-600">
+            {textReason}.{" "}
+            <Link href="/conta/ia" className="font-semibold text-brand-700 underline">
+              Minha IA
+            </Link>
+          </p>
+        )}
 
         {pendingReanalysis && (
           <div
