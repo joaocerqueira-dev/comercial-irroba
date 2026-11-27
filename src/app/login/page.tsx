@@ -3,6 +3,7 @@
 import { Suspense, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { IrrobaLogo } from "@/components/ui/IrrobaLogo";
+import { safeNextPath } from "@/lib/auth/safe-next";
 import { Field } from "@/components/ui/Field";
 
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-900";
@@ -28,9 +29,7 @@ function LoginForm() {
       setError(data?.error ?? "Não foi possível entrar.");
       return;
     }
-    const next = params.get("next");
-    // só caminhos internos (evita open redirect)
-    const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+    const safeNext = safeNextPath(params.get("next"), window.location.origin);
     window.location.assign(data.user.mustChangePassword ? "/conta/senha" : safeNext);
   }
 
