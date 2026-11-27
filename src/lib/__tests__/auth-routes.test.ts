@@ -20,6 +20,7 @@ import { POST as LOGOUT } from "@/app/api/auth/logout/route";
 import { GET as ME } from "@/app/api/auth/me/route";
 import { POST as PASSWORD } from "@/app/api/auth/password/route";
 import { middleware } from "@/middleware";
+import { resetRateLimits } from "@/lib/net/rate-limit";
 import { TEST_USERS, withSession } from "./fixtures";
 
 const json = (body: unknown, init: RequestInit = {}) => {
@@ -106,6 +107,15 @@ describe("troca de senha", () => {
     expect(sess.deleteUserSessions).toHaveBeenCalledWith("u1");
     expect(res.headers.get("set-cookie")).toContain("session=tok123");
   });
+  it("excedido o limite → 429", async () => {
+    vi.stubEnv("RATE_LIMIT_PER_MIN", "2");
+    resetRateLimits();
+    const statuses: number[] = [];
+    for (let i = 0; i < 3; i++) statuses.push((await call({ currentPassword: "errada", newPassword: "novasenha1" })).status);
+    vi.unstubAllEnvs();
+    resetRateLimits();
+    expect(statuses).toEqual([400, 400, 429]);
+  });
   it("sem sessão → 401", async () => {
     sess.getUserFromToken.mockResolvedValue(null);
     expect((await call({ currentPassword: "a", newPassword: "bbbbbbbb" })).status).toBe(401);
@@ -131,5 +141,14 @@ describe("middleware", () => {
     expect(mw("/studio/x", "session=abc").headers.get("x-middleware-next")).toBe("1");
     expect(mw("/admin/users").status).toBe(307);
     expect(mw("/conta/senha", "session=abc").headers.get("x-middleware-next")).toBe("1");
+  });
+  it("renova o cookie (sliding) nas rotas normais, não em login/logout/password", () => {
+    const sc = mw("/api/previews", "session=abc").headers.get("set-cookie") ?? "";
+    expect(sc).toContain("session=abc");
+    expect(sc).toMatch(/max-age=604800/i);
+    expect(sc).toMatch(/httponly/i);
+    for (const p of ["/api/auth/logout", "/api/auth/password", "/api/auth/login"]) {
+      expect(mw(p, "session=abc").headers.get("set-cookie")).toBeNull();
+    }
   });
 });

@@ -123,9 +123,11 @@ export function UsersPanel({ meId }: { meId: string }) {
                   <button type="button" className={btn} onClick={() => void reset(u)}>
                     Redefinir senha
                   </button>
-                  <button type="button" className={btn} onClick={() => void patch(u, { active: !u.active })}>
-                    {u.active ? "Inativar" : "Reativar"}
-                  </button>
+                  {u.id !== meId && (
+                    <button type="button" className={btn} onClick={() => void patch(u, { active: !u.active })}>
+                      {u.active ? "Inativar" : "Reativar"}
+                    </button>
+                  )}
                   {u.id === meId && <span className="self-center text-xs text-slate-400">você</span>}
                 </td>
               </tr>

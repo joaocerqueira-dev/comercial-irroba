@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { limitAuthenticated } from "@/lib/net/rate-limit";
 import { requireUser } from "@/lib/auth/guard";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createSession, deleteUserSessions, sessionCookieHeader } from "@/lib/auth/session";
@@ -9,6 +10,8 @@ const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
 export async function POST(req: Request) {
   const user = await requireUser(req, { allowMustChange: true });
   if (user instanceof Response) return user;
+  const limited = limitAuthenticated(req, "password");
+  if (limited) return limited;
 
   const body = await req.json().catch(() => null);
   const current = typeof body?.currentPassword === "string" ? body.currentPassword : "";

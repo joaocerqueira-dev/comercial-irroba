@@ -27,6 +27,10 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const target = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true, active: true } });
   if (!target) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
 
+  if (id === admin.id && data.active === false) {
+    return NextResponse.json({ error: "Você não pode inativar a si mesmo." }, { status: 409 });
+  }
+
   const losesAdmin = target.role === "admin" && target.active && (data.active === false || data.role === "comercial");
   if (losesAdmin) {
     const others = await prisma.user.count({ where: { role: "admin", active: true, id: { not: id } } });

@@ -91,10 +91,6 @@ export default function HomePage() {
       if (res.ok) {
         const data = (await res.json()) as { previews: PreviewSummary[] };
         setPreviews(data.previews);
-        if (!owner) {
-          const byId = new Map(data.previews.flatMap((p) => (p.owner ? [[p.owner.id, p.owner] as const] : [])));
-          setOwners([...byId.values()]);
-        }
       }
     } catch {
       // ignore
@@ -111,7 +107,12 @@ export default function HomePage() {
     loadPreviews();
     fetch("/api/auth/me")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { user?: Me } | null) => setMe(data?.user ?? null))
+      .then(async (data: { user?: Me } | null) => {
+        setMe(data?.user ?? null);
+        if (data?.user?.role !== "admin") return;
+        const r = await fetch("/api/admin/users");
+        if (r.ok) setOwners(((await r.json()) as { users: { id: string; name: string }[] }).users.map(({ id, name }) => ({ id, name })));
+      })
       .catch(() => undefined);
     return () => {
       mountedRef.current = false;

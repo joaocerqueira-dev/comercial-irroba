@@ -9,7 +9,7 @@ docker compose up -d
 docker compose ps      # status "healthy" depois de ~30s
 ```
 
-O app fica em `http://localhost:3000`. O acesso é por login (e-mail e senha por usuário). `ADMIN_EMAIL` e `ADMIN_PASS` definem o primeiro admin, que troca a senha no primeiro acesso.
+O app fica em `http://localhost:3000`. Fora do localhost o login exige HTTPS (proxy reverso), porque o cookie de sessão é `Secure` em produção e o navegador não o grava em HTTP. O acesso é por login (e-mail e senha por usuário). `ADMIN_EMAIL` e `ADMIN_PASS` definem o primeiro admin, que troca a senha no primeiro acesso.
 
 Na inicialização, o entrypoint (`docker/entrypoint.sh`) roda `prisma db push --skip-generate` e depois `node server.js` (build `standalone` do Next). O healthcheck chama `GET /api/health`, rota pública que devolve `{"ok":true}`.
 
@@ -31,6 +31,8 @@ No boot, o servidor tenta abrir o Chromium uma vez (`src/instrumentation.ts`). S
 cd /opt/irroba-preview-ai        # ou onde o repositório estiver
 git pull
 # backup do SQLite antes (seção "Volumes e backup")
+# versão com login por usuário: defina ADMIN_EMAIL no .env (mantenha ADMIN_PASS) antes do up -d;
+# sem isso ninguém consegue entrar (o bootstrap só registra um erro no log)
 docker compose build
 docker compose up -d             # recria o container com a imagem nova
 docker compose ps                # aguarde "healthy"

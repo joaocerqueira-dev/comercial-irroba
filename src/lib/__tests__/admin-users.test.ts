@@ -86,9 +86,17 @@ describe("POST", () => {
 });
 
 describe("PATCH", () => {
-  it("inativar o último admin ativo (inclusive a si mesmo) -> 409", async () => {
+  it("admin não inativa a si mesmo, mesmo com outro admin -> 409", async () => {
     db.user.findUnique.mockResolvedValue(target({ id: TEST_USERS.admin.id }));
+    db.user.count.mockResolvedValue(1);
     const res = await PATCH(json("PATCH", { active: false }), ctx(TEST_USERS.admin.id));
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("Você não pode inativar a si mesmo.");
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("inativar o último admin ativo -> 409", async () => {
+    const res = await PATCH(json("PATCH", { active: false }), ctx());
     expect(res.status).toBe(409);
     expect((await res.json()).error).toBe("É preciso manter pelo menos um admin ativo.");
     expect(db.user.update).not.toHaveBeenCalled();
@@ -125,5 +133,15 @@ describe("reset-password", () => {
     expect(data.mustChangePassword).toBe(true);
     expect(await verifyPassword(tempPassword, data.passwordHash as string)).toBe(true);
     expect(sess.deleteUserSessions).toHaveBeenCalledWith("u1");
+  });
+
+  it("erro que não é P2025 propaga (não vira 404)", async () => {
+    db.user.update.mockRejectedValueOnce(new Error("db down"));
+    await expect(RESET(json("POST"), ctx())).rejects.toThrow("db down");
+  });
+
+  it("P2025 -> 404", async () => {
+    db.user.update.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("nf", { code: "P2025", clientVersion: "x" }));
+    expect((await RESET(json("POST"), ctx())).status).toBe(404);
   });
 });

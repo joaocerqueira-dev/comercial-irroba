@@ -20,7 +20,21 @@ export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   if (isPublicPath(pathname)) return NextResponse.next();
   // "session" = SESSION_COOKIE; session.ts importa prisma/node:crypto, impróprios para o Edge
-  if (req.cookies.get("session")?.value) return NextResponse.next();
+  const token = req.cookies.get("session")?.value;
+  if (token) {
+    const res = NextResponse.next();
+    // sliding: renova o cookie do navegador (a sessão no banco já renova); login/logout/password mexem no cookie sozinhos
+    if (!pathname.startsWith("/api/auth/")) {
+      res.cookies.set("session", token, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 7 * 24 * 3600,
+        secure: process.env.NODE_ENV === "production",
+      });
+    }
+    return res;
+  }
   if (pathname.startsWith("/api/")) {
     return NextResponse.json({ error: "Sessão expirada. Entre novamente." }, { status: 401 });
   }
