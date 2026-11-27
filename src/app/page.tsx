@@ -5,6 +5,7 @@ import { IrrobaLogo } from "@/components/ui/IrrobaLogo";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatWhatsapp, hostnameOf, isValidWhatsapp, normalizeStoreUrl, pluralize } from "@/lib/format/inputs";
 import { readEventStream } from "@/lib/sse/readEventStream";
+import { shareBadgeLabel } from "@/lib/share/badge";
 import { useCopyToClipboard } from "@/components/ui/useCopyToClipboard";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,6 +31,10 @@ interface PreviewSummary {
   status: string;
   screenshotPath: string | null;
   createdAt: string;
+  shareStatus: string;
+  legacyPublic: boolean;
+  shareExpiresAt: string | null;
+  unseenResponses: number;
   owner: { id: string; name: string } | null;
 }
 
@@ -539,6 +544,20 @@ export default function HomePage() {
                     {me?.role === "admin" && (
                       <p className="mt-0.5 truncate text-xs text-zinc-500">Dono: {item.owner?.name ?? "Sem dono"}</p>
                     )}
+                    <p className="mt-1 flex items-center gap-1.5">
+                      <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700">
+                        {shareBadgeLabel(item)}
+                      </span>
+                      {item.unseenResponses > 0 && (
+                        <span
+                          title="Respostas novas do cliente"
+                          aria-label={`${item.unseenResponses} respostas novas`}
+                          className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold text-white"
+                        >
+                          {item.unseenResponses}
+                        </span>
+                      )}
+                    </p>
                     <p className="mt-0.5 text-xs text-zinc-400">
                       Gerado em{" "}
                       {new Date(item.createdAt).toLocaleString("pt-BR", {

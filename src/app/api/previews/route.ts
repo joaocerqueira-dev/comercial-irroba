@@ -27,9 +27,15 @@ export async function GET(req: Request) {
       screenshotPath: true,
       createdAt: true,
       updatedAt: true,
+      shareStatus: true,
+      legacyPublic: true,
+      shareExpiresAt: true,
+      _count: { select: { responses: { where: { seenAt: null } } } },
       owner: { select: { id: true, name: true } },
     },
   });
 
-  return NextResponse.json({ previews });
+  return NextResponse.json({
+    previews: previews.map(({ _count, ...p }) => ({ ...p, unseenResponses: _count.responses })),
+  });
 }

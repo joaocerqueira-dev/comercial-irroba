@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { ArrowLeft, Check, Code2, Columns2, Copy, ExternalLink, Eye, Save, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { Modal } from "@/components/ui/Modal";
+import { SharePanel } from "@/components/studio/SharePanel";
 import { IrrobaLogo } from "@/components/ui/IrrobaLogo";
 import type { StudioState } from "@/components/studio/useStudioState";
 
@@ -14,6 +17,7 @@ interface StudioTopBarProps {
 /** Barra superior: voltar, marca, abas do estúdio, salvar e link do cliente. */
 export function StudioTopBar({ studio, sourceUrl, detectedPlatform }: StudioTopBarProps) {
   const {
+    id,
     slug,
     router,
     bp,
@@ -23,12 +27,12 @@ export function StudioTopBar({ studio, sourceUrl, detectedPlatform }: StudioTopB
     isSaving,
     hasUnsavedChanges,
     savedNotice,
-    copiedKey,
     studioTabs,
     workspacePanelId,
-    copyText,
     handleSave,
   } = studio;
+
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 py-2 lg:gap-3 lg:px-5 lg:py-3">
@@ -140,10 +144,10 @@ export function StudioTopBar({ studio, sourceUrl, detectedPlatform }: StudioTopB
           <div className="absolute right-0 z-30 mt-1 flex w-56 flex-col gap-1 rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg">
             <button
               type="button"
-              onClick={() => copyText("client-link", `${window.location.origin}/preview/${slug}`)}
+              onClick={() => setShareOpen(true)}
               className="rounded-xl px-3 py-2 text-left text-xs font-semibold text-zinc-700 hover:bg-zinc-100"
             >
-              {copiedKey === "client-link" ? "Link copiado!" : "Copiar link do cliente"}
+              Compartilhar
             </button>
             <Link
               href={`/preview/${slug}`}
@@ -157,11 +161,11 @@ export function StudioTopBar({ studio, sourceUrl, detectedPlatform }: StudioTopB
 
         <button
           type="button"
-          onClick={() => copyText("client-link", `${window.location.origin}/preview/${slug}`)}
+          onClick={() => setShareOpen(true)}
           className="hidden lg:flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 font-heading text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
         >
-          {copiedKey === "client-link" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-          {copiedKey === "client-link" ? "Link Copiado!" : "Copiar Link do Cliente"}
+          <Copy className="h-3.5 w-3.5" />
+          Compartilhar
         </button>
 
         <Link
@@ -173,6 +177,9 @@ export function StudioTopBar({ studio, sourceUrl, detectedPlatform }: StudioTopB
           <ExternalLink className="h-3.5 w-3.5" />
         </Link>
       </div>
+      <Modal open={shareOpen} onClose={() => setShareOpen(false)} title="Compartilhar com o cliente" className="!max-w-lg">
+        <SharePanel previewId={id} slug={slug} />
+      </Modal>
     </header>
   );
 }

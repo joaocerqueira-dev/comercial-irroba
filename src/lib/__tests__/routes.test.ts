@@ -92,7 +92,7 @@ describe("POST reanalyze", () => {
 describe("GET /api/previews", () => {
   it("só lista: não apaga previews presos nem arquivos", async () => {
     const files = await import("@/lib/files/captures");
-    db.storePreview.findMany.mockResolvedValueOnce([{ id: "p1", slug: "loja-a", status: "ready" }]);
+    db.storePreview.findMany.mockResolvedValueOnce([{ id: "p1", slug: "loja-a", status: "ready", _count: { responses: 0 } }]);
     const { GET } = await import("@/app/api/previews/route");
     const res = await GET(new NextRequest("http://localhost/api/previews", withSession()));
     expect(res.status).toBe(200);
