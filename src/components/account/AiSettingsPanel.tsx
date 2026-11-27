@@ -60,6 +60,14 @@ function Card({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
+  // Reflete o servidor depois de salvar/remover.
+  useEffect(() => {
+    setProvider(current?.provider ?? providers[0][0]);
+    setModel(current?.model ?? "");
+    setBaseUrl(current?.baseUrl ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
+
   const defaults: Record<string, string | null> = purpose === "texto" ? DEFAULT_TEXT_MODELS : DEFAULT_IMAGE_MODELS;
   const saved = current && current.provider === provider ? current : null;
 
@@ -76,15 +84,15 @@ function Card({
     return { res, data };
   }
 
-  async function save(e: FormEvent, extra?: { reuseText: true }) {
+  async function save(e: FormEvent, extra?: { reuseText: true; provider: AiProvider }) {
     e.preventDefault();
     const { res, data } = await call("/api/me/ai", "PUT", {
       purpose,
-      provider,
+      provider: extra?.provider ?? provider,
       model: model.trim() || undefined,
       baseUrl: provider === "openai-compatible" ? baseUrl.trim() : undefined,
       apiKey: extra ? undefined : apiKey.trim() || undefined,
-      ...extra,
+      ...(extra && { reuseText: true }),
     });
     if (!res?.ok) return setMsg({ ok: false, text: data?.error ?? "Não foi possível salvar." });
     setApiKey("");
@@ -176,7 +184,7 @@ function Card({
               disabled={busy}
               onClick={(e) => {
                 setProvider(textView!.provider);
-                void save(e, { reuseText: true });
+                void save(e, { reuseText: true, provider: textView!.provider });
               }}
               className={btn}
             >
