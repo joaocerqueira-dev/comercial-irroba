@@ -43,6 +43,9 @@ vi.mock("@/lib/ai/architect", async (orig) => {
   };
 });
 
+const providers = vi.hoisted(() => ({ getUserTextAi: vi.fn(async () => null as unknown) }));
+vi.mock("@/lib/ai/providers", () => providers);
+
 // Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
 vi.mock("@/lib/auth/session", async (orig) => {
   const { TEST_USERS } = await import("./fixtures");
@@ -110,5 +113,38 @@ describe("POST /api/previews/generate: etapa da captura mobile", () => {
     const text = await (await generate()).text();
     expect(text).toContain("event: done");
     expect(text).not.toContain("event: error");
+  });
+});
+
+describe("POST /api/previews/generate com a IA do usuário", () => {
+  it("usa a IA de quem gera e grava generationMode, aiProvider e aiModel", async () => {
+    const arch = await import("@/lib/ai/architect");
+    const { TEST_USERS } = await import("./fixtures");
+    const userAi = { provider: "anthropic", modelId: "claude-x", model: {}, supportsImageInput: true };
+    providers.getUserTextAi.mockResolvedValueOnce(userAi);
+    vi.mocked(arch.buildStoreBlueprint).mockImplementationOnce(async (data) => ({
+      blueprint: arch.buildHeuristicBlueprint(data),
+      mode: "ai",
+      aiProvider: "anthropic",
+      modelUsed: "claude-x",
+    }));
+    scraper.extractStoreFromUrl.mockResolvedValue(makeSampleExtracted());
+    const text = await (
+      await POST(
+        new NextRequest("http://localhost/api/previews/generate", {
+          method: "POST",
+          body: JSON.stringify({ url: "https://loja.exemplo.com.br" }),
+        })
+      )
+    ).text();
+    expect(text).toContain("Analisando identidade visual com IA (anthropic)...");
+    expect(text).not.toMatch(/Gemini/);
+    expect(providers.getUserTextAi).toHaveBeenCalledWith(TEST_USERS.admin.id);
+    expect(vi.mocked(arch.buildStoreBlueprint).mock.calls[0][1]).toMatchObject({ ai: userAi });
+    expect(db.storePreview.update.mock.calls[0][0].data).toMatchObject({
+      generationMode: "ai",
+      aiProvider: "anthropic",
+      aiModel: "claude-x",
+    });
   });
 });

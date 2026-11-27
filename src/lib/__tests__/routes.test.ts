@@ -24,6 +24,10 @@ vi.mock("@/lib/ai/architect", async (orig) => ({
   callGeminiWithTimeout: ai.callGeminiWithTimeout,
 }));
 
+const providers = vi.hoisted(() => ({ getUserTextAi: vi.fn() }));
+vi.mock("@/lib/ai/providers", () => providers);
+const userAi = { provider: "openai", modelId: "gpt-x", model: {}, supportsImageInput: true };
+
 // Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
 vi.mock("@/lib/auth/session", async (orig) => {
   const { TEST_USERS } = await import("./fixtures");
@@ -43,7 +47,10 @@ const req = (body?: unknown) =>
     withSession({ method: "POST", body: body === undefined ? undefined : JSON.stringify(body) })
   );
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  providers.getUserTextAi.mockResolvedValue(userAi);
+});
 
 describe("PATCH /api/previews/[id]", () => {
   it("400 para blueprint inválido", async () => {
@@ -76,11 +83,28 @@ describe("POST reanalyze", () => {
   it("devolve o blueprint sem gravar", async () => {
     db.storePreview.findUnique.mockResolvedValue({ id: "abc", extractedData: extracted });
     const bp = buildHeuristicBlueprint(extracted);
-    ai.buildStoreBlueprint.mockResolvedValue({ blueprint: bp, mode: "gemini", modelUsed: "m" });
+    ai.buildStoreBlueprint.mockResolvedValue({ blueprint: bp, mode: "ai", modelUsed: "m" });
     const res = await REANALYZE(req(), ctx());
     expect(res.status).toBe(200);
     expect((await res.json()).blueprint.brand.name).toBe(bp.brand.name);
     expect(db.storePreview.update).not.toHaveBeenCalled();
+  });
+  it("400 sem IA configurada, sem chamar o architect", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", extractedData: extracted });
+    providers.getUserTextAi.mockResolvedValueOnce(null);
+    const res = await REANALYZE(req(), ctx());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("Configure sua IA para gerar com IA");
+    expect(ai.buildStoreBlueprint).not.toHaveBeenCalled();
+  });
+  it("admin reanalisando proposta de outro usa a IA do admin", async () => {
+    const { TEST_USERS } = await import("./fixtures");
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", ownerId: TEST_USERS.outro.id, extractedData: extracted });
+    ai.buildStoreBlueprint.mockResolvedValue({ blueprint: buildHeuristicBlueprint(extracted), mode: "ai", modelUsed: "gpt-x" });
+    const res = await REANALYZE(req(), ctx());
+    expect(providers.getUserTextAi).toHaveBeenCalledWith(TEST_USERS.admin.id);
+    expect(ai.buildStoreBlueprint.mock.calls[0][1]).toMatchObject({ ai: userAi });
+    expect((await res.json()).mode).toBe("ai");
   });
   it("503 quando a IA não responde", async () => {
     db.storePreview.findUnique.mockResolvedValue({ id: "abc", extractedData: extracted });
@@ -172,12 +196,24 @@ describe("PATCH: limites e erros genéricos", () => {
     expect(JSON.stringify(await res.json())).not.toContain("SQLITE");
     errSpy.mockRestore();
   });
+
+  it("aceita generationMode ai, gemini e heuristic; ignora outros", async () => {
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc" });
+    db.storePreview.update.mockResolvedValue({ id: "abc" });
+    const bp = buildHeuristicBlueprint(extracted);
+    for (const mode of ["ai", "gemini", "heuristic", "x"]) {
+      db.storePreview.update.mockClear();
+      await PATCH(req({ blueprint: bp, generationMode: mode }), ctx());
+      const data = db.storePreview.update.mock.calls[0][0].data as { generationMode?: string };
+      expect(data.generationMode).toBe(mode === "x" ? undefined : mode);
+    }
+  });
 });
 
 describe("reanalyze: signal e erro genérico", () => {
   it("repassa um AbortSignal ao architect", async () => {
     db.storePreview.findUnique.mockResolvedValue({ id: "abc", extractedData: extracted });
-    ai.buildStoreBlueprint.mockResolvedValue({ blueprint: buildHeuristicBlueprint(extracted), mode: "gemini" });
+    ai.buildStoreBlueprint.mockResolvedValue({ blueprint: buildHeuristicBlueprint(extracted), mode: "ai" });
     await REANALYZE(req(), ctx());
     const opts = ai.buildStoreBlueprint.mock.calls[0][1] as { signal?: AbortSignal };
     expect(opts.signal).toBeInstanceOf(AbortSignal);

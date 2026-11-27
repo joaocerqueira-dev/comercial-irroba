@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { computeUnsaved, type StudioSaveSnapshot } from "@/lib/client/unsavedChanges";
 import { useLatest } from "@/lib/client/useLatest";
+import { isAiMode } from "@/lib/ai/mode";
 import { useTimeout } from "@/lib/client/useTimeout";
 import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
 import { compileIrrobaExport, compileStorefrontDocument, withoutStudioInspector } from "@/lib/irroba-blocks/compiler";
@@ -440,7 +441,7 @@ export function useStudioState({
         );
         return;
       }
-      if (data.mode && data.mode !== "gemini") {
+      if (data.mode && !isAiMode(data.mode)) {
         setActionError(
           data.aiError
             ? `Gemini indisponível: ${data.aiError} O layout atual foi preservado.`
@@ -449,7 +450,7 @@ export function useStudioState({
         return;
       }
       // Não aplica direto: o usuário escolhe entre substituir tudo ou só a paleta
-      setPendingReanalysis({ blueprint: data.blueprint, mode: data.mode || "gemini" });
+      setPendingReanalysis({ blueprint: data.blueprint, mode: data.mode || "ai" });
       if (data.aiError) {
         setActionError(`Gemini indisponível: ${data.aiError}`);
       }

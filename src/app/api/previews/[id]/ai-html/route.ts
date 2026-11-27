@@ -1,11 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  callGeminiWithTimeout,
-  extractJsonObject,
-  formatFriendlyAiError,
-} from "@/lib/ai/architect";
+import { callGeminiWithTimeout, extractJsonObject } from "@/lib/ai/architect";
+import { describeAiError } from "@/lib/ai/errors";
 import { sanitizeCustomHtmlBlock } from "@/lib/irroba-blocks/sanitize";
 import { GEMINI_TEXT_MODELS } from "@/lib/layout-patterns/ai";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
@@ -195,9 +192,7 @@ export async function POST(
 
   return NextResponse.json(
     {
-      error: formatFriendlyAiError(
-        lastErrorMsg || "Não foi possível gerar o conteúdo HTML com IA no momento."
-      ),
+      error: describeAiError({ message: lastErrorMsg }),
     },
     { status: 503 }
   );

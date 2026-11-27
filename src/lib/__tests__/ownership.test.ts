@@ -36,6 +36,7 @@ vi.mock("@/lib/ai/image-studio", () => ({
     throw new Error("sem IA nos testes");
   }),
 }));
+vi.mock("@/lib/ai/providers", () => ({ getUserTextAi: vi.fn(async () => null) }));
 vi.mock("@/lib/ai/architect", async (orig) => ({
   ...(await orig<typeof import("@/lib/ai/architect")>()),
   buildStoreBlueprint: vi.fn(async () => ({ blueprint: {}, mode: "heuristic", aiError: "sem IA" })),
