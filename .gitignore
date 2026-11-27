@@ -10,3 +10,7 @@ tsconfig.tsbuildinfo
 node_modules
 
 .DS_Store
+
+# Homologação (deploy/homolog)
+deploy/homolog/.env
+deploy/homolog/.state/
