@@ -91,6 +91,8 @@ export async function saveBlueprint(
       ...(extra.sellerWhatsapp !== undefined ? { sellerWhatsapp: extra.sellerWhatsapp } : {}),
       ...(extra.generationMode ? { generationMode: extra.generationMode } : {}),
       blueprint: blueprint as object,
+      contentVersion: { increment: 1 },
+      shareStatus: "pendente",
     },
   });
 }
