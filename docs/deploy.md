@@ -61,6 +61,8 @@ Para build offline, troque para `next/font/local` com os arquivos `.woff2` versi
 
 `SESSION_SECRET` assina o cookie de acesso ao link do cliente. Em produção é obrigatório, com pelo menos 32 caracteres (`openssl rand -base64 48`). Sem ele o link do cliente não abre.
 
+`AI_KEYS_SECRET` cifra (AES-256-GCM) as chaves de IA que cada usuário salva em Minha IA. Em produção é obrigatório, com pelo menos 32 caracteres (`openssl rand -base64 48`); sem ele o container não sobe. Trocar o segredo invalida as chaves salvas: cada usuário precisa salvar a chave de novo.
+
 Backup do SQLite, consistente mesmo com o app rodando:
 
 ```bash
