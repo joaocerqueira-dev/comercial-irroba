@@ -85,7 +85,7 @@ URL da loja
 ```
 
 - `src/lib/scraper`: abre a loja no Chromium compartilhado, com navegação protegida, e extrai os dados. Faz também os screenshots mobile.
-- `src/lib/ai`: o `architect` monta o blueprint, heurístico como base e refinado pela IA do usuário quando configurada. O `image-studio` gera e edita imagens: tenta o modelo de imagem do Gemini e, se não houver chave ou a chamada falhar, renderiza uma arte em PNG no Chromium.
+- `src/lib/ai`: o `architect` monta o blueprint, heurístico como base e refinado pela IA do usuário quando configurada. O `image-studio` gera e edita imagens: usa a IA de imagem do usuário (Gemini ou OpenAI; melhorar e redimensionar só com Gemini). Sem IA de imagem, a geração de imagens fica desativada.
 - `src/lib/types/blueprint.ts`: schema Zod do `StoreBlueprint`, a fonte de verdade que o Studio edita.
 - `src/lib/layout-patterns`: padrões de geração (paleta, layout, tipografia, textos, modelos de IA). Tem [README próprio](src/lib/layout-patterns/README.md).
 - `src/lib/irroba-blocks`: compilador do blueprint para o HTML/CSS/JS da vitrine (com o runtime do inspetor do Studio), para o export da Irroba e para o CSV, além da sanitização de HTML, CSS, URLs e células CSV.

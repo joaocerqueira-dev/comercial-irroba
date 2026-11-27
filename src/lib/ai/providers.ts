@@ -4,6 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import type { LanguageModel } from "ai";
 import { prisma } from "@/lib/db";
 import { assertPublicHttpUrl } from "@/lib/net/safe-url";
+import { getSafeDispatcher } from "@/lib/net/safe-dispatcher";
 import { decryptApiKey } from "./secret-box";
 
 import { DEFAULT_IMAGE_MODELS, DEFAULT_TEXT_MODELS, type AiProvider, type AiPurpose } from "./provider-defaults";
@@ -23,6 +24,10 @@ export interface UserImageAi {
   apiKey: string;
 }
 
+// Sem seguir redirects (um baseUrl público poderia apontar para IP interno) e com checagem do IP na conexão.
+export const safeProviderFetch: typeof fetch = (input, init) =>
+  fetch(input, { ...init, redirect: "error", dispatcher: getSafeDispatcher() } as RequestInit);
+
 export function buildTextModel(cred: {
   provider: AiProvider;
   apiKey: string;
@@ -39,7 +44,7 @@ export function buildTextModel(cred: {
         ? createAnthropic({ apiKey })(modelId)
         : provider === "google"
           ? createGoogleGenerativeAI({ apiKey })(modelId)
-          : createOpenAI({ apiKey, baseURL: cred.baseUrl ?? undefined }).chat(modelId);
+          : createOpenAI({ apiKey, baseURL: cred.baseUrl ?? undefined, fetch: safeProviderFetch }).chat(modelId);
   return { provider, modelId, model, supportsImageInput: provider !== "openai-compatible" };
 }
 

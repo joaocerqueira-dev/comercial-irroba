@@ -66,7 +66,7 @@ export function InsightsTab({ studio }: { studio: StudioState }) {
         </button>
         {textReason && (
           <p className="-mt-2 mb-3 text-xs text-zinc-600">
-            {textReason}.{" "}
+            {textReason}{" "}
             <Link href="/conta/ia" className="font-semibold text-brand-700 underline">
               Minha IA
             </Link>

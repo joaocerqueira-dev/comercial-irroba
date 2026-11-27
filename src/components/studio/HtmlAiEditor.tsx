@@ -356,7 +356,7 @@ export function HtmlAiEditor({
           </button>
           {textReason && (
             <span className="text-[11px] text-zinc-600">
-              {textReason}.{" "}
+              {textReason}{" "}
               <Link href="/conta/ia" className="font-semibold underline">
                 Minha IA
               </Link>

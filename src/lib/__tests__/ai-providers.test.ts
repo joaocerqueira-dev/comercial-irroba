@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({ aiCredential: { findUnique: vi.fn() } }));
 vi.mock("@/lib/db", () => ({ prisma: db }));
 
-import { buildTextModel, getUserImageAi, getUserTextAi, DEFAULT_TEXT_MODELS } from "@/lib/ai/providers";
+import { buildTextModel, safeProviderFetch, getUserImageAi, getUserTextAi, DEFAULT_TEXT_MODELS } from "@/lib/ai/providers";
 import { encryptApiKey } from "@/lib/ai/secret-box";
 
 const A = "a".repeat(40);
@@ -31,6 +31,18 @@ describe("buildTextModel", () => {
     const r = buildTextModel({ provider: "openai-compatible", apiKey: "k", baseUrl: "https://x.com/v1", model: "m" });
     expect(r.modelId).toBe("m");
     expect(r.supportsImageInput).toBe(false);
+  });
+});
+
+describe("safeProviderFetch", () => {
+  it("força redirect: error e o dispatcher seguro", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("ok"));
+    await safeProviderFetch("https://x.com/v1", { method: "POST" });
+    const init = spy.mock.calls[0][1] as RequestInit & { dispatcher?: unknown };
+    expect(init.redirect).toBe("error");
+    expect(init.method).toBe("POST");
+    expect(init.dispatcher).toBeDefined();
+    spy.mockRestore();
   });
 });
 

@@ -79,7 +79,9 @@ export async function PUT(req: NextRequest) {
       return bad("Informe um endereço https público válido.");
     }
   }
-  if (!apiKey && !current) return bad("Informe a chave da API.");
+  // Sem chave nova, a salva só vale para o mesmo provedor e endereço (senão daria para redirecioná-la).
+  if (!apiKey && (!current || current.provider !== provider || (current.baseUrl ?? null) !== baseUrl))
+    return bad("Informe a chave da API.");
 
   const data = {
     provider,

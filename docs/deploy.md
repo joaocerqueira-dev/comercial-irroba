@@ -211,3 +211,5 @@ Os links públicos (`/preview/*`, `/render/*`, `/api/captures/*`) não exigem lo
 ## Upgrade: IA por usuário
 
 A chave Gemini do servidor deixou de ser usada (`GEMINI_API_KEY`, `GEMINI_MODEL` e `GEMINI_IMAGE_MODEL` podem ser removidas do `.env`); cada usuário cadastra a sua em Minha IA (`/conta/ia`).
+
+Antes de subir a nova versão, adicione `AI_KEYS_SECRET` ao `.env` (mínimo 32 caracteres; gere com `openssl rand -base64 48`). Sem ele o container não inicia.

@@ -78,6 +78,19 @@ describe("/api/me/ai", () => {
     expect(store.rows[0].model).toBe("gpt-x");
   });
 
+  it("PUT sem apiKey: trocar provedor ou baseUrl → 400; mesmo provedor/baseUrl mantém a chave", async () => {
+    seed(TEST_USERS.comercial.id, "texto", "openai");
+    expect((await PUT(req("PUT", { purpose: "texto", provider: "anthropic" }))).status).toBe(400);
+    expect((await PUT(req("PUT", { purpose: "texto", provider: "openai-compatible", model: "m", baseUrl: "https://example.com/v1" }))).status).toBe(400);
+    store.rows = [];
+    seed(TEST_USERS.comercial.id, "texto", "openai-compatible", KEY, { baseUrl: "https://example.com/v1/", model: "m" });
+    const other = { purpose: "texto", provider: "openai-compatible", model: "m", baseUrl: "https://example.org/v1" };
+    expect((await PUT(req("PUT", other))).status).toBe(400);
+    const same = await PUT(req("PUT", { ...other, baseUrl: "https://example.com/v1/" }));
+    expect(same.status).toBe(200);
+    expect(decryptApiKey(store.rows[0].apiKeyEncrypted)).toBe(KEY);
+  });
+
   it("usuário B não vê a credencial de A", async () => {
     seed(TEST_USERS.outro.id, "texto", "openai");
     const body = await (await GET(req("GET"))).json();
@@ -130,6 +143,14 @@ describe("/api/me/ai/test", () => {
     ai.generateText.mockRejectedValue({ statusCode: 401, message: `bad key ${KEY}` });
     const body = await (await post({ purpose: "texto" })).json();
     expect(body).toEqual({ ok: false, error: "Chave da sua IA inválida ou sem permissão. Confira em Minha IA." });
+  });
+
+  it("chave indecifrável → mensagem para salvar de novo", async () => {
+    seed(TEST_USERS.comercial.id, "texto", "openai", KEY, { apiKeyEncrypted: "lixo" });
+    expect(await (await post({ purpose: "texto" })).json()).toEqual({
+      ok: false,
+      error: "Não foi possível ler a chave salva. Salve a chave de novo.",
+    });
   });
 
   it("sucesso devolve o modelo", async () => {

@@ -125,7 +125,7 @@ export default function HomePage() {
       .catch(() => undefined);
     fetch("/api/me/ai")
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { texto: unknown } | null) => data && setHasTextAi(Boolean(data.texto)))
+      .then((data: { texto: { broken?: true } | null } | null) => data && setHasTextAi(Boolean(data.texto && !data.texto.broken)))
       .catch(() => undefined);
     return () => {
       mountedRef.current = false;

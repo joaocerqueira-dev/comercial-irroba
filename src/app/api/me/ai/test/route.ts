@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth/guard";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
 import { assertPublicHttpUrl } from "@/lib/net/safe-url";
-import { decryptApiKey } from "@/lib/ai/secret-box";
+import { AiKeyDecryptError, decryptApiKey } from "@/lib/ai/secret-box";
 import { buildTextModel, type AiProvider } from "@/lib/ai/providers";
 import { describeAiError } from "@/lib/ai/errors";
 
@@ -37,6 +37,8 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ok: true, model: ai.modelId });
   } catch (err) {
+    if (err instanceof AiKeyDecryptError)
+      return NextResponse.json({ ok: false, error: "Não foi possível ler a chave salva. Salve a chave de novo." });
     const error = describeAiError(err);
     console.warn(`[ia] teste de conexão falhou (${purpose}): ${error}`);
     return NextResponse.json({ ok: false, error });
