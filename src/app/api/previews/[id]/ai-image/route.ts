@@ -3,7 +3,12 @@ import { z } from "zod";
 import { getPreviewWithBlueprint } from "@/lib/previews/repository";
 import { MAX_IMAGE_URL_LENGTH } from "@/lib/types/blueprint";
 import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
-import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
+import {
+  AiImageModeUnsupportedError,
+  buildImageRequestFromBlueprint,
+  processAiImageRequest,
+} from "@/lib/ai/image-studio";
+import { getUserImageAi, getUserTextAi } from "@/lib/ai/providers";
 import { BrowserBusyError, limitAuthenticated } from "@/lib/net/rate-limit";
 import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 
@@ -68,6 +73,13 @@ export async function POST(
     }
   }
 
+  // Quem executa paga: as IAs são as do usuário da requisição, não as do dono da proposta
+  const imageAi = await getUserImageAi(user.id);
+  if (!imageAi) {
+    return NextResponse.json({ error: "Configure sua IA de imagem para gerar imagens" }, { status: 400 });
+  }
+  const textAi = await getUserTextAi(user.id);
+
   try {
     const result = await processAiImageRequest(
       buildImageRequestFromBlueprint(bp, {
@@ -79,12 +91,15 @@ export async function POST(
         sourceStoreUrl: preview.sourceUrl,
         slotLabel: body.slotLabel,
       }),
-      // Orçamento total: até 3 modelos de imagem + 2 de texto + fila do navegador passariam de 150 s
-      { signal: AbortSignal.any([req.signal, AbortSignal.timeout(AI_IMAGE_BUDGET_MS)]) }
+      // Orçamento total: imagem + direção de arte + fila do navegador
+      { signal: AbortSignal.any([req.signal, AbortSignal.timeout(AI_IMAGE_BUDGET_MS)]), imageAi, textAi }
     );
 
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof AiImageModeUnsupportedError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
     if (err instanceof BrowserBusyError) {
       return NextResponse.json({ error: err.message }, { status: 503, headers: { "Retry-After": "10" } });
     }

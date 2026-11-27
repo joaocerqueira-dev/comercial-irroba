@@ -2,7 +2,6 @@ import { mimeFromFilename } from "@/lib/files/mime";
 import { isApparelText, isFootwearText } from "@/lib/catalog/niche";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { GoogleGenAI } from "@google/genai";
 import { generateText, type ImagePart, type TextPart } from "ai";
 import { describeAiError } from "./errors";
 import type { UserTextAi } from "./providers";
@@ -645,33 +644,6 @@ export function extractJsonObject(raw: string): Record<string, unknown> {
     .replace(/\s*```$/i, "")
     .trim();
   return JSON.parse(cleaned) as Record<string, unknown>;
-}
-
-export async function callGeminiWithTimeout(
-  ai: GoogleGenAI,
-  model: string,
-  parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>,
-  timeoutMs: number = AI_ARCHITECT.timeoutMs,
-  outerSignal?: AbortSignal
-) {
-  const timeoutSignal = AbortSignal.timeout(timeoutMs);
-  const abortSignal = outerSignal ? AbortSignal.any([timeoutSignal, outerSignal]) : timeoutSignal;
-  try {
-    return await ai.models.generateContent({
-      model,
-      contents: parts,
-      config: {
-        responseMimeType: "application/json",
-        temperature: AI_ARCHITECT.temperature,
-        abortSignal,
-      },
-    });
-  } catch (err) {
-    if (timeoutSignal.aborted) {
-      throw new Error(`Timeout após ${Math.round(timeoutMs / 1000)}s em ${model}`);
-    }
-    throw err;
-  }
 }
 
 export async function buildStoreBlueprint(

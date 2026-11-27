@@ -17,12 +17,13 @@ vi.mock("@/lib/files/captures", async (orig) => ({
   ...(await orig<typeof import("@/lib/files/captures")>()),
   deletePreviewCaptures: vi.fn(async () => 0),
 }));
-const ai = vi.hoisted(() => ({ buildStoreBlueprint: vi.fn(), callGeminiWithTimeout: vi.fn() }));
+const ai = vi.hoisted(() => ({ buildStoreBlueprint: vi.fn() }));
 vi.mock("@/lib/ai/architect", async (orig) => ({
   ...(await orig<typeof import("@/lib/ai/architect")>()),
   buildStoreBlueprint: ai.buildStoreBlueprint,
-  callGeminiWithTimeout: ai.callGeminiWithTimeout,
 }));
+const sdk = vi.hoisted(() => ({ generateText: vi.fn() }));
+vi.mock("ai", async (orig) => ({ ...(await orig<typeof import("ai")>()), generateText: sdk.generateText }));
 
 const providers = vi.hoisted(() => ({ getUserTextAi: vi.fn() }));
 vi.mock("@/lib/ai/providers", () => providers);
@@ -268,43 +269,63 @@ describe("POST /api/previews/[id]/ai-html", () => {
     expect(res404.status).toBe(404);
   });
 
-  it("retorna 503 sem GEMINI_API_KEY e 200 com HTML sanitizado quando Gemini responde", async () => {
+  it("ai-html usa a IA de texto do usuário logado (admin em proposta alheia)", async () => {
     const bp = buildHeuristicBlueprint(extracted);
     const validRow = {
       id: "abc",
       slug: "loja-abc",
+      ownerId: "u-outro",
       sourceUrl: "https://loja.exemplo.com.br/",
       extractedData: extracted,
       blueprint: bp,
     };
+    const { TEST_USERS } = await import("./fixtures");
 
-    const origKey = process.env.GEMINI_API_KEY;
-    try {
-      delete process.env.GEMINI_API_KEY;
-      db.storePreview.findUnique.mockResolvedValueOnce(validRow);
-      const res503 = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
-      expect(res503.status).toBe(503);
+    providers.getUserTextAi.mockResolvedValueOnce(null);
+    db.storePreview.findUnique.mockResolvedValueOnce(validRow);
+    const res400 = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
+    expect(res400.status).toBe(400);
+    expect((await res400.json()).error).toBe("Configure sua IA para gerar com IA");
+    expect(sdk.generateText).not.toHaveBeenCalled();
 
-      process.env.GEMINI_API_KEY = "test-key";
-      db.storePreview.findUnique.mockResolvedValueOnce(validRow);
-      ai.callGeminiWithTimeout.mockResolvedValueOnce({
-        text: JSON.stringify({
-          html: '<div onclick="alert(1)" style="padding:16px;background:#fff;"><script>xss()</script><h3 style="margin:0;">Sobre Nós</h3></div>',
-          summary: "Bloco institucional criado",
-          suggestedTitle: "Sobre a Loja",
-        }),
-      });
+    db.storePreview.findUnique.mockResolvedValueOnce(validRow);
+    sdk.generateText.mockResolvedValueOnce({
+      text: JSON.stringify({
+        html: '<div onclick="alert(1)" style="padding:16px;background:#fff;"><script>xss()</script><h3 style="margin:0;">Sobre Nós</h3></div>',
+        summary: "Bloco institucional criado",
+        suggestedTitle: "Sobre a Loja",
+      }),
+    });
+    const res200 = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
+    expect(res200.status).toBe(200);
+    const json = await res200.json();
+    expect(json.html).toContain("Sobre Nós");
+    expect(json.html).not.toMatch(/<script|onclick/i);
+    expect(json.summary).toBe("Bloco institucional criado");
+    expect(json.suggestedTitle).toBe("Sobre a Loja");
+    // Quem executa paga: credencial do admin, não do dono da proposta
+    expect(providers.getUserTextAi).toHaveBeenLastCalledWith(TEST_USERS.admin.id);
+    expect(sdk.generateText).toHaveBeenCalledTimes(1);
+    expect(sdk.generateText.mock.calls[0][0]).toMatchObject({ model: userAi.model });
+    expect(sdk.generateText.mock.calls[0][0].abortSignal).toBeInstanceOf(AbortSignal);
+  });
 
-      const res200 = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
-      expect(res200.status).toBe(200);
-      const json = await res200.json();
-      expect(json.html).toContain("Sobre Nós");
-      expect(json.html).not.toMatch(/<script|onclick/i);
-      expect(json.summary).toBe("Bloco institucional criado");
-      expect(json.suggestedTitle).toBe("Sobre a Loja");
-    } finally {
-      if (origKey !== undefined) process.env.GEMINI_API_KEY = origKey;
-      else delete process.env.GEMINI_API_KEY;
-    }
+  it("ai-html: erro do provedor vira 502 com a mensagem fixa; resposta inválida vira 502 própria", async () => {
+    const bp = buildHeuristicBlueprint(extracted);
+    const validRow = { id: "abc", slug: "loja-abc", sourceUrl: "https://a.com/", extractedData: extracted, blueprint: bp };
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    db.storePreview.findUnique.mockResolvedValueOnce(validRow);
+    sdk.generateText.mockRejectedValueOnce(Object.assign(new Error("Incorrect API key provided: sk-abc123"), { statusCode: 401 }));
+    const res401 = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
+    expect(res401.status).toBe(502);
+    expect((await res401.json()).error).toBe("Chave da sua IA inválida ou sem permissão. Confira em Minha IA.");
+
+    // texto com "permission"/"credit" não deve ser classificado como erro do provedor
+    db.storePreview.findUnique.mockResolvedValueOnce(validRow);
+    sdk.generateText.mockResolvedValueOnce({ text: "sem permission nem credit, só texto" });
+    const resBad = await AI_HTML(req({ prompt: "Crie um bloco institucional" }), ctx());
+    expect(resBad.status).toBe(502);
+    expect((await resBad.json()).error).toBe("A IA devolveu uma resposta inválida. Tente de novo.");
   });
 });

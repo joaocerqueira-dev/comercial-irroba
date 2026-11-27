@@ -43,7 +43,10 @@ vi.mock("@/lib/ai/architect", async (orig) => {
   };
 });
 
-const providers = vi.hoisted(() => ({ getUserTextAi: vi.fn(async () => null as unknown) }));
+const providers = vi.hoisted(() => ({
+  getUserTextAi: vi.fn(async () => null as unknown),
+  getUserImageAi: vi.fn(async () => null as unknown),
+}));
 vi.mock("@/lib/ai/providers", () => providers);
 
 // Sessão válida de admin (o guard roda antes de tudo; admin acessa qualquer proposta)
@@ -53,6 +56,8 @@ vi.mock("@/lib/auth/session", async (orig) => {
 });
 
 import { POST } from "@/app/api/previews/generate/route";
+import { processAiImageRequest } from "@/lib/ai/image-studio";
+import { buildHeuristicBlueprint, buildStoreBlueprint } from "@/lib/ai/architect";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -81,6 +86,36 @@ describe("POST /api/previews/generate com extração vazia", () => {
     expect(text).toContain("event: done");
     const saved = db.storePreview.update.mock.calls[0][0].data as { extractedData: { extractionWarnings: string[] } };
     expect(saved.extractedData.extractionWarnings).toHaveLength(1);
+  });
+
+  it("banner faltante: só gera com a IA de imagem de quem gera", async () => {
+    const withoutHero = () => {
+      const blueprint = buildHeuristicBlueprint(makeSampleExtracted({ products: [], banners: [] }));
+      blueprint.sections.hero.imageUrl = "";
+      return Promise.resolve({ blueprint, mode: "heuristic" as const });
+    };
+    const generate = async () =>
+      (
+        await POST(
+          new NextRequest("http://localhost/api/previews/generate", {
+            method: "POST",
+            body: JSON.stringify({ url: "https://loja.exemplo.com.br" }),
+          })
+        )
+      ).text();
+    scraper.extractStoreFromUrl.mockResolvedValue(makeSampleExtracted({ products: [], banners: [] }));
+
+    // sem IA de imagem: fallback atual, sem chamar o estúdio
+    vi.mocked(buildStoreBlueprint).mockImplementationOnce(withoutHero);
+    expect(await generate()).toContain("event: done");
+    expect(providers.getUserImageAi).toHaveBeenCalledWith("u-admin");
+    expect(processAiImageRequest).not.toHaveBeenCalled();
+
+    const imageAi = { provider: "openai", modelId: "gpt-image-1.5", apiKey: "k" };
+    providers.getUserImageAi.mockResolvedValueOnce(imageAi);
+    vi.mocked(buildStoreBlueprint).mockImplementationOnce(withoutHero);
+    expect(await generate()).toContain("event: done");
+    expect(vi.mocked(processAiImageRequest).mock.calls[0][1]).toMatchObject({ imageAi, textAi: null });
   });
 });
 

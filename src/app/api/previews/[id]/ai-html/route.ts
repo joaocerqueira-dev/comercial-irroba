@@ -1,10 +1,10 @@
-import { GoogleGenAI } from "@google/genai";
+import { generateText } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { callGeminiWithTimeout, extractJsonObject } from "@/lib/ai/architect";
+import { extractJsonObject } from "@/lib/ai/architect";
 import { describeAiError } from "@/lib/ai/errors";
+import { getUserTextAi } from "@/lib/ai/providers";
 import { sanitizeCustomHtmlBlock } from "@/lib/irroba-blocks/sanitize";
-import { GEMINI_TEXT_MODELS } from "@/lib/layout-patterns/ai";
 import { limitAuthenticated } from "@/lib/net/rate-limit";
 import { canAccessPreview, requireUser } from "@/lib/auth/guard";
 import { getPreviewWithBlueprint } from "@/lib/previews/repository";
@@ -83,12 +83,10 @@ export async function POST(
     );
   }
 
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "GEMINI_API_KEY não configurada no servidor." },
-      { status: 503 }
-    );
+  // Quem executa paga: a IA é a do usuário da requisição, não a do dono da proposta
+  const textAi = await getUserTextAi(user.id);
+  if (!textAi) {
+    return NextResponse.json({ error: "Configure sua IA para gerar com IA" }, { status: 400 });
   }
 
   const bp = lookup.blueprint;
@@ -140,60 +138,41 @@ export async function POST(
     .filter(Boolean)
     .join("\n");
 
-  const ai = new GoogleGenAI({ apiKey });
-  let lastErrorMsg = "";
-
-  for (const model of GEMINI_TEXT_MODELS) {
-    try {
-      const response = await callGeminiWithTimeout(
-        ai,
-        model,
-        [{ text: systemPrompt }],
-        28_000,
-        req.signal
-      );
-      const rawText = response.text?.trim();
-      if (!rawText) {
-        lastErrorMsg = `Resposta vazia do modelo ${model}`;
-        continue;
-      }
-
-      const parsed = extractJsonObject(rawText);
-      const rawHtml = typeof parsed.html === "string" ? parsed.html : "";
-      const cleanHtml = sanitizeCustomHtmlBlock(rawHtml);
-      if (!cleanHtml) {
-        lastErrorMsg = `HTML inválido ou vazio retornado por ${model}`;
-        continue;
-      }
-
-      const summary =
-        typeof parsed.summary === "string" && parsed.summary.trim()
-          ? parsed.summary.trim().slice(0, 180)
-          : "Conteúdo HTML atualizado com identidade da loja.";
-      const suggestedTitle =
-        typeof parsed.suggestedTitle === "string" && parsed.suggestedTitle.trim()
-          ? parsed.suggestedTitle.trim().slice(0, 60)
-          : body.sectionTitle || "Bloco HTML";
-
-      return NextResponse.json({
-        html: cleanHtml,
-        summary,
-        suggestedTitle,
-      });
-    } catch (err) {
-      lastErrorMsg = err instanceof Error ? err.message : String(err);
-      // Cliente desistiu: não tenta os modelos seguintes
-      if (req.signal.aborted) break;
-    }
+  let rawText: string;
+  try {
+    const response = await generateText({
+      model: textAi.model,
+      prompt: systemPrompt,
+      abortSignal: AbortSignal.any([req.signal, AbortSignal.timeout(28_000)]),
+    });
+    rawText = response.text.trim();
+  } catch (err) {
+    // Só a mensagem fixa vai ao log e ao cliente: o erro cru pode ecoar a chave
+    const error = describeAiError(err);
+    console.error(`[ai-html] Falha ao gerar HTML (${textAi.provider}): ${error}`);
+    return NextResponse.json({ error }, { status: 502 });
   }
 
-  // Detalhe do erro só no log; o cliente recebe a mensagem amigável (sem err.message cru)
-  if (lastErrorMsg) console.error("[ai-html] Falha ao gerar HTML:", lastErrorMsg);
+  // Falha de parse/sanitização não passa pelo describeAiError (o texto da IA não é erro do provedor)
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = extractJsonObject(rawText) ?? {};
+  } catch {
+    /* resposta inválida, tratada abaixo */
+  }
+  const cleanHtml = typeof parsed.html === "string" ? sanitizeCustomHtmlBlock(parsed.html) : "";
+  if (!cleanHtml) {
+    return NextResponse.json({ error: "A IA devolveu uma resposta inválida. Tente de novo." }, { status: 502 });
+  }
 
-  return NextResponse.json(
-    {
-      error: describeAiError({ message: lastErrorMsg }),
-    },
-    { status: 503 }
-  );
+  const summary =
+    typeof parsed.summary === "string" && parsed.summary.trim()
+      ? parsed.summary.trim().slice(0, 180)
+      : "Conteúdo HTML atualizado com identidade da loja.";
+  const suggestedTitle =
+    typeof parsed.suggestedTitle === "string" && parsed.suggestedTitle.trim()
+      ? parsed.suggestedTitle.trim().slice(0, 60)
+      : body.sectionTitle || "Bloco HTML";
+
+  return NextResponse.json({ html: cleanHtml, summary, suggestedTitle });
 }

@@ -6,7 +6,7 @@ import { assertPublicHttpUrl, UnsafeUrlError } from "@/lib/net/safe-url";
 import { prisma } from "@/lib/db";
 import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
-import { getUserTextAi } from "@/lib/ai/providers";
+import { getUserImageAi, getUserTextAi } from "@/lib/ai/providers";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
 import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
 import { captureMobileStoreScreenshots } from "@/lib/scraper/mobile-screenshot";
@@ -179,9 +179,13 @@ export async function POST(req: NextRequest) {
         const { blueprint, mode, modelUsed } = await buildStoreBlueprint(extracted, { signal: budget, ai });
         budget.throwIfAborted();
 
-        // Ensure hero banner always has a valid high-resolution image (AI fallback if missing)
+        // Banner faltante: gerado com a IA de imagem de quem gera; sem ela, fica o fallback atual
         const firstHero = blueprint.sections.heroSlides[0];
-        if (!blueprint.sections.hero.imageUrl || (firstHero && !firstHero.imageUrl)) {
+        const imageAi =
+          !blueprint.sections.hero.imageUrl || (firstHero && !firstHero.imageUrl)
+            ? await getUserImageAi(user.id)
+            : null;
+        if (imageAi) {
           safeSend("progress", {
             step: "media",
             message: "Gerando arte de banner em alta definição com IA para completar o preview...",
@@ -197,7 +201,7 @@ export async function POST(req: NextRequest) {
                 sourceStoreUrl: normalizedUrl,
                 slotLabel: blueprint.sections.hero.headline,
               }),
-              { signal: budget }
+              { signal: budget, imageAi, textAi: ai }
             );
             blueprint.sections.hero.imageUrl = generatedHero.imageUrl;
             if (firstHero) {
