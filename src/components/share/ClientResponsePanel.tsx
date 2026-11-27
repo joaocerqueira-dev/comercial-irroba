@@ -23,12 +23,14 @@ export default function ClientResponsePanel({
   sellerWhatsapp,
   shareStatus,
   response,
+  contentVersion,
 }: {
   slug: string;
   storeName: string;
   sellerWhatsapp: string | null;
   shareStatus: string;
   response: LatestResponse | null;
+  contentVersion: number;
 }) {
   const router = useRouter();
   const [type, setType] = useState<ResponseType | null>(null);
@@ -63,7 +65,7 @@ export default function ClientResponsePanel({
       const res = await fetch(`/api/share/${slug}/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, clientName: name, message }),
+        body: JSON.stringify({ type, clientName: name, message, contentVersion }),
       });
       if (res.ok || res.status === 409) return router.refresh();
       setError(((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? "Não foi possível enviar.");

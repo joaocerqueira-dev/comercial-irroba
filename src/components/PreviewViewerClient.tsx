@@ -30,6 +30,7 @@ interface PreviewViewerClientProps {
   access?: ShareAccess;
   shareStatus?: string;
   latestResponse?: LatestResponse | null;
+  contentVersion?: number;
 }
 
 export default function PreviewViewerClient({
@@ -45,6 +46,7 @@ export default function PreviewViewerClient({
   access,
   shareStatus = "pendente",
   latestResponse = null,
+  contentVersion = 1,
 }: PreviewViewerClientProps) {
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [showCompare, setShowCompare] = useState(false);
@@ -177,6 +179,7 @@ export default function PreviewViewerClient({
           sellerWhatsapp={sellerWhatsapp}
           shareStatus={shareStatus}
           response={latestResponse}
+          contentVersion={contentVersion}
         />
       )}
 

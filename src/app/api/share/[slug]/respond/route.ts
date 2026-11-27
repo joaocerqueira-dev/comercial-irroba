@@ -10,6 +10,8 @@ const limiter = createRateLimiter();
 const PER_MIN = 10;
 const ALREADY = "Esta proposta já foi respondida.";
 
+const STALE = "A proposta foi atualizada. Recarregue a página para ver a versão nova.";
+
 const bad = (error: string) => NextResponse.json({ error }, { status: 400 });
 
 /** Cliente (só com cookie de senha válido) aprova, pede ajustes ou recusa a proposta. */
@@ -43,7 +45,9 @@ export function POST(req: NextRequest, ctx: { params: Promise<{ slug: string }> 
 
     const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
     const type = body?.type as ResponseType;
-    if (!(type in STATUS_BY_RESPONSE) || typeof type !== "string") return bad("Tipo de resposta inválido.");
+    if (typeof type !== "string" || !Object.hasOwn(STATUS_BY_RESPONSE, type)) return bad("Tipo de resposta inválido.");
+    const version = body?.contentVersion;
+    if (typeof version !== "number" || !Number.isInteger(version)) return bad("Versão da proposta inválida.");
     const clientName = typeof body?.clientName === "string" ? body.clientName.trim() : "";
     if (clientName.length < 1 || clientName.length > 80) return bad("Informe seu nome (até 80 caracteres).");
     const raw = body?.message;
@@ -54,15 +58,17 @@ export function POST(req: NextRequest, ctx: { params: Promise<{ slug: string }> 
 
     if (p.shareStatus !== "pendente") return NextResponse.json({ error: ALREADY }, { status: 409 });
 
+    if (version !== p.contentVersion) return NextResponse.json({ error: STALE }, { status: 409 });
+
     const shareStatus = STATUS_BY_RESPONSE[type];
     const response = await prisma.$transaction(async (tx) => {
       const { count } = await tx.storePreview.updateMany({
-        where: { id: p.id, shareStatus: "pendente" },
+        where: { id: p.id, shareStatus: "pendente", contentVersion: version },
         data: { shareStatus },
       });
       if (count === 0) return null;
       return tx.clientResponse.create({
-        data: { previewId: p.id, type, clientName, message, contentVersion: p.contentVersion },
+        data: { previewId: p.id, type, clientName, message, contentVersion: version },
       });
     });
     if (!response) return NextResponse.json({ error: ALREADY }, { status: 409 });

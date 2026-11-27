@@ -113,6 +113,7 @@ export default async function PublicPreviewPage({
       sellerWhatsapp={preview.sellerWhatsapp}
       access={access}
       shareStatus={preview.shareStatus}
+      contentVersion={preview.contentVersion}
       latestResponse={
         latest && { ...latest, type: latest.type as ResponseType, createdAt: latest.createdAt.toISOString() }
       }

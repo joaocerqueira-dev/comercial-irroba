@@ -14,5 +14,6 @@ const BY_STATUS: Record<string, string> = {
 export function shareBadgeLabel(s: ShareBadgeInput): string {
   if (!s.legacyPublic && !s.shareExpiresAt) return "Link desativado";
   if (BY_STATUS[s.shareStatus]) return BY_STATUS[s.shareStatus];
+  if (s.shareExpiresAt && new Date(s.shareExpiresAt) <= new Date()) return "Link expirado";
   return s.legacyPublic ? "Link público (antigo)" : "Aguardando cliente";
 }

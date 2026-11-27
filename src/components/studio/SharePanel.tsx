@@ -30,7 +30,9 @@ export function SharePanel({ previewId, slug }: { previewId: string; slug: strin
   const [days, setDays] = useState<(typeof OPTIONS)[number]>("7");
   const [date, setDate] = useState("");
   const [password, setPassword] = useState("");
+  const [change, setChange] = useState(false);
   const [fresh, setFresh] = useState<{ password: string } | null>(null);
+  const [kept, setKept] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { copiedKey, copy } = useCopyToClipboard();
@@ -55,9 +57,10 @@ export function SharePanel({ previewId, slug }: { previewId: string; slug: strin
     setBusy(true);
     setError(null);
     try {
-      const body: { days?: number; expiresAt?: string; password?: string } =
+      const body: { days?: number; expiresAt?: string; password?: string; regenerate?: boolean } =
         days === "custom" ? { expiresAt: date } : { days: Number(days) };
       if (password) body.password = password;
+      else if (change) body.regenerate = true;
       const res = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -65,8 +68,10 @@ export function SharePanel({ previewId, slug }: { previewId: string; slug: strin
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Não foi possível salvar o link.");
-      setFresh({ password: data.password });
+      setFresh(data.password ? { password: data.password } : null);
+      setKept(!data.password);
       setPassword("");
+      setChange(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível salvar o link.");
@@ -82,6 +87,7 @@ export function SharePanel({ previewId, slug }: { previewId: string; slug: strin
       const res = await fetch(endpoint, { method: "DELETE" });
       if (!res.ok) throw new Error();
       setFresh(null);
+      setKept(false);
       await load();
     } catch {
       setError("Não foi possível desativar o link.");
@@ -90,6 +96,11 @@ export function SharePanel({ previewId, slug }: { previewId: string; slug: strin
     }
   };
 
+  const today = new Date();
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const minDate = ymd(today);
+  const maxDate = ymd(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 179));
   const btn = "rounded-xl px-3 py-2 text-xs font-semibold transition disabled:opacity-50";
 
   return (
@@ -115,20 +126,31 @@ export function SharePanel({ previewId, slug }: { previewId: string; slug: strin
       {days === "custom" && (
         <input
           type="date"
+          min={minDate}
+          max={maxDate}
           aria-label="Data de validade"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           className="rounded-lg border border-zinc-300 px-2 py-1 text-xs"
         />
       )}
-      <input
-        type="text"
-        aria-label="Senha"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder="Deixe em branco para gerar"
-        className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-xs"
-      />
+      {state?.hasPassword && (
+        <label className="flex items-center gap-1 text-xs">
+          <input type="checkbox" checked={change} onChange={(e) => setChange(e.target.checked)} />
+          Trocar senha
+        </label>
+      )}
+      {(!state?.hasPassword || change) && (
+        <input
+          type="text"
+          aria-label="Senha"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="Deixe em branco para gerar"
+          className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-xs"
+        />
+      )}
+      {kept && <p className="text-xs text-zinc-600">Senha mantida.</p>}
 
       {fresh && (
         <div className="rounded-xl bg-brand-50 p-3 text-xs">

@@ -55,6 +55,35 @@ describe("SharePanel", () => {
     expect((screen.getByRole("button", { name: "Copiar link e senha" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("com senha existente, renovar mantém a senha e avisa", async () => {
+    const orig = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return { ok: true, json: async () => ({ url: "/preview/loja", expiresAt: "2026-12-12T00:00:00Z", password: null }) };
+      if (!init?.method) return { ok: true, json: async () => ({ ...state, hasPassword: true }) };
+      return orig(url, init);
+    });
+    render(<SharePanel previewId="p1" slug="loja" />);
+    await screen.findByText(/Ajustes pedidos por Ana/);
+    expect(screen.queryByLabelText("Senha")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar link" }));
+    expect(await screen.findByText("Senha mantida.")).toBeTruthy();
+    expect(JSON.parse(calls("PUT")[0][1].body)).toEqual({ days: 7 });
+    expect((screen.getByRole("button", { name: "Copiar link e senha" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("Trocar senha sem digitar envia regenerate: true", async () => {
+    fetchMock.mockImplementation(async (_u: string, init?: RequestInit) => ({
+      ok: true,
+      json: async () => (init?.method === "PUT" ? { password: "nova-123" } : { ...state, hasPassword: true }),
+    }));
+    render(<SharePanel previewId="p1" slug="loja" />);
+    await screen.findByText(/Ajustes pedidos por Ana/);
+    fireEvent.click(screen.getByLabelText("Trocar senha"));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar link" }));
+    expect(await screen.findByText("nova-123")).toBeTruthy();
+    expect(JSON.parse(calls("PUT")[0][1].body)).toEqual({ days: 7, regenerate: true });
+  });
+
   it("Desativar link faz DELETE", async () => {
     render(<SharePanel previewId="p1" slug="loja" />);
     await screen.findByText(/Ajustes pedidos por Ana/);

@@ -14,6 +14,7 @@ const Body = z
     days: z.union([z.literal(7), z.literal(15), z.literal(30)]).optional(),
     expiresAt: z.string().optional(),
     password: z.string().min(4).max(64).optional(),
+    regenerate: z.boolean().optional(),
   })
   .refine((b) => (b.days === undefined) !== (b.expiresAt === undefined), {
     message: "Informe days ou expiresAt (apenas um).",
@@ -70,7 +71,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Prazo ou senha inválidos." }, { status: 400 });
   }
-  const { days, expiresAt, password } = parsed.data;
+  const { days, expiresAt, password, regenerate } = parsed.data;
   const now = Date.now();
   const exp = days !== undefined ? new Date(now + days * DAY) : parseExpiresAt(expiresAt!);
   if (!exp || exp.getTime() <= now || exp.getTime() > now + MAX_DAYS * DAY) {
@@ -79,10 +80,16 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
       { status: 400 }
     );
   }
-  const plain = password ?? suggestSharePassword();
+  // Renovar prazo mantém a senha atual, salvo senha nova ou regenerate
+  const keep = password === undefined && !regenerate && !!p.sharePasswordHash;
+  const plain = keep ? null : (password ?? suggestSharePassword());
   await prisma.storePreview.update({
     where: { id: p.id },
-    data: { shareExpiresAt: exp, sharePasswordHash: await hashPassword(plain), legacyPublic: false },
+    data: {
+      shareExpiresAt: exp,
+      ...(plain !== null && { sharePasswordHash: await hashPassword(plain) }),
+      legacyPublic: false,
+    },
   });
   return NextResponse.json({ url: `/preview/${p.slug}`, expiresAt: exp.toISOString(), password: plain });
 }

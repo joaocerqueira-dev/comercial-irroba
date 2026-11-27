@@ -84,7 +84,7 @@ describe("POST /api/share/[slug]/respond", () => {
     POST(
       new NextRequest("http://localhost/api/share/loja-a/respond", {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ contentVersion: 3, ...body }),
         headers: { "x-forwarded-for": `10.1.0.${++ipSeq}`, ...headers },
       }),
       { params: Promise.resolve({ slug: "loja-a" }) }
@@ -96,7 +96,7 @@ describe("POST /api/share/[slug]/respond", () => {
     const json = await res.json();
     expect(json.shareStatus).toBe("aprovada");
     expect(db.tx.storePreview.updateMany).toHaveBeenCalledWith({
-      where: { id: "p1", shareStatus: "pendente" },
+      where: { id: "p1", shareStatus: "pendente", contentVersion: 3 },
       data: { shareStatus: "aprovada" },
     });
     expect(db.tx.clientResponse.create.mock.calls[0][0].data).toMatchObject({
@@ -152,5 +152,21 @@ describe("POST /api/share/[slug]/respond", () => {
     const res = await respond({ type: "aprovar", clientName: "Ana" });
     expect(res.status).toBe(409);
     expect(db.tx.clientResponse.create).not.toHaveBeenCalled();
+  });
+
+  it("contentVersion desatualizada: 409 sem criar resposta", async () => {
+    const res = await respond({ type: "aprovar", clientName: "Ana", contentVersion: 2 });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toBe("A proposta foi atualizada. Recarregue a página para ver a versão nova.");
+    expect(db.tx.clientResponse.create).not.toHaveBeenCalled();
+  });
+
+  it("contentVersion ausente: 400", async () => {
+    const res = await respond({ type: "aprovar", clientName: "Ana", contentVersion: undefined });
+    expect(res.status).toBe(400);
+  });
+
+  it("tipo herdado (toString): 400", async () => {
+    expect((await respond({ type: "toString", clientName: "Ana" })).status).toBe(400);
   });
 });

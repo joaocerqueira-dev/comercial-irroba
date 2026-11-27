@@ -71,6 +71,22 @@ describe("PUT share", () => {
     expect(json.password).toBe("minhasenha");
   });
 
+  it("renovar prazo com senha existente mantém o hash e devolve password null", async () => {
+    db.storePreview.findUnique.mockResolvedValue(row(TEST_USERS.comercial.id, { sharePasswordHash: "hash-antigo" }));
+    const json = await (await PUT(req("PUT", { days: 7 }), ctx)).json();
+    expect(json.password).toBeNull();
+    const data = (db.storePreview.update.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+    expect(data.sharePasswordHash).toBeUndefined();
+  });
+
+  it("regenerate: true gera nova senha mesmo com hash existente", async () => {
+    db.storePreview.findUnique.mockResolvedValue(row(TEST_USERS.comercial.id, { sharePasswordHash: "hash-antigo" }));
+    const json = await (await PUT(req("PUT", { days: 7, regenerate: true }), ctx)).json();
+    expect(json.password).toHaveLength(8);
+    const data = (db.storePreview.update.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+    expect(await verifyPassword(json.password, data.sharePasswordHash as string)).toBe(true);
+  });
+
   it("data simples vira fim do dia em São Paulo", async () => {
     const d = new Date(Date.now() + 10 * DAY).toISOString().slice(0, 10);
     const res = await PUT(req("PUT", { expiresAt: d }), ctx);
