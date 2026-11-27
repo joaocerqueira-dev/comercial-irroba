@@ -8,7 +8,6 @@ import { prisma } from "@/lib/db";
 import { extractStoreFromUrl } from "@/lib/scraper/store-extractor";
 import { buildStoreBlueprint } from "@/lib/ai/architect";
 import { buildImageRequestFromBlueprint, processAiImageRequest } from "@/lib/ai/image-studio";
-import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 import { buildExtractionWarning } from "@/lib/previews/extraction-warnings";
 import { captureMobileStoreScreenshots } from "@/lib/scraper/mobile-screenshot";
 import { BrowserBusyError, limitAuthenticated, withBrowserSlot } from "@/lib/net/rate-limit";
@@ -118,29 +117,31 @@ export async function POST(req: NextRequest) {
           progress: 25,
         });
 
-        // Uma vaga de navegador cobre a extração e a captura mobile (sem aninhar com a arte IA)
+        // Uma vaga de navegador cobre a extração e a captura mobile (sem aninhar com a arte IA).
+        // As duas usam contextos independentes: rodam em paralelo e a mobile não atrasa a geração.
         const extracted = await withBrowserSlot(
           async () => {
-            const data = await extractStoreFromUrl(normalizedUrl, slug, {
-              signal: budget,
-              onProgress: (p) =>
-                safeSend("progress", {
-                  step: p.step,
-                  message: p.message,
-                  progress: Math.round(25 + p.fraction * 35),
-                }),
-            });
+            const mobileJob = captureMobileStoreScreenshots(normalizedUrl, slug, { signal: budget }).catch(
+              () => null
+            );
+            let data: Awaited<ReturnType<typeof extractStoreFromUrl>>;
+            try {
+              data = await extractStoreFromUrl(normalizedUrl, slug, {
+                signal: budget,
+                onProgress: (p) =>
+                  safeSend("progress", {
+                    step: p.step,
+                    message: p.message,
+                    progress: Math.round(25 + p.fraction * 35),
+                  }),
+              });
+            } finally {
+              // Não libera a vaga com a captura mobile ainda rodando
+              await mobileJob;
+            }
             budget.throwIfAborted();
-
-            // Etapa extra: screenshot mobile do site original. Falha não interrompe a geração.
-            safeSend("progress", {
-              step: "mobile",
-              message: "Capturando a versão mobile do site atual...",
-              progress: 61,
-            });
-            const mobile = await captureMobileStoreScreenshots(normalizedUrl, slug, {
-              signal: budget,
-            }).catch(() => null);
+            // Falha na captura mobile não interrompe a geração
+            const mobile = await mobileJob;
             if (mobile) {
               data.mobileScreenshotPath = mobile.mobileScreenshotPath;
               data.mobileFullScreenshotPath = mobile.mobileFullScreenshotPath;
@@ -212,7 +213,6 @@ export async function POST(req: NextRequest) {
         });
 
         budget.throwIfAborted();
-        const compiledExport = compileIrrobaExport(blueprint);
 
         const updated = await prisma.storePreview.update({
           where: { id: initialRecord.id },
@@ -224,7 +224,6 @@ export async function POST(req: NextRequest) {
             screenshotPath: extracted.screenshotPath ?? null,
             extractedData: extracted as object,
             blueprint: blueprint as object,
-            compiledExport: compiledExport as object,
           },
         });
 

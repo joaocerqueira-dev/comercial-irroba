@@ -17,7 +17,6 @@ export function InsightsTab({ studio }: { studio: StudioState }) {
     sellerWhatsapp,
     setSellerWhatsapp,
     isReanalyzing,
-    setHasUnsavedChanges,
     updateBp,
     handleReanalyzeWithGemini,
     applyInsightSuggestion,
@@ -198,7 +197,6 @@ export function InsightsTab({ studio }: { studio: StudioState }) {
             value={sellerWhatsapp}
             onChange={(e) => {
               setSellerWhatsapp(e.target.value);
-              setHasUnsavedChanges(true);
             }}
             placeholder="5511999999999"
             className="w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-zinc-900"

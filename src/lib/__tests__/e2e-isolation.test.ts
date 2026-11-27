@@ -75,14 +75,24 @@ async function waitForFrame(page: Page, pred: (f: Frame) => boolean): Promise<Fr
 
 describe("GET /render/[slug]", () => {
   it("envia CSP restritiva com sandbox e frame-ancestors 'self'", async () => {
-    repo.getPreviewWithBlueprint.mockResolvedValueOnce({
+    const okResult = {
       status: "ok",
+      preview: { updatedAt: new Date("2026-11-26T12:00:00Z") },
       blueprint: buildHeuristicBlueprint(makeSampleExtracted()),
-    });
+    };
+    repo.getPreviewWithBlueprint.mockResolvedValueOnce(okResult);
     const res = await renderGET(new NextRequest(`${APP}/render/x`), {
       params: Promise.resolve({ slug: "x" }),
     });
     expect(res.status).toBe(200);
+    // Mesma versão: revalidação responde 304 sem corpo
+    const etag = res.headers.get("etag")!;
+    expect(etag).toBeTruthy();
+    repo.getPreviewWithBlueprint.mockResolvedValueOnce(okResult);
+    const again = await renderGET(new NextRequest(`${APP}/render/x`, { headers: { "if-none-match": etag } }), {
+      params: Promise.resolve({ slug: "x" }),
+    });
+    expect(again.status).toBe(304);
     const csp = res.headers.get("content-security-policy") ?? "";
     expect(csp).toContain("default-src 'none'");
     expect(csp).toContain("script-src 'unsafe-inline'");

@@ -508,3 +508,19 @@ describe("XSS no documento compilado", () => {
     expect(html).toContain("(16) 3333-1234");
   });
 });
+
+describe("auditoria: tarja customizada", () => {
+  it("não injeta HTML pelo fallback de cor do tema", async () => {
+    const { renderCustomSectionHtml } = await import("@/lib/irroba-blocks/compiler/sections/custom");
+    const bp = buildHeuristicBlueprint(makeSampleExtracted());
+    bp.theme.neutralBackground = '"><img src=x onerror=alert(1)>';
+    const html = renderCustomSectionHtml(
+      { id: "t1", kind: "tarja", title: "T", items: [{ icon: "truck", title: "Frete", subtitle: "Grátis" }] } as never,
+      bp,
+      new Map(),
+      []
+    );
+    expect(html).not.toContain("onerror");
+    expect(html).toContain("Frete");
+  });
+});

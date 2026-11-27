@@ -96,6 +96,20 @@ describe("StudioClient (fumaça)", () => {
     expect(screen.queryByText("Alterações não salvas")).toBeNull();
   });
 
+  it("desfazer a edição à mão volta a ficar sem alterações pendentes", async () => {
+    renderStudio();
+    const input = screen.getByLabelText("Nome da Loja") as HTMLInputElement;
+    const original = input.value;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "Outra" } });
+    });
+    expect(screen.getByText("Alterações não salvas")).toBeTruthy();
+    await act(async () => {
+      fireEvent.change(input, { target: { value: original } });
+    });
+    expect(screen.queryByText("Alterações não salvas")).toBeNull();
+  });
+
   it("adiciona categoria pela aba Seções (CategoryAdder) e salva", async () => {
     renderStudio();
     await click(screen.getByRole("tab", { name: /Seções/ }));

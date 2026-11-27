@@ -91,7 +91,6 @@ describe("POST /api/previews/generate: etapa da captura mobile", () => {
       mobileFullScreenshotPath: "/api/captures/m-full.jpg",
     });
     const text = await (await generate()).text();
-    expect(text).toContain('"step":"mobile"');
     expect(text).toContain("event: done");
     const saved = db.storePreview.update.mock.calls[0][0].data as {
       extractedData: { mobileFullScreenshotPath?: string };

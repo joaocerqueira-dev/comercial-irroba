@@ -8,3 +8,5 @@ public/captures/*
 .env.local
 tsconfig.tsbuildinfo
 node_modules
+
+.DS_Store

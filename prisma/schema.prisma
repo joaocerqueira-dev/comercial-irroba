@@ -24,6 +24,6 @@ model StorePreview {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  @@index([status])
+  @@index([status, createdAt]) // GET /api/previews: where status order by createdAt
   @@index([createdAt])
 }

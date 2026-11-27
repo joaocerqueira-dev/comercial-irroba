@@ -8,6 +8,7 @@ import { BrowserBusyError, limitAuthenticated } from "@/lib/net/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+const AI_IMAGE_BUDGET_MS = 110_000;
 
 const BodySchema = z.object({
   prompt: z.string().max(600).default(""),
@@ -75,7 +76,8 @@ export async function POST(
         sourceStoreUrl: preview.sourceUrl,
         slotLabel: body.slotLabel,
       }),
-      { signal: req.signal }
+      // Orçamento total: até 3 modelos de imagem + 2 de texto + fila do navegador passariam de 150 s
+      { signal: AbortSignal.any([req.signal, AbortSignal.timeout(AI_IMAGE_BUDGET_MS)]) }
     );
 
     return NextResponse.json(result);

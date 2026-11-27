@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { StoreBlueprintSchema } from "@/lib/types/blueprint";
 import { deletePreviewFiles, saveBlueprint } from "@/lib/previews/repository";
+import { limitAuthenticated } from "@/lib/net/rate-limit";
 
 const MAX_WHATSAPP_LENGTH = 32;
+/** Blueprint salvo pelo Studio (HTML customizado incluso) fica bem abaixo disso. */
+const MAX_PATCH_BYTES = 5_000_000;
 
 export async function GET(
   _req: NextRequest,
@@ -21,6 +24,11 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const limited = limitAuthenticated(req, "save");
+  if (limited) return limited;
+  if (Number(req.headers.get("content-length")) > MAX_PATCH_BYTES) {
+    return NextResponse.json({ error: "Blueprint grande demais." }, { status: 413 });
+  }
   const { id } = await context.params;
   const body = await req.json().catch(() => null);
   const parsed = StoreBlueprintSchema.safeParse(body?.blueprint);
@@ -60,9 +68,11 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const limited = limitAuthenticated(req, "delete");
+  if (limited) return limited;
   const { id } = await context.params;
   try {
     const deleted = await prisma.storePreview.delete({ where: { id } });

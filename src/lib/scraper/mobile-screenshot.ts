@@ -3,7 +3,7 @@ import path from "node:path";
 import { CAPTURES_DIR } from "@/lib/files/captures";
 import { assertPublicHttpUrl } from "@/lib/net/safe-url";
 import { getSharedBrowser } from "./browser";
-import { gotoPublic, installSsrfGuard } from "./page-guard";
+import { gotoPublic, installSsrfGuard, withPageTimeout } from "./page-guard";
 
 const MOBILE_USER_AGENT =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
@@ -83,6 +83,7 @@ export async function captureMobileStoreScreenshots(
         isMobile: true,
         hasTouch: true,
         locale: "pt-BR",
+        serviceWorkers: "block",
         userAgent: MOBILE_USER_AGENT,
       });
 
@@ -91,14 +92,14 @@ export async function captureMobileStoreScreenshots(
       await gotoPublic(page, normalizedUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
       await page.waitForTimeout(1500);
 
-      await page.evaluate(async () => {
+      await withPageTimeout(page.evaluate(async () => {
         const maxScroll = Math.min(document.body.scrollHeight || 3800, 5200);
         for (let y = 500; y <= maxScroll; y += 650) {
           window.scrollTo(0, y);
           await new Promise((r) => setTimeout(r, 280));
         }
         window.scrollTo(0, 0);
-      });
+      }));
       await page.waitForTimeout(700);
 
       await page.screenshot({ path: mobileDiskPath, fullPage: false }).catch(() => undefined);

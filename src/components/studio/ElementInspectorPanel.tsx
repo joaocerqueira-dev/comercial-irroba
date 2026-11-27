@@ -180,7 +180,9 @@ export function ElementInspectorPanel(props: ElementInspectorPanelProps) {
         </div>
       </div>
 
+      {/* key: remonta o editor ao trocar de alvo (undo/prompt/erro de imagem não vazam entre seções/produtos) */}
       <TargetEditor
+        key={[selection.targetId, selection.customSectionId, selection.productId, selection.showcaseIdx, selection.subIndex].join(":")}
         {...props}
         categoryDraft={newCategoryName}
         onCategoryDraftChange={setNewCategoryName}
