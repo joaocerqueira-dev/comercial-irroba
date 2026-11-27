@@ -226,6 +226,11 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-3 text-xs">
             {me && <span className="hidden font-heading font-bold text-irroba-ink sm:inline">{me.name}</span>}
+            {me && (
+              <Link href="/conta/ia" className="font-heading font-bold text-brand-700 hover:underline">
+                Minha IA
+              </Link>
+            )}
             {me?.role === "admin" && (
               <Link href="/admin/usuarios" className="font-heading font-bold text-brand-700 hover:underline">
                 Usuários
