@@ -8,7 +8,7 @@ import {
   validateSunEditorHtml,
 } from "@/lib/irroba-blocks/sanitize";
 import { assertPublicHttpUrl, isPrivateIp } from "@/lib/net/safe-url";
-import { checkBasicAuth, isPublicPath } from "@/middleware";
+import { isPublicPath } from "@/middleware";
 
 describe("safeJsonForScript", () => {
   it("escapa fechamento de script e separadores de linha", () => {
@@ -48,17 +48,7 @@ describe("SSRF", () => {
   });
 });
 
-describe("basic auth", () => {
-  const h = (u: string, p: string) => `Basic ${btoa(`${u}:${p}`)}`;
-  it("libera em dev sem credenciais e bloqueia em produção", () => {
-    expect(checkBasicAuth(null, undefined, undefined, "development")).toBe("ok");
-    expect(checkBasicAuth(null, undefined, undefined, "production")).toBe("misconfigured");
-  });
-  it("valida usuário e senha", () => {
-    expect(checkBasicAuth(h("a", "b"), "a", "b", "production")).toBe("ok");
-    expect(checkBasicAuth(h("a", "x"), "a", "b", "production")).toBe("unauthorized");
-    expect(checkBasicAuth(null, "a", "b", "development")).toBe("unauthorized");
-  });
+describe("rotas públicas", () => {
   it("rotas públicas", () => {
     expect(isPublicPath("/preview/x")).toBe(true);
     expect(isPublicPath("/api/captures/a.png")).toBe(true);

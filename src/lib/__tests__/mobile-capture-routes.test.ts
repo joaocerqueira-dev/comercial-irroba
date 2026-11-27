@@ -106,11 +106,9 @@ describe("POST /api/previews/[id]/mobile-capture (autenticado)", () => {
 });
 
 describe("middleware", () => {
-  it("rota de recaptura mobile não é pública e exige Basic auth", () => {
+  it("rota de recaptura mobile não é pública e exige sessão", () => {
     expect(isPublicPath("/api/previews/abc/mobile-capture")).toBe(false);
     expect(isPublicPath("/api/captures/mobile/loja-abc")).toBe(true);
-    vi.stubEnv("ADMIN_USER", "admin");
-    vi.stubEnv("ADMIN_PASS", "segredo");
     const anon = middleware(
       new NextRequest("http://localhost/api/previews/abc/mobile-capture", { method: "POST" })
     );
@@ -118,7 +116,7 @@ describe("middleware", () => {
     const authed = middleware(
       new NextRequest("http://localhost/api/previews/abc/mobile-capture", {
         method: "POST",
-        headers: { authorization: `Basic ${btoa("admin:segredo")}` },
+        headers: { cookie: "session=abc" },
       })
     );
     expect(authed.status).toBe(200);
