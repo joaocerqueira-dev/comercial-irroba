@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
             storeName: new URL(normalizedUrl).hostname.replace(/^www\./, ""),
             sellerWhatsapp,
             ownerId: user.id,
+            legacyPublic: false,
             status: PREVIEW_STATUS.processing,
           },
         });

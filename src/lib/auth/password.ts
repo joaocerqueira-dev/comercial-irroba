@@ -32,6 +32,8 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
   }
 }
 
-export function generateTempPassword(): string {
-  return Array.from({ length: 12 }, () => ALFABETO[randomInt(ALFABETO.length)]).join("");
+export function generateTempPassword(length = 12): string {
+  return Array.from({ length }, () => ALFABETO[randomInt(ALFABETO.length)]).join("");
 }
+
+export const suggestSharePassword = (): string => generateTempPassword(8);

@@ -25,10 +25,30 @@ model StorePreview {
   updatedAt        DateTime @updatedAt
   ownerId          String?
   owner            User?    @relation(fields: [ownerId], references: [id])
+  shareExpiresAt   DateTime?
+  sharePasswordHash String?
+  shareStatus      String   @default("pendente")
+  contentVersion   Int      @default(1)
+  legacyPublic     Boolean  @default(true) // propostas antigas seguem públicas; novas gravam false
+  responses        ClientResponse[]
 
   @@index([ownerId, status, createdAt])
   @@index([status, createdAt]) // GET /api/previews: where status order by createdAt
   @@index([createdAt])
+}
+
+model ClientResponse {
+  id             String       @id @default(cuid())
+  previewId      String
+  preview        StorePreview @relation(fields: [previewId], references: [id], onDelete: Cascade)
+  type           String
+  clientName     String
+  message        String?
+  contentVersion Int
+  createdAt      DateTime     @default(now())
+  seenAt         DateTime?
+
+  @@index([previewId, createdAt])
 }
 
 model User {

@@ -47,3 +47,14 @@ export async function requirePageUser(opts: { admin?: boolean } = {}): Promise<A
   if (opts.admin && user.role !== "admin") notFound();
   return user;
 }
+
+/** Usuário logado e liberado (sem troca de senha pendente) ou null; nunca responde nem redireciona. */
+export async function getOptionalUser(req: Request): Promise<AuthUser | null> {
+  const user = await getUserFromToken(tokenFromRequest(req));
+  return user && !user.mustChangePassword ? user : null;
+}
+
+export async function getOptionalPageUser(): Promise<AuthUser | null> {
+  const user = await getUserFromToken((await cookies()).get(SESSION_COOKIE)?.value);
+  return user && !user.mustChangePassword ? user : null;
+}
