@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { canAccessPreview } from "@/lib/auth/guard";
+import type { NextRequest } from "next/server";
+import { canAccessPreview, getOptionalUser } from "@/lib/auth/guard";
 import type { AuthUser } from "@/lib/auth/session";
 
 export type ShareAccess = "owner" | "granted" | "public-legacy" | "needs-password" | "expired" | "unavailable";
@@ -78,4 +79,25 @@ export function resolveShareAccess(
   if (!p.shareExpiresAt || !p.sharePasswordHash) return "unavailable";
   if (p.shareExpiresAt.getTime() <= now.getTime()) return "expired";
   return verifyShareCookie(opts.cookieValue, p.slug, p.sharePasswordHash, now) ? "granted" : "needs-password";
+}
+
+export const SHARE_SECRET_MISSING = "Compartilhamento indisponível: defina SESSION_SECRET.";
+
+/** Roda o handler; sem SESSION_SECRET em produção responde 503 em vez de 500. */
+export async function withShareSecret(fn: () => Promise<Response>): Promise<Response> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof ShareSecretMissingError) return Response.json({ error: SHARE_SECRET_MISSING }, { status: 503 });
+    throw e;
+  }
+}
+
+/** A requisição pode ver a proposta (dono/admin, cookie válido ou proposta antiga pública)? */
+export async function requestCanView(req: NextRequest, p: ShareablePreview): Promise<boolean> {
+  const access = resolveShareAccess(p, {
+    cookieValue: req.cookies.get(shareCookieName(p.slug))?.value,
+    user: await getOptionalUser(req),
+  });
+  return access === "owner" || access === "granted" || access === "public-legacy";
 }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
 import { getPreviewWithBlueprint } from "@/lib/previews/repository";
 import { RENDER_CSP } from "@/lib/security/preview-isolation";
+import { requestCanView, withShareSecret } from "@/lib/share/access";
 
 // HTML compilado por slug, invalidado por updatedAt. O BOOT no ETag invalida o cache
 // do navegador quando o servidor reinicia (novo deploy pode mudar o compilador).
@@ -16,12 +17,15 @@ const notFound = (status: 404 | 500) =>
     headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": RENDER_CSP },
   });
 
-export async function GET(
-  req: NextRequest,
-  context: { params: Promise<{ slug: string }> }
-) {
+export function GET(req: NextRequest, context: { params: Promise<{ slug: string }> }) {
+  return withShareSecret(() => render(req, context));
+}
+
+async function render(req: NextRequest, context: { params: Promise<{ slug: string }> }) {
   const { slug } = await context.params;
   const result = await getPreviewWithBlueprint({ slug });
+  // Sem acesso: mesmo 404 de preview inexistente (não revela que existe). Antes do 304 e do cache.
+  if (result.status === "not_found" || !(await requestCanView(req, result.preview))) return notFound(404);
   // Sem blueprint ainda não há vitrine: mesmo 404 de preview inexistente
   if (result.status !== "ok") return notFound(result.status === "invalid" ? 500 : 404);
 

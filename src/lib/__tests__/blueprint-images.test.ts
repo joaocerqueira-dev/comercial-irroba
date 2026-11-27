@@ -75,7 +75,7 @@ describe("leitura tolerante de previews gravados", () => {
   });
 
   it("/render não mostra 'Blueprint inválido' por causa de uma imagem", async () => {
-    db.storePreview.findUnique.mockResolvedValue({ id: "abc", slug: "loja", blueprint: stored() });
+    db.storePreview.findUnique.mockResolvedValue({ id: "abc", slug: "loja", legacyPublic: true, blueprint: stored() });
     const res = await RENDER(new NextRequest("http://localhost/render/loja"), {
       params: Promise.resolve({ slug: "loja" }),
     });
