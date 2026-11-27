@@ -23,7 +23,35 @@ model StorePreview {
   compiledExport   Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  ownerId          String?
+  owner            User?    @relation(fields: [ownerId], references: [id])
 
+  @@index([ownerId, status, createdAt])
   @@index([status, createdAt]) // GET /api/previews: where status order by createdAt
   @@index([createdAt])
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  passwordHash       String
+  role               String    @default("comercial") // comercial | admin
+  active             Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  sessions           Session[]
+  previews           StorePreview[]
+}
+
+model Session {
+  id        String   @id // SHA-256 hex do token
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
