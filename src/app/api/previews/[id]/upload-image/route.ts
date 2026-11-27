@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { prisma } from "@/lib/db";
 import { CAPTURES_DIR, uploadFilePrefix } from "@/lib/files/captures";
+import { limitAuthenticated } from "@/lib/net/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -56,6 +57,8 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const limited = limitAuthenticated(req, "upload-image");
+  if (limited) return limited;
   // Falha rápida pelo Content-Length declarado, antes de ler o corpo. Não cobre
   // Transfer-Encoding: chunked; o teto de verdade é o client_max_body_size do proxy.
   const declared = Number(req.headers.get("content-length"));

@@ -3,6 +3,7 @@ import {
   escapeCssComment,
   safeJsonForScript,
   sanitizeCustomHtmlBlock,
+  sanitizeFontName,
   sanitizeUrl,
   validateSunEditorHtml,
 } from "@/lib/irroba-blocks/sanitize";
@@ -67,6 +68,23 @@ describe("basic auth", () => {
     expect(isPublicPath("/api/health")).toBe(true);
     expect(isPublicPath("/api/health/x")).toBe(false);
     expect(isPublicPath("/api/healthz")).toBe(false);
+  });
+});
+
+describe("auditoria: injeções no HTML/CSS gerado", () => {
+  it("remove SMIL que reescreve href, mantém animação inofensiva e bloqueia position:fixed", () => {
+    const clean = sanitizeCustomHtmlBlock(
+      `<svg><a href="#"><set attributeName="href" to="javascript:alert(3)"/><animate attributeName="xlink:href" values="javascript:alert(1)"/><text>x</text></a><animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="2s"/></svg><div style="position:fixed;inset:0;color:red">y</div>`
+    );
+    expect(clean).not.toMatch(/javascript:/i);
+    expect(clean).toMatch(/animateTransform/i);
+    expect(clean).not.toMatch(/position:\s*fixed/i);
+    expect(clean).toContain("color:red");
+  });
+
+  it("nome de fonte não carrega entidades nem barras", () => {
+    expect(sanitizeFontName("X&#39&#59background:url(//evil)&#59x:&#39")).not.toMatch(/[&\\]/);
+    expect(sanitizeFontName("Inter\\27")).toBe("Inter27");
   });
 });
 

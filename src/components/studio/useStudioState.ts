@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { computeUnsaved, type StudioSaveSnapshot } from "@/lib/client/unsavedChanges";
 import { useLatest } from "@/lib/client/useLatest";
 import { useTimeout } from "@/lib/client/useTimeout";
 import { generateBenefitsBannerSvgString } from "@/lib/irroba-blocks/banner-art-generator";
-import { compileIrrobaExport, compileStorefrontDocument } from "@/lib/irroba-blocks/compiler";
+import { compileIrrobaExport, compileStorefrontDocument, withoutStudioInspector } from "@/lib/irroba-blocks/compiler";
 import {
   CUSTOM_SECTION_MODULE_LABELS,
   DEFAULT_SECTION_LAYOUT,
@@ -24,6 +24,7 @@ import { createCustomSection, newCustomSectionId } from "./customSections";
 import { INSPECTOR_META, type InspectorSelection, type InspectorTargetId } from "./inspectorTargets";
 
 export type EditorSubTab = "insights" | "colors" | "banners" | "structure";
+const PREVIEW_DEBOUNCE_MS = 200;
 const STUDIO_TABS = ["preview", "compare", "export"] as const;
 const MOBILE_PANES = ["edit", "view"] as const;
 const EDITOR_TABS: readonly EditorSubTab[] = ["insights", "colors", "banners", "structure"];
@@ -65,7 +66,16 @@ export function useStudioState({
   const [isSaving, setIsSaving] = useState(false);
   const [isReanalyzing, setIsReanalyzing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // "Não salvo" é derivado: desfazer uma edição à mão volta a ficar limpo
+  const [savedSnapshot, setSavedSnapshot] = useState<StudioSaveSnapshot>({
+    bp: initialBlueprint,
+    sellerWhatsapp: initialWhatsapp,
+    currentMode: generationMode,
+  });
+  const hasUnsavedChanges = useMemo(
+    () => computeUnsaved({ bp, sellerWhatsapp, currentMode }, savedSnapshot),
+    [bp, sellerWhatsapp, currentMode, savedSnapshot]
+  );
   const [savedNotice, setSavedNotice] = useState(false);
   const { copiedKey, copy } = useCopyToClipboard(2000);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -75,8 +85,6 @@ export function useStudioState({
   const dragSectionIdxRef = useRef<number | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
-  // Estado atual lido após o await do save (edições feitas durante a requisição)
-  const latestSnapshotRef = useLatest<StudioSaveSnapshot>({ bp, sellerWhatsapp, currentMode });
   const savedNoticeTimeout = useTimeout();
 
   // Estado da prévia que sobrevive à recompilação do srcDoc (antes ficava em window.name).
@@ -212,15 +220,20 @@ export function useStudioState({
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // Prévia ao vivo usa valor adiado: digitação não recompila o iframe a cada tecla
-  const deferredBp = useDeferredValue(bp);
+  // Prévia ao vivo com debounce: cada compilação recarrega o iframe inteiro (~200 KB),
+  // então rajadas de digitação/color picker/slider viram uma única recompilação
+  const [deferredBp, setDeferredBp] = useState(bp);
+  const previewDebounce = useTimeout();
+  useEffect(() => {
+    previewDebounce.schedule(() => setDeferredBp(bp), PREVIEW_DEBOUNCE_MS);
+  }, [bp, previewDebounce]);
   const liveHtml = useMemo(
     () => compileStorefrontDocument(deferredBp, undefined, { studioInspector: true }),
     [deferredBp]
   );
   const compareHtml = useMemo(
-    () => (activeTab === "compare" ? compileStorefrontDocument(deferredBp) : ""),
-    [activeTab, deferredBp]
+    () => (activeTab === "compare" ? withoutStudioInspector(liveHtml) : ""),
+    [activeTab, liveHtml]
   );
   // Pacote de export só é calculado na aba Exportar
   const compiled = useMemo(
@@ -239,7 +252,6 @@ export function useStudioState({
 
   const updateBp = (updater: (prev: StoreBlueprint) => StoreBlueprint) => {
     setBp((prev) => updater(prev));
-    setHasUnsavedChanges(true);
   };
 
   const moveSection = (fromIdx: number, toIdx: number) => {
@@ -397,7 +409,7 @@ export function useStudioState({
       }
       setBaselineTheme(sent.bp.theme);
       setBaselineBp(sent.bp);
-      setHasUnsavedChanges(computeUnsaved(latestSnapshotRef.current, sent));
+      setSavedSnapshot(sent);
       setSavedNotice(true);
       savedNoticeTimeout.schedule(() => setSavedNotice(false), 2000);
     } catch (err) {
@@ -559,7 +571,6 @@ export function useStudioState({
     isReanalyzing,
     actionError,
     hasUnsavedChanges,
-    setHasUnsavedChanges,
     savedNotice,
     copiedKey,
     newCategoryName,

@@ -123,7 +123,7 @@ export function renderCustomSectionHtml(
   }
 
   if (sec.kind === "tarja") {
-    const bg = sanitizeCssColor(sec.backgroundColor, bp.theme.neutralBackground);
+    const bg = sanitizeCssColor(sec.backgroundColor, sanitizeCssColor(bp.theme.neutralBackground, PALETTE.neutralSurface));
     const itemsHtml = sec.items
       .slice(0, 4)
       .map(

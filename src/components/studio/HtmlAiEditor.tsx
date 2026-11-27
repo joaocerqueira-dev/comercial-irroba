@@ -250,7 +250,11 @@ export function HtmlAiEditor({
     }
   };
 
-  const iframeSrcDoc = useMemo(() => buildSafeIframeSrcDoc(html, bp, widthMode), [html, bp, widthMode]);
+  // Só monta o srcdoc (cheerio) com o modal aberto: fechado, nenhuma edição do Studio paga esse custo
+  const iframeSrcDoc = useMemo(
+    () => (modalOpen ? buildSafeIframeSrcDoc(html, bp, widthMode) : ""),
+    [modalOpen, html, bp, widthMode]
+  );
 
   return (
     <div className="space-y-2.5">

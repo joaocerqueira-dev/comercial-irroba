@@ -189,7 +189,7 @@ export function cssHeaderMenus(bp: StoreBlueprint, ctx: StorefrontContext): stri
       color: var(--header-foreground);
       font-size: 12px;
       font-weight: 500;
-      text-transform: ${bp.visualOverrides.header.categoryCase};
+      text-transform: ${bp.visualOverrides.header.categoryCase === "normal" ? "none" : bp.visualOverrides.header.categoryCase};
       letter-spacing: 0.04em;
       white-space: nowrap;
       flex-shrink: 0;

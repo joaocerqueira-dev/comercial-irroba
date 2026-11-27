@@ -68,3 +68,8 @@ ${buildStorefrontRuntime(bp, ctx)}
 </body>
 </html>`;
 }
+
+/** Versão sem inspetor de um documento compilado com `studioInspector` (evita compilar 2x no Studio). */
+export function withoutStudioInspector(html: string): string {
+  return html.replace(buildStudioInspectorSnippet(), "");
+}

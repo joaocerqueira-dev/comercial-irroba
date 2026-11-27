@@ -33,6 +33,9 @@ export const BLOCKED_TRACKER_PATTERNS = [
  * Só o primeiro destino deles é validado; a defesa restante é o egress do container.
  */
 export async function installSsrfGuard(page: Page, { timeoutMs = 20_000 } = {}): Promise<void> {
+  // WebSockets não passam por page.route: fecha todos (a extração não precisa deles).
+  // Service workers são bloqueados no newContext (`serviceWorkers: "block"`).
+  await page.context().routeWebSocket(/.*/, (ws) => ws.close());
   await page.route("**/*", async (route) => {
     const request = route.request();
     const rawUrl = request.url();
@@ -67,6 +70,18 @@ export async function installSsrfGuard(page: Page, { timeoutMs = 20_000 } = {}):
       return route.abort("failed");
     }
   });
+}
+
+/**
+ * `page.evaluate` não tem timeout no Playwright: um site com loop infinito prende a chamada
+ * (e a vaga do navegador) para sempre. Rejeita após `ms`; o `finally` do chamador fecha o contexto.
+ */
+export function withPageTimeout<T>(promise: Promise<T>, ms = 15_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timeout: script da página excedeu ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 /**

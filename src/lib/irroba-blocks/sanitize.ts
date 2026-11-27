@@ -67,7 +67,7 @@ export function sanitizeCssColor(color: string | undefined | null, fallback: str
 
 export function sanitizeFontName(font: string | undefined | null, fallback: string = FONT_FALLBACKS.body): string {
   if (!font) return fallback;
-  const cleaned = font.replace(/['";{}<>]/g, "").split(",")[0]?.trim();
+  const cleaned = font.replace(/['";{}<>&\\]/g, "").split(",")[0]?.trim();
   return cleaned || fallback;
 }
 
@@ -121,10 +121,14 @@ const FORBIDDEN_CUSTOM_HTML_TAGS = [
   "select",
   "template",
   "noscript",
+  "math",
 ].join(", ");
 
+// Animação SVG (SMIL) que reescreve href vira link javascript: sem passar pelo sanitizeUrl
+const SMIL_TAGS = "animate, set, animateMotion, animateTransform, discard";
+
 const FORBIDDEN_STYLE_PATTERN =
-  /expression\s*\(|javascript\s*:|vbscript\s*:|@import|-moz-binding|behavior\s*:|url\s*\(\s*['"]?\s*(?:javascript|vbscript|data\s*:)/i;
+  /position\s*:\s*fixed|expression\s*\(|javascript\s*:|vbscript\s*:|@import|-moz-binding|behavior\s*:|url\s*\(\s*['"]?\s*(?:javascript|vbscript|data\s*:)/i;
 
 function sanitizeInlineStyle(rawStyle: string): string {
   const withoutComments = rawStyle.replace(/\/\*[\s\S]*?\*\//g, "");
@@ -152,6 +156,10 @@ export function sanitizeCustomHtmlBlock(rawHtml: string | undefined | null): str
   const root = $("#__irb_sanitize_root__");
 
   root.find(FORBIDDEN_CUSTOM_HTML_TAGS).remove();
+  root.find(SMIL_TAGS).each((_, el) => {
+    const node = $(el);
+    if (/href/i.test(node.attr("attributeName") ?? node.attr("attributename") ?? "")) node.remove();
+  });
 
   root.find("*").each((_, el) => {
     const node = $(el);
@@ -162,7 +170,7 @@ export function sanitizeCustomHtmlBlock(rawHtml: string | undefined | null): str
       const lower = attrName.toLowerCase();
       const rawVal = attribs[attrName] ?? "";
 
-      if (lower.startsWith("on") || lower === "srcdoc" || lower === "formaction" || lower === "xlink:href") {
+      if (lower.startsWith("on") || lower === "srcdoc" || lower === "formaction") {
         node.removeAttr(attrName);
         continue;
       }

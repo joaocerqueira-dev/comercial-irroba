@@ -198,7 +198,7 @@ export function storefrontRuntimeCore(bp: StoreBlueprint, ctx: StorefrontContext
         if (catLabel === 'all') return true;
         const norm = catLabel.toLowerCase();
         const stem = norm.replace(/s$/, '');
-        const cats = (product.categories || [product.category || '']).map((c) => c.toLowerCase());
+        const cats = (product.categories || [product.category || '']).map((c) => c.toLowerCase()).filter(Boolean);
         return (
           cats.some((c) => c.includes(norm) || norm.includes(c)) ||
           (product.title || '').toLowerCase().includes(stem)

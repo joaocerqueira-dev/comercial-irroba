@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db";
-import { compileIrrobaExport } from "@/lib/irroba-blocks/compiler";
 import {
   collectCaptureRefs,
   deletePreviewCaptures,
@@ -79,7 +78,7 @@ export function resolveExtractionWarnings(preview: Pick<PreviewRow, "extractedDa
   return Array.isArray(warnings) ? warnings.filter((w): w is string => typeof w === "string") : [];
 }
 
-/** Grava blueprint + export compilado. */
+/** Grava o blueprint. O export é recompilado sob demanda (a coluna compiledExport não é mais lida). */
 export async function saveBlueprint(
   id: string,
   blueprint: StoreBlueprint,
@@ -92,7 +91,6 @@ export async function saveBlueprint(
       ...(extra.sellerWhatsapp !== undefined ? { sellerWhatsapp: extra.sellerWhatsapp } : {}),
       ...(extra.generationMode ? { generationMode: extra.generationMode } : {}),
       blueprint: blueprint as object,
-      compiledExport: compileIrrobaExport(blueprint) as object,
     },
   });
 }

@@ -3,8 +3,8 @@ import crypto from "node:crypto";
 import { getSharedBrowser } from "./browser";
 import { isPublicHttpUrl } from "@/lib/net/safe-url";
 import { mirrorFilePrefix } from "@/lib/files/captures";
-import { fetchPublic, followPublicRedirects, readTextCapped } from "@/lib/net/safe-fetch";
-import { gotoPublic, installSsrfGuard } from "./page-guard";
+import { fetchPublic, followPublicRedirects, readBufferCapped, readTextCapped } from "@/lib/net/safe-fetch";
+import { gotoPublic, installSsrfGuard, withPageTimeout } from "./page-guard";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
@@ -16,6 +16,9 @@ import type {
   ExtractedStoreData,
 } from "@/lib/types/blueprint";
 import { MAX_IMAGE_URL_LENGTH } from "@/lib/types/blueprint";
+
+/** Teto por imagem espelhada (memória por job). */
+const MAX_MIRROR_IMAGE_BYTES = 8_000_000;
 
 function valueIsNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v);
@@ -934,6 +937,7 @@ export async function extractStoreFromUrl(
     context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: "pt-BR",
+      serviceWorkers: "block",
       userAgent:
         BROWSER_USER_AGENT,
     });
@@ -972,14 +976,14 @@ export async function extractStoreFromUrl(
     await page.waitForTimeout(2000);
 
     // Full-page progressive scroll to trigger all lazy-loaded banners, shelves, and footer
-    await page.evaluate(async () => {
+    await withPageTimeout(page.evaluate(async () => {
       const maxScroll = Math.min(document.body.scrollHeight || 4200, 5600);
       for (let y = 600; y <= maxScroll; y += 700) {
         window.scrollTo(0, y);
         await new Promise((r) => setTimeout(r, 380));
       }
       window.scrollTo(0, 0);
-    });
+    }));
     await page.waitForTimeout(900);
 
     await page.screenshot({ path: screenshotDiskPath, fullPage: false });
@@ -991,7 +995,7 @@ export async function extractStoreFromUrl(
 
     const renderedHtml = await page.content();
 
-    const domInspection = await page.evaluate(() => {
+    const domInspection = await withPageTimeout(page.evaluate(() => {
       const pickVisibleBg = (el: Element | null): string | undefined => {
         if (!el) return undefined;
         const bg = getComputedStyle(el).backgroundColor;
@@ -1286,7 +1290,7 @@ export async function extractStoreFromUrl(
         headerLogoUrl: headerLogo?.src,
         liveNavLinks,
       };
-    });
+    }));
 
     const parsed = extractStoreFromHtml(renderedHtml, normalizedUrl);
     if (fastPlatform !== "Desconhecida" && parsed.detectedPlatform === "Plataforma Não Identificada") {
@@ -1368,9 +1372,11 @@ export async function extractStoreFromUrl(
       borderRadiusPx: domInspection.borderRadiusPx,
     };
 
+    signal?.throwIfAborted();
     await enrichProductsByCategory(parsed, normalizedUrl);
     await Promise.allSettled(pendingCaptures);
     normalizeExtractedImageUrls(parsed, normalizedUrl);
+    signal?.throwIfAborted();
     await mirrorCriticalImages(
       parsed,
       normalizedUrl,
@@ -1388,7 +1394,8 @@ export async function extractStoreFromUrl(
 
     return parsed;
   } catch (error) {
-    if (fastHtml) {
+    // Cancelado/estourou o orçamento: não roda o fallback inteiro (enrich + mirror) à toa
+    if (fastHtml && !signal?.aborted) {
       const fallback = extractStoreFromHtml(fastHtml, normalizedUrl);
       fallback.detectedPlatform = fastPlatform;
       if (fallback.detectedPlatform === "Shopify" && fallback.products.length < 4) {
@@ -1522,8 +1529,10 @@ export async function mirrorCriticalImages(
           if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
             return null;
           }
+          // APIResponse não tem stream: corta pelo content-length declarado antes de ler o corpo
+          if (Number(res.headers()["content-length"]) > MAX_MIRROR_IMAGE_BYTES) return null;
           const buf = await res.body();
-          if (buf.length < 300 || isInvalidImagePayload(buf)) return null;
+          if (buf.length < 300 || buf.length > MAX_MIRROR_IMAGE_BYTES || isInvalidImagePayload(buf)) return null;
           return { buf, ct };
         }
       } catch {
@@ -1544,7 +1553,7 @@ export async function mirrorCriticalImages(
         if (ct && !ct.toLowerCase().includes("image") && !ct.toLowerCase().includes("octet-stream")) {
           return null;
         }
-        const buf = Buffer.from(await res.arrayBuffer());
+        const buf = await readBufferCapped(res, MAX_MIRROR_IMAGE_BYTES);
         if (buf.length < 300 || isInvalidImagePayload(buf)) return null;
         return { buf, ct };
       } catch {

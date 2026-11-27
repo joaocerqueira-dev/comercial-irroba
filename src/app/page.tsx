@@ -79,8 +79,15 @@ export default function HomePage() {
     }
   };
 
+  // A geração segue no servidor se o usuário sair da página; só não pode "sequestrar"
+  // a navegação com o router.push do evento done.
+  const mountedRef = useRef(true);
   useEffect(() => {
+    mountedRef.current = true;
     loadPreviews();
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -119,7 +126,7 @@ export default function HomePage() {
         } else if (eventName === "done") {
           setProgress(100);
           setStatusMessage("Preview gerado com sucesso!");
-          await loadPreviews();
+          if (!mountedRef.current) return true;
           router.push(`/studio/${String(payload.id)}`);
           // Caso a navegação não desmonte a página, não deixa o formulário travado
           setIsGenerating(false);
